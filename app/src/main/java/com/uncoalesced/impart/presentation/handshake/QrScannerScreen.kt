@@ -31,6 +31,7 @@ import java.util.concurrent.Executors
 @Composable
 fun QrScannerScreen(onQrScanned: (String) -> Unit) {
     val context = LocalContext.current
+    @Suppress("DEPRECATION")
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     
