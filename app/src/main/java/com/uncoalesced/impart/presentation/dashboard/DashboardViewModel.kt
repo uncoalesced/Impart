@@ -4,6 +4,7 @@ package com.uncoalesced.impart.presentation.dashboard
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.uncoalesced.impart.core.security.CloakManager
+import com.uncoalesced.impart.core.security.DeadManSwitchManager
 import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.security.PinVerificationResult
 import com.uncoalesced.impart.core.util.LocationHelper
@@ -34,7 +35,8 @@ class DashboardViewModel @Inject constructor(
     private val relayManager: RelayManager,
     private val locationHelper: LocationHelper,
     private val duressManager: DuressManager,
-    private val cloakManager: CloakManager
+    private val cloakManager: CloakManager,
+    private val deadManSwitchManager: DeadManSwitchManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<DashboardUiState>(DashboardUiState.Idle)
@@ -42,6 +44,12 @@ class DashboardViewModel @Inject constructor(
 
     private val _isCloaked = MutableStateFlow(cloakManager.isCloaked())
     val isCloaked: StateFlow<Boolean> = _isCloaked
+
+    private val _dmsIntervalHours = MutableStateFlow(deadManSwitchManager.getIntervalHours())
+    val dmsIntervalHours: StateFlow<Int> = _dmsIntervalHours
+
+    private val _dmsLastCheckin = MutableStateFlow(deadManSwitchManager.getLastCheckin())
+    val dmsLastCheckin: StateFlow<Long> = _dmsLastCheckin
 
     val activeContacts: StateFlow<List<Contact>> = contactRepository.getActiveContacts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -53,10 +61,11 @@ class DashboardViewModel @Inject constructor(
             val loc = locationHelper.getCurrentLocation()
             
             val result = relayManager.dispatchPanic(
-                contact.fcmToken, 
-                contact.publicKeyBase64,
-                loc?.first,
-                loc?.second
+                targetFcmToken = contact.fcmToken, 
+                counterpartPublicKeyBase64 = contact.publicKeyBase64,
+                targetPhoneNumber = contact.phoneNumber,
+                lat = loc?.first,
+                lng = loc?.second
             )
             
             if (result.isSuccess) {
@@ -78,10 +87,11 @@ class DashboardViewModel @Inject constructor(
             val deferreds = contacts.map { contact ->
                 async {
                     relayManager.dispatchPanic(
-                        contact.fcmToken, 
-                        contact.publicKeyBase64,
-                        loc?.first,
-                        loc?.second
+                        targetFcmToken = contact.fcmToken, 
+                        counterpartPublicKeyBase64 = contact.publicKeyBase64,
+                        targetPhoneNumber = contact.phoneNumber,
+                        lat = loc?.first,
+                        lng = loc?.second
                     )
                 }
             }
@@ -106,6 +116,17 @@ class DashboardViewModel @Inject constructor(
     fun toggleCloakMode(enabled: Boolean) {
         cloakManager.setCloakEnabled(enabled)
         _isCloaked.value = enabled
+    }
+
+    fun setDmsInterval(hours: Int) {
+        deadManSwitchManager.setIntervalHours(hours)
+        _dmsIntervalHours.value = hours
+        _dmsLastCheckin.value = deadManSwitchManager.getLastCheckin()
+    }
+
+    fun dmsCheckIn() {
+        deadManSwitchManager.checkIn()
+        _dmsLastCheckin.value = deadManSwitchManager.getLastCheckin()
     }
 
     fun isNodeCorrupted(): Boolean = duressManager.isNodeCorrupted()
