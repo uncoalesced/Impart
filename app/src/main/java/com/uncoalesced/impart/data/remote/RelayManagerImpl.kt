@@ -132,6 +132,7 @@ class RelayManagerImpl @Inject constructor(
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun dispatchSmsFallback(phoneNumber: String?, ciphertext: String): Result<Unit> {
         if (phoneNumber.isNullOrBlank()) {
             return Result.failure(IllegalStateException("No network and no phone number available for fallback."))
