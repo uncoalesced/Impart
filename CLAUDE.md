@@ -34,7 +34,7 @@ npm run deploy         # firebase deploy --only functions
 - `debug.keystore` at repo root is used by the `debugConfig` signing config (password `android`).
 - Toolchain: JDK 17, `compileSdk`/`targetSdk` 35, `minSdk` 26. Kotlin 2.0.21, AGP 8.8.2, Gradle version catalog at `gradle/libs.versions.toml`.
 
-Note: `namespace` is `com.uncoalesced.impart` but `applicationId` is `com.aistudio.impart.uncoalesced` — keep these distinct when touching Firebase/manifest config.
+Note: `namespace` and `applicationId` are both `com.uncoalesced.impart`. The Firebase Android app must be registered under this exact package, and `google-services.json` must contain a matching `package_name` entry or the `processDebugGoogleServices` task fails the build.
 
 ## Architecture
 
