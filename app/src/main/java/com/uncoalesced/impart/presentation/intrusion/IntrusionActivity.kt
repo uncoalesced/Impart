@@ -2,7 +2,9 @@
 package com.uncoalesced.impart.presentation.intrusion
 
 import android.app.KeyguardManager
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.lifecycle.lifecycleScope
@@ -21,8 +23,18 @@ class IntrusionActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        setShowWhenLocked(true)
-        setTurnScreenOn(true)
+        // setShowWhenLocked/setTurnScreenOn are API 27+; minSdk is 26, so API 26 falls back
+        // to the equivalent window flags or the intrusion screen crashes before it renders.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+            )
+        }
 
         val keyguardManager = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         keyguardManager.requestDismissKeyguard(this, null)
