@@ -8,11 +8,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Timer
@@ -21,13 +24,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.uncoalesced.impart.core.security.PinVerificationResult
 import com.uncoalesced.impart.domain.model.Contact
+import com.uncoalesced.impart.presentation.components.HoldToFireButton
 import com.uncoalesced.impart.presentation.decoy.NodeCorruptedScreen
 import com.uncoalesced.impart.presentation.security.SecurityAuthDialog
 import com.uncoalesced.impart.presentation.theme.*
@@ -44,31 +52,56 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
     
     val dmsIntervalHours by viewModel.dmsIntervalHours.collectAsState()
     val dmsLastCheckin by viewModel.dmsLastCheckin.collectAsState()
+    val locationSharingEnabled by viewModel.locationSharingEnabled.collectAsState()
+    val nodeIdentity by viewModel.nodeIdentity.collectAsState()
 
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     var showAuthDialog by remember { mutableStateOf(false) }
     var smsFallbackEnabled by remember { mutableStateOf(true) }
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
         onResult = {}
     )
 
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+        onResult = { grants ->
+            val granted = grants.values.any { it }
+            viewModel.setLocationSharingEnabled(granted)
+            if (!granted) {
+                Toast.makeText(
+                    context,
+                    "Location permission denied. Location sharing remains off.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    )
+
     LaunchedEffect(Unit) {
+        // Location is requested only from the SHARE LOCATION ON PANIC toggle, never here.
         val permissions = mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.SEND_SMS,
             Manifest.permission.RECEIVE_SMS
         )
-        
-        val missing = permissions.filter { 
-            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED 
+
+        val missing = permissions.filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }
-        
+
         if (missing.isNotEmpty()) {
             permissionLauncher.launch(missing.toTypedArray())
+        }
+    }
+
+    LaunchedEffect(dmsIntervalHours) {
+        while (dmsIntervalHours > 0) {
+            nowMillis = System.currentTimeMillis()
+            delay(1000)
         }
     }
 
@@ -109,6 +142,7 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(ImpartBackground)
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -132,6 +166,74 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                     contentDescription = "Auth Security",
                     tint = ImpartPanicRed
                 )
+            }
+        }
+
+        // My Node Identity
+        Card(
+            colors = CardDefaults.cardColors(containerColor = ImpartSecondary.copy(alpha = 0.15f)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Fingerprint,
+                        contentDescription = "Node Identity",
+                        tint = ImpartSecondary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "MY NODE IDENTITY",
+                        color = ImpartTextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                when (val identity = nodeIdentity) {
+                    is NodeIdentityState.Loading -> {
+                        Text("Resolving node identity...", color = ImpartSecondary, fontSize = 10.sp)
+                    }
+                    is NodeIdentityState.Ready -> {
+                        IdentityRow(
+                            label = "UUID",
+                            value = identity.uuid,
+                            onCopy = {
+                                clipboardManager.setText(AnnotatedString(identity.uuid))
+                                Toast.makeText(context, "UUID copied", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        IdentityRow(
+                            label = "FCM TOKEN",
+                            value = identity.fcmToken,
+                            onCopy = {
+                                clipboardManager.setText(AnnotatedString(identity.fcmToken))
+                                Toast.makeText(context, "FCM token copied", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
+                    is NodeIdentityState.Unavailable -> {
+                        IdentityRow(
+                            label = "UUID",
+                            value = identity.uuid,
+                            onCopy = {
+                                clipboardManager.setText(AnnotatedString(identity.uuid))
+                                Toast.makeText(context, "UUID copied", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "FCM TOKEN UNAVAILABLE: ${identity.message}",
+                            color = ImpartAmber,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
 
@@ -227,6 +329,74 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
             }
         }
 
+        // Location Sharing Switcher (opt-in, persisted)
+        Card(
+            colors = CardDefaults.cardColors(containerColor = ImpartSecondary.copy(alpha = 0.15f)),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = "Location Sharing",
+                        tint = ImpartSecondary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "SHARE LOCATION ON PANIC",
+                            color = ImpartTextPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Attach coordinates to outgoing alerts",
+                            color = ImpartSecondary,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+
+                Switch(
+                    checked = locationSharingEnabled,
+                    onCheckedChange = { enabled ->
+                        if (!enabled) {
+                            viewModel.setLocationSharingEnabled(false)
+                            return@Switch
+                        }
+                        val granted = ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.ACCESS_FINE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED ||
+                            ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.ACCESS_COARSE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED
+
+                        if (granted) {
+                            viewModel.setLocationSharingEnabled(true)
+                        } else {
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = ImpartTextPrimary,
+                        checkedTrackColor = ImpartPanicRed,
+                        uncheckedThumbColor = ImpartSecondary,
+                        uncheckedTrackColor = ImpartBackground
+                    )
+                )
+            }
+        }
+
         // Dead Man's Switch Card
         Card(
             colors = CardDefaults.cardColors(containerColor = ImpartSecondary.copy(alpha = 0.1f)),
@@ -262,6 +432,29 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                     color = ImpartSecondary,
                     fontSize = 12.sp
                 )
+
+                if (dmsIntervalHours > 0 && dmsLastCheckin > 0L) {
+                    val remainingMillis =
+                        dmsLastCheckin + dmsIntervalHours * 3_600_000L - nowMillis
+                    val overdue = remainingMillis <= 0L
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (overdue) {
+                            "CHECK-IN OVERDUE - DISPATCH PENDING"
+                        } else {
+                            "NEXT CHECK-IN REQUIRED IN: ${formatCountdown(remainingMillis)}"
+                        },
+                        color = if (overdue || remainingMillis < 3_600_000L) {
+                            ImpartAmber
+                        } else {
+                            ImpartTextPrimary
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -324,30 +517,25 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                 if (contacts.isEmpty()) {
                     Text("No trusted contacts found. Add a contact first.", color = ImpartSecondary)
                 } else {
-                    Button(
-                        onClick = { viewModel.broadcastPanic(contacts) },
-                        modifier = Modifier.fillMaxWidth().height(64.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = ImpartPanicDark,
-                            contentColor = ImpartTextPrimary
-                        )
-                    ) {
-                        Text(
-                            text = "BROADCAST PANIC (ALL NODES)",
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 16.sp
-                        )
-                    }
-                    
+                    HoldToFireButton(
+                        label = "BROADCAST PANIC (ALL NODES)",
+                        containerColor = ImpartPanicDark,
+                        onFire = { viewModel.broadcastPanic(contacts) },
+                        modifier = Modifier.fillMaxWidth().height(64.dp)
+                    )
+
                     Spacer(modifier = Modifier.height(24.dp))
-                    Text("Select a contact to INITIATE PANIC:", color = ImpartSecondary)
+                    Text("Hold a contact button to INITIATE PANIC:", color = ImpartSecondary)
                     Spacer(modifier = Modifier.height(16.dp))
-                    
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
+
+                    // ponytail: plain Column instead of LazyColumn so the whole dashboard is one
+                    // scroll container. Contacts are bounded by physical QR pairings; swap back to
+                    // a single top-level LazyColumn if the list ever grows past a few dozen.
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(contacts) { contact ->
+                        contacts.forEach { contact ->
                             PanicButton(contact = contact) {
                                 viewModel.initiatePanic(it)
                             }
@@ -362,17 +550,50 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
 
 @Composable
 fun PanicButton(contact: Contact, onPanic: (Contact) -> Unit) {
-    Button(
-        onClick = { onPanic(contact) },
+    HoldToFireButton(
+        label = "INITIATE PANIC: ${contact.nickname ?: contact.uuid.take(8)}",
+        containerColor = ImpartPanicRed,
+        onFire = { onPanic(contact) },
         modifier = Modifier.fillMaxWidth().height(80.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = ImpartPanicRed,
-            contentColor = ImpartTextPrimary
-        )
+        fontSize = 20.sp
+    )
+}
+
+@Composable
+private fun IdentityRow(label: String, value: String, onCopy: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "INITIATE PANIC: ${contact.nickname ?: contact.uuid.take(8)}",
-            style = MaterialTheme.typography.titleLarge
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = label, color = ImpartSecondary, fontSize = 9.sp)
+            Text(
+                text = value,
+                color = ImpartTextPrimary,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        IconButton(onClick = onCopy) {
+            Icon(
+                imageVector = Icons.Default.ContentCopy,
+                contentDescription = "Copy $label",
+                tint = ImpartSecondary
+            )
+        }
     }
+}
+
+private fun formatCountdown(millis: Long): String {
+    val totalSeconds = millis / 1000
+    return String.format(
+        Locale.getDefault(),
+        "%02d:%02d:%02d",
+        totalSeconds / 3600,
+        (totalSeconds % 3600) / 60,
+        totalSeconds % 60
+    )
 }

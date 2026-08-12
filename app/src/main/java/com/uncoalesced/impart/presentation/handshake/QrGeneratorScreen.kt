@@ -21,8 +21,8 @@ import com.google.zxing.qrcode.QRCodeWriter
 import com.uncoalesced.impart.presentation.theme.*
 
 @Composable
-fun QrGeneratorScreen(payloadJson: String) {
-    val bitmap = generateQrCode(payloadJson)
+fun QrGeneratorScreen(payloadJson: String, errorMessage: String? = null) {
+    val bitmap = if (errorMessage == null) generateQrCode(payloadJson) else null
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -64,7 +64,7 @@ fun QrGeneratorScreen(payloadJson: String) {
                     )
                 } else {
                     Text(
-                        text = "FAILED TO GENERATE",
+                        text = errorMessage ?: "FAILED TO GENERATE",
                         color = ImpartPanicRed,
                         fontWeight = FontWeight.Bold
                     )

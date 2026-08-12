@@ -34,7 +34,6 @@ import com.uncoalesced.impart.presentation.theme.ImpartSecondary
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 import com.uncoalesced.impart.presentation.theme.ImpartTheme
 import dagger.hilt.android.AndroidEntryPoint
-import java.util.UUID
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -64,10 +63,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkPermissions() {
+        // Location permissions are deliberately absent here. They are requested only when
+        // the user turns on "SHARE LOCATION ON PANIC" from the dashboard.
         val permissions = mutableListOf(
             Manifest.permission.CAMERA,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.SEND_SMS,
             Manifest.permission.RECEIVE_SMS,
@@ -90,9 +89,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppScreen() {
     var selectedTab by remember { mutableIntStateOf(0) }
-
-    val localUuid = remember { UUID.randomUUID().toString() }
-    val localFcmToken = "fcm_token_placeholder"
 
     Scaffold(
         bottomBar = {
@@ -147,10 +143,14 @@ fun MainAppScreen() {
                 1 -> {
                     val handshakeVm: HandshakeViewModel = hiltViewModel()
                     LaunchedEffect(Unit) {
-                        handshakeVm.generatePayload(localUuid, localFcmToken)
+                        handshakeVm.generatePayload()
                     }
                     val payloadJson by handshakeVm.localPayloadJson.collectAsState()
-                    QrGeneratorScreen(payloadJson = payloadJson ?: "")
+                    val payloadError by handshakeVm.payloadError.collectAsState()
+                    QrGeneratorScreen(
+                        payloadJson = payloadJson ?: "",
+                        errorMessage = payloadError
+                    )
                 }
                 2 -> {
                     val handshakeVm: HandshakeViewModel = hiltViewModel()
@@ -161,7 +161,11 @@ fun MainAppScreen() {
                 }
                 3 -> {
                     val matrixVm: ContactMatrixViewModel = hiltViewModel()
-                    ContactMatrixScreen(viewModel = matrixVm)
+                    ContactMatrixScreen(
+                        viewModel = matrixVm,
+                        onMyQr = { selectedTab = 1 },
+                        onScanQr = { selectedTab = 2 }
+                    )
                 }
             }
         }
