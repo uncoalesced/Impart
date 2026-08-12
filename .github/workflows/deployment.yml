@@ -23,13 +23,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check signing secrets present
+      - name: Check release secrets present
         id: secrets
         env:
           KS: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           if [ -z "$KS" ]; then
             echo "::error::RELEASE_KEYSTORE_BASE64 not set - cannot produce a signed release. Configure release signing secrets before deploying."
+            exit 1
+          fi
+          # Without the real config, gen-google-services.sh falls back to the CI stub.
+          # That stub builds fine but points at a placeholder project, so a shipped
+          # artifact would have no FCM delivery at all - the one thing this app does.
+          if [ -z "$GS" ]; then
+            echo "::error::GOOGLE_SERVICES_JSON not set - refusing to ship a release built against the CI placeholder Firebase config."
             exit 1
           fi
       - uses: actions/setup-java@v4
@@ -64,12 +72,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check signing secrets present
+      - name: Check release secrets present
         env:
           KS: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           if [ -z "$KS" ]; then
             echo "::error::RELEASE_KEYSTORE_BASE64 not set - cannot produce a signed release."
+            exit 1
+          fi
+          if [ -z "$GS" ]; then
+            echo "::error::GOOGLE_SERVICES_JSON not set - refusing to ship a release built against the CI placeholder Firebase config."
             exit 1
           fi
       - uses: actions/setup-java@v4
