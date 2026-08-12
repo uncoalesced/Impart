@@ -8,10 +8,13 @@ import com.uncoalesced.impart.core.security.DeadManSwitchManager
 import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.security.PinVerificationResult
 import com.uncoalesced.impart.core.util.LocationHelper
+import com.uncoalesced.impart.core.util.NodeIdentityHelper
+import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.domain.model.Contact
 import com.uncoalesced.impart.domain.repository.ContactRepository
 import com.uncoalesced.impart.domain.repository.RelayManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +32,12 @@ sealed interface DashboardUiState {
     data class Error(val message: String) : DashboardUiState
 }
 
+sealed interface NodeIdentityState {
+    object Loading : NodeIdentityState
+    data class Ready(val uuid: String, val fcmToken: String) : NodeIdentityState
+    data class Unavailable(val uuid: String, val message: String) : NodeIdentityState
+}
+
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
     contactRepository: ContactRepository,
@@ -36,7 +45,9 @@ class DashboardViewModel @Inject constructor(
     private val locationHelper: LocationHelper,
     private val duressManager: DuressManager,
     private val cloakManager: CloakManager,
-    private val deadManSwitchManager: DeadManSwitchManager
+    private val deadManSwitchManager: DeadManSwitchManager,
+    private val securePrefsManager: SecurePrefsManager,
+    private val nodeIdentityHelper: NodeIdentityHelper
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<DashboardUiState>(DashboardUiState.Idle)
@@ -51,15 +62,33 @@ class DashboardViewModel @Inject constructor(
     private val _dmsLastCheckin = MutableStateFlow(deadManSwitchManager.getLastCheckin())
     val dmsLastCheckin: StateFlow<Long> = _dmsLastCheckin
 
+    private val _locationSharingEnabled = MutableStateFlow(securePrefsManager.isLocationSharingEnabled())
+    val locationSharingEnabled: StateFlow<Boolean> = _locationSharingEnabled
+
+    private val _nodeIdentity = MutableStateFlow<NodeIdentityState>(NodeIdentityState.Loading)
+    val nodeIdentity: StateFlow<NodeIdentityState> = _nodeIdentity
+
     val activeContacts: StateFlow<List<Contact>> = contactRepository.getActiveContacts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            val uuid = nodeIdentityHelper.localUuid()
+            _nodeIdentity.value = nodeIdentityHelper.resolve().fold(
+                onSuccess = { NodeIdentityState.Ready(it.uuid, it.fcmToken) },
+                onFailure = {
+                    NodeIdentityState.Unavailable(uuid, it.message ?: "FCM token unavailable")
+                }
+            )
+        }
+    }
 
     fun initiatePanic(contact: Contact) {
         viewModelScope.launch {
             _uiState.value = DashboardUiState.Loading
-            
-            val loc = locationHelper.getCurrentLocation()
-            
+
+            val loc = resolveLocation()
+
             val result = relayManager.dispatchPanic(
                 targetFcmToken = contact.fcmToken, 
                 counterpartPublicKeyBase64 = contact.publicKeyBase64,
@@ -81,9 +110,9 @@ class DashboardViewModel @Inject constructor(
         
         viewModelScope.launch {
             _uiState.value = DashboardUiState.Loading
-            
-            val loc = locationHelper.getCurrentLocation()
-            
+
+            val loc = resolveLocation()
+
             val deferreds = contacts.map { contact ->
                 async {
                     relayManager.dispatchPanic(
@@ -103,6 +132,18 @@ class DashboardViewModel @Inject constructor(
                 _uiState.value = DashboardUiState.Success
             }
         }
+    }
+
+    // Location is opt-in. Off means the panic payload carries no coordinates at all,
+    // not a stale or coarse fallback.
+    private suspend fun resolveLocation(): Pair<Double, Double>? {
+        if (!_locationSharingEnabled.value) return null
+        return locationHelper.getCurrentLocation()
+    }
+
+    fun setLocationSharingEnabled(enabled: Boolean) {
+        securePrefsManager.setLocationSharingEnabled(enabled)
+        _locationSharingEnabled.value = enabled
     }
 
     fun verifySecurityPin(pin: String): PinVerificationResult {

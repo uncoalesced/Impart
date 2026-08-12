@@ -9,3 +9,5 @@ val ImpartSecondary    = Color(0xFF8D99AE) // Muted Labels & Unselected State
 val ImpartTextPrimary  = Color(0xFFEDF2F4) // Crisp High-Contrast Text
 val ImpartPanicRed     = Color(0xFFEF233C) // Primary Intrusion & Panic Button
 val ImpartPanicDark    = Color(0xFFD90429) // Critical Accent & Pressed States
+val ImpartAmber        = Color(0xFFFFB000) // Expiring / Stale Warning (non-emergency)
+val ImpartVerified     = Color(0xFF2FBF71) // Recently Verified / Healthy State
