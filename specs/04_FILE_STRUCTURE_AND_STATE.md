@@ -5,151 +5,127 @@
 
 ## 1. What this document is
 
-The map of the repository as it exists today, one line per file, with the responsibility each file actually carries. When a file is added, renamed or deleted, this is the document to update in the same commit. Aspirational entries are marked `[TODO]`; everything else is built and in use.
+A map of the repository as it exists today, one line per file, with what each file is responsible for. Update it in the same commit that adds, renames or deletes a file. Anything marked `[TODO]` does not exist yet. Everything else is built and in use.
 
 ## 2. Directory tree
 
 ```
 Impart/
-├── build.gradle.kts                       plugin declarations only
-├── settings.gradle.kts                    single module: :app
+├── TERMS.md, PRIVACY.md, LICENSE          legal documents; copied into the APK at build time
+├── build.gradle.kts, settings.gradle.kts  plugins; single module :app
 ├── gradle/libs.versions.toml              every dependency version, nothing inline elsewhere
-├── debug.keystore                         shared debug signing key (password: android)
-├── .github/
-│   ├── workflows/{development,main,deployment}.yml
-│   └── scripts/standards-check.sh         signature, palette, Compose-only, secret scan
+├── debug.keystore                         shared debug key (password android); public on purpose
+├── .github/workflows/                     development, main and deployment pipelines
+├── .github/scripts/standards-check.sh     signature, palette, Compose-only and secret checks
 ├── specs/                                 these documents
 │
 └── app/
-    ├── build.gradle.kts                   compileSdk 35, minSdk 26, env-driven release signing
+    ├── build.gradle.kts                   SDK levels, env-driven release signing, and the
+    │                                      CopyLegalDocuments task feeding assets/legal/
     └── src/
-        ├── main/AndroidManifest.xml       SMS, camera, location, notification, wake-lock and
-        │                                  full-screen-intent permissions; allowBackup=false;
-        │                                  MainActivity, Calculator alias, IntrusionActivity
-        │                                  (singleTop, showWhenLocked, turnScreenOn), both
-        │                                  receivers, WorkManager initializer removal
-        ├── main/res/
-        │   ├── values/{strings,colors,themes}.xml   black window background; the one XML
-        │   │                                        mirror of the palette
-        │   ├── drawable/ic_launcher_foreground.xml  placeholder beacon mark (no logo yet)
-        │   ├── drawable/ic_calculator_foreground.xml  cloak alias glyph
-        │   └── mipmap-anydpi-v26/                   adaptive icons for app and alias
+        ├── main/AndroidManifest.xml       permissions, allowBackup=false, launcher and Calculator
+        │                                  alias, IntrusionActivity, the SMS receiver (requires
+        │                                  BROADCAST_SMS), the sent-intent receiver
+        ├── main/res/                      black window theme, palette mirror, placeholder icons
         │
         ├── main/java/com/uncoalesced/impart/
-        │   ├── ImpartApplication.kt           @HiltAndroidApp, WorkManager config, creates
-        │   │                                  notification channels once
-        │   ├── MainActivity.kt                permission requests, tab navigation, swaps the
-        │   │                                  whole window to the decoy on duress
+        │   ├── ImpartApplication.kt           Hilt entry point, WorkManager config, notification channels
+        │   ├── MainActivity.kt                gate order (decoy, terms, PIN setup, lock, app), five
+        │   │                                  tabs, key-change dialog, FLAG_SECURE, lock lifecycle
         │   │
         │   ├── core/
-        │   │   ├── di/
-        │   │   │   ├── DatabaseModule.kt      Room database and ContactDao
-        │   │   │   └── RepositoryModule.kt    binds ContactRepository, RelayManager, KeysetSource
+        │   │   ├── di/DatabaseModule.kt       Room database, ContactDao, SeenAlertDao
+        │   │   ├── di/RepositoryModule.kt     binds repositories, relay, KeysetSource, SeenAlertStore,
+        │   │   │                              WallClock
         │   │   ├── security/
-        │   │   │   ├── KeysetSource.kt        the seam between CryptoManager and the Keystore
-        │   │   │   ├── KeystoreHelper.kt      Tink AndroidKeysetManager, cached handle, purge
-        │   │   │   ├── CryptoManager.kt       encrypt, decrypt, export/validate public key;
-        │   │   │   │                          no android imports, throws on failure
-        │   │   │   ├── QrPayloadCodec.kt      handshake JSON <-> HandshakePayload (Result)
-        │   │   │   ├── PanicPayloadCodec.kt   IMPART_ALERT_PREFIX; alert JSON <-> PanicPayload
-        │   │   │   ├── DuressManager.kt       PIN verification, PIN update, nuclear wipe,
-        │   │   │   │                          isCorrupted StateFlow
-        │   │   │   ├── CloakManager.kt        launcher alias toggle, state from PackageManager
-        │   │   │   └── DeadManSwitchManager.kt  WorkManager scheduling, interval and
-        │   │   │                                last-check-in StateFlows
+        │   │   │   ├── KeysetSource.kt        seam to the Keystore: hybrid and signing keysets
+        │   │   │   ├── KeystoreHelper.kt      Tink AndroidKeysetManager for both keysets, cached, purge
+        │   │   │   ├── CryptoManager.kt       HPKE encrypt/decrypt, Ed25519 sign/verify, key export and
+        │   │   │   │                          validation; no android imports
+        │   │   │   ├── AlertEnvelope.kt       sign-then-encrypt for outgoing alerts
+        │   │   │   ├── AlertVerifier.kt       every check an incoming alert must pass; AlertVerdict
+        │   │   │   ├── PanicPayloadCodec.kt   IMPART_ALERT_PREFIX, v2 payload JSON, signed envelope,
+        │   │   │   │                          message IDs
+        │   │   │   ├── QrPayloadCodec.kt      v2 handshake QR JSON
+        │   │   │   ├── KeyFingerprint.kt      80-bit fingerprint of a node's two public keys
+        │   │   │   ├── AppLockManager.kt      in-memory unlock state, re-lock after 30 s, PIN submission
+        │   │   │   ├── LockoutPolicy.kt       wait after repeated wrong PINs
+        │   │   │   ├── DuressManager.kt       what a PIN means, PIN rules, nuclear wipe, isCorrupted
+        │   │   │   ├── CloakManager.kt        Calculator launcher alias
+        │   │   │   └── DeadManSwitchManager.kt  WorkManager schedule and check-in state
         │   │   ├── services/
-        │   │   │   ├── ImpartNotifications.kt  channel ids, notification ids, ensureChannels,
-        │   │   │   │                           notifyHeadsUp
-        │   │   │   ├── ImpartSmsReceiver.kt    the brain: prefix match, wake lock, goAsync,
-        │   │   │   │                           decrypt, trust lookup, full-screen intent
-        │   │   │   └── SmsSentReceiver.kt      sent-intent callback; failed parts become
-        │   │   │                               notifications
+        │   │   │   ├── ImpartSmsReceiver.kt   prefix match, wake lock, goAsync, verdict to notification
+        │   │   │   │                          or full-screen intent
+        │   │   │   ├── SmsSentReceiver.kt     failed SMS parts become notifications
+        │   │   │   └── ImpartNotifications.kt channels, notification IDs, heads-up helper
         │   │   ├── util/
-        │   │   │   ├── LocationHelper.kt       single-shot fused location, best effort
-        │   │   │   ├── NodeReadinessChecker.kt permissions, notifications, full-screen intent,
-        │   │   │   │                           battery, SIM, number, contacts, with fixes
-        │   │   │   └── TimeFormat.kt           formatCountdown
-        │   │   └── workers/
-        │   │       ├── DeadMansSwitchWorker.kt broadcastPanic to every contact, reports result
-        │   │       └── WarningNotificationWorker.kt  one-hour warning
+        │   │   │   ├── NodeReadinessChecker.kt  build type, permissions, full-screen intent, battery,
+        │   │   │   │                            SIM, number, contacts, each with a fix
+        │   │   │   ├── LegalDocumentParser.kt   Markdown subset and plain text to LegalBlocks
+        │   │   │   ├── LocationHelper.kt        one fused location fix, best effort
+        │   │   │   ├── Redact.kt                log-safe numbers and UUIDs
+        │   │   │   └── TimeFormat.kt            formatCountdown
+        │   │   └── workers/                   DeadMansSwitchWorker, WarningNotificationWorker
         │   │
         │   ├── domain/                        pure Kotlin, no android imports
-        │   │   ├── model/
-        │   │   │   ├── Contact.kt             plus the displayName extension
-        │   │   │   ├── HandshakePayload.kt    uuid, phoneNumber, publicKeyBase64
-        │   │   │   ├── NodeIdentity.kt        this node's uuid and phone number
-        │   │   │   ├── PanicPayload.kt        sealed: Panic(sender phone, key, lat, lng) | Ack
-        │   │   │   └── PanicDispatchReport.kt sent count and failure list
-        │   │   ├── repository/
-        │   │   │   ├── ContactRepository.kt   add, active flow, by uuid, by public key,
-        │   │   │   │                          rename, revoke
-        │   │   │   └── RelayManager.kt        dispatchPanic, broadcastPanic, dispatchAck
-        │   │   └── usecase/
-        │   │       ├── AddContactUseCase.kt   validates fields and self-scan, Result<Contact>
-        │   │       ├── RenameContactUseCase.kt trims, bounds length, Result<Unit>
-        │   │       └── RevokeContactUseCase.kt
+        │   │   ├── model/                     Contact (+displayName), HandshakePayload, NodeIdentity,
+        │   │   │                              PanicPayload (Panic | Ack), PanicDispatchReport,
+        │   │   │                              LegalDocument (+LegalBlock and contact constants)
+        │   │   ├── repository/                ContactRepository, RelayManager, SeenAlertStore, WallClock
+        │   │   ├── rules/PhoneNumbers.kt      normalization and the international-number rule
+        │   │   └── usecase/                   AddContactUseCase (Added | Refreshed | KeyChanged),
+        │   │                                  RenameContactUseCase, RevokeContactUseCase
         │   │
         │   ├── data/
-        │   │   ├── local/db/
-        │   │   │   ├── ImpartDatabase.kt      Room, version 3, NAME constant
-        │   │   │   ├── ContactDao.kt          queries including findActiveByPublicKey
-        │   │   │   └── entity/ContactEntity.kt  toDomain / fromDomain
+        │   │   ├── local/db/                  ImpartDatabase (v4), ContactDao, SeenAlertDao, entities
         │   │   ├── local/prefs/SecurePrefsManager.kt  the single EncryptedSharedPreferences
-        │   │   ├── remote/RelayManagerImpl.kt  SMS dispatcher with subscription selection and
-        │   │   │                               sent-intents
-        │   │   └── repository/ContactRepositoryImpl.kt
+        │   │   ├── local/assets/LegalDocumentLoader.kt  reads assets/legal/ off the main thread
+        │   │   ├── remote/RelayManagerImpl.kt  SMS dispatch: sign, encrypt, subscription, sent-intents
+        │   │   └── repository/                ContactRepositoryImpl, SeenAlertStoreImpl, SystemWallClock
         │   │
         │   └── presentation/
-        │       ├── theme/{Color,Theme,Type}.kt  palette v5: ImpartGround black, navy surfaces
-        │       ├── components/HoldToFireButton.kt  press-and-hold confirmation, with preview
-        │       ├── dashboard/
-        │       │   ├── DashboardScreen.kt     identity, readiness, cloak, location, dead man's
-        │       │   │                          switch, panic buttons, PIN dialogs
-        │       │   └── DashboardViewModel.kt  exposes manager flows, dispatches panics
-        │       ├── handshake/
-        │       │   ├── HandshakeViewModel.kt  qrState, scanEvents, phone number
-        │       │   ├── QrGeneratorScreen.kt   phone number entry, QR rendered off-thread
-        │       │   └── QrScannerScreen.kt     CameraX + ML Kit, single-shot, disposes cleanly
-        │       ├── contacts/
-        │       │   ├── ContactMatrixScreen.kt list, rename dialog, revoke dialog
-        │       │   └── ContactMatrixViewModel.kt
-        │       ├── intrusion/
-        │       │   ├── IntrusionActivity.kt   keyguard bypass, alarm lifecycle, ACK
-        │       │   ├── IntrusionAlarm.kt      MediaPlayer on USAGE_ALARM plus vibration
-        │       │   └── IntrusionScreen.kt     the red screen, sender name, coordinates
-        │       ├── security/
-        │       │   ├── SecurityAuthDialog.kt  PIN entry
-        │       │   └── PinSetupDialog.kt      set standard and duress PINs
-        │       └── decoy/NodeCorruptedScreen.kt  what a wiped node shows forever
+        │       ├── theme/                     palette v5 (black ground, navy surfaces), theme, type
+        │       ├── components/HoldToFireButton.kt
+        │       ├── dashboard/                 identity, readiness, cloak, location, dead man's switch,
+        │       │                              panic buttons
+        │       ├── handshake/                 My QR (number, QR, fingerprint), scanner, HandshakeViewModel
+        │       ├── contacts/                  list with fingerprints, rename, revoke
+        │       ├── intrusion/                 IntrusionActivity, IntrusionAlarm, IntrusionScreen
+        │       ├── security/                  AppLockScreen, PinSetupDialog, SecurityAuthDialog,
+        │       │                              ChangePinsFlow
+        │       ├── legal/                     LegalViewModel, LegalDocumentScreen, LegalAcceptanceScreen
+        │       ├── settings/                  SettingsScreen, SettingsViewModel
+        │       └── decoy/NodeCorruptedScreen.kt
         │
         └── test/java/com/uncoalesced/impart/
-            ├── core/security/CryptoManagerTest.kt      round trip with in-memory keysets
-            ├── core/security/QrPayloadCodecTest.kt
-            ├── core/security/PanicPayloadCodecTest.kt
-            ├── core/util/TimeFormatTest.kt
-            └── domain/usecase/{AddContact,RenameContact}UseCaseTest.kt, FakeContactRepository.kt
+            ├── core/security/                 AlertVerifierTest (attack cases), CryptoManagerTest,
+            │                                  PanicPayloadCodecTest, QrPayloadCodecTest,
+            │                                  KeyFingerprintTest, LockoutPolicyTest, TestNodes
+            ├── core/util/                     LegalDocumentParserTest, RedactTest, TimeFormatTest
+            └── domain/                        PhoneNumbersTest, AddContactUseCaseTest,
+                                               RenameContactUseCaseTest, FakeContactRepository
 ```
 
-`[TODO]` entries: `androidTest/` (Compose UI tests for the handshake and dashboard flows, per `05_CODING_STANDARDS.md` section 8) and a SQLCipher `SupportFactory` in `DatabaseModule`.
+`[TODO]`: `androidTest/` with Compose UI tests for the handshake and dashboard flows (`05_CODING_STANDARDS.md` section 8), and a SQLCipher factory in `DatabaseModule`.
 
 ## 3. Layer responsibilities
 
-- `core/` touches the Android framework but is not UI: the receivers, notifications, Keystore, WorkManager, DI wiring, readiness checks. It knows how Android mechanisms are invoked, not what Impart means by them.
-- `domain/` is pure Kotlin. Models, repository interfaces and use cases. It compiles without any `android.*` import and its tests run on a plain JVM.
-- `data/` implements the `domain/repository` interfaces: Room, the encrypted preferences, and the SMS relay. It is the only layer that knows Room or `SmsManager` exist.
-- `presentation/` is Compose screens and ViewModels, one folder per feature. ViewModels depend on use cases, repository interfaces and the managers, never on `data/` implementations.
+- `core/` touches the Android framework but is not UI: receivers, notifications, the Keystore, WorkManager, DI wiring, readiness checks. `core/security` also holds the pure crypto and verification logic, which is where the tests concentrate.
+- `domain/` is pure Kotlin: models, repository interfaces, rules and use cases. It compiles without any `android.*` import and its tests run on a plain JVM.
+- `data/` implements the domain interfaces: Room, the encrypted preferences, APK assets, and the SMS relay. It is the only layer that knows Room or `SmsManager` exist.
+- `presentation/` is Compose screens and ViewModels, one folder per feature.
 
 ## 4. Hilt module map
 
 | Module | Scope | Provides |
 |---|---|---|
-| `DatabaseModule` | `SingletonComponent` | `ImpartDatabase`, `ContactDao` |
-| `RepositoryModule` | `SingletonComponent` | `ContactRepository`, `RelayManager`, `KeysetSource` (bindings) |
+| `DatabaseModule` | `SingletonComponent` | `ImpartDatabase`, `ContactDao`, `SeenAlertDao` |
+| `RepositoryModule` | `SingletonComponent` | bindings for `ContactRepository`, `RelayManager`, `KeysetSource`, `SeenAlertStore`, `WallClock` |
 
-Everything else is constructor-injected with `@Singleton` where it holds state.
+Everything else is constructor-injected, with `@Singleton` where it holds state.
 
 ## 5. State conventions
 
-Managers own durable state and expose it as `StateFlow` (`DuressManager.isCorrupted`, `CloakManager.isCloaked`, `DeadManSwitchManager.intervalHours` and `lastCheckin`, `SecurePrefsManager.localPhoneNumber` and `locationSharingEnabled`). ViewModels expose those flows as-is and add only screen-specific state (`DashboardUiState`, `QrState`). Composables collect with `collectAsStateWithLifecycle()` and send actions back as function calls. One-shot events (a scan result, a rename error) travel on a `SharedFlow`.
+Managers own durable state and expose it as `StateFlow`: `DuressManager.isCorrupted`, `AppLockManager.isUnlocked`, `CloakManager.isCloaked`, `DeadManSwitchManager.intervalHours` and `lastCheckin`, and on `SecurePrefsManager` `localPhoneNumber`, `locationSharingEnabled`, `hasCustomPins` and `acceptedLegalVersion`. ViewModels expose those as they are and add only screen state (`DashboardUiState`, `QrState`, `LegalDocumentState`). Composables collect with `collectAsStateWithLifecycle()`. One-shot events (a scan result, a rename error) travel on a `SharedFlow`.
 
-`IntrusionActivity` is the exception: it has no ViewModel. It must draw and make noise before anything else resolves, so it reads its extras directly and holds a single `mutableStateOf` for the details it shows.
+`MainActivity` reads four of those flows to decide what the whole window shows, in this order: the decoy, the terms, PIN setup, the lock, the app. `IntrusionActivity` has no ViewModel and sits outside that gate. It has to draw and make noise before anything else resolves, so it reads its extras directly.

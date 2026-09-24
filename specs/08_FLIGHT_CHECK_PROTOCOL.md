@@ -1,108 +1,164 @@
 <!-- Engineered by uncoalesced -->
 # Flight check protocol: three phones, one carrier
 
-Status: ready to run. Nothing in this document has been executed on hardware yet. The first person to run it should note results inline and commit them.
+Status: ready to run. Nothing in this document has been executed on hardware yet. Whoever runs it first should note results inline and commit them.
 
 Do not use emulators for any of this. Emulators have no SIM, do not enter Doze the way phones do, and cannot show you what a Samsung battery saver does at 3am.
 
 ## What you need
 
-- Three Android phones (call them A, B, C), Android 8.0 or newer, each with a SIM that can send and receive SMS. Different manufacturers is better, not worse: the point is to find the one that kills the receiver.
-- The debug APK from `./gradlew assembleDebug`, installed on all three with `adb install -r` or by copying the file over.
-- A laptop with `adb` for reading logs when something fails. Optional but it turns "it did nothing" into a line number.
+- Three Android phones (call them A, B and C), Android 8.0 or newer, each with a SIM that can send and receive SMS. Different manufacturers are better, not worse: the point is to find the one that kills the receiver.
+- The APK from `./gradlew assembleDebug`, installed on all three with `adb install -r` or by copying the file over. Builds from before the signed-alert change use an older handshake, so uninstall those first. Old contacts cannot be kept.
+- A laptop with `adb` for reading logs when something fails. It is optional, but it turns "it did nothing" into a line number.
 
-Useful log filter, run against the receiving phone:
+Log filter to run against the receiving phone:
 
 ```bash
 adb logcat -s ImpartSmsReceiver IntrusionActivity IntrusionAlarm RelayManager SmsSentReceiver DuressManager
 ```
 
-## Phase 1: setup on each phone
+A debug build is fine for this test. Do not hand debug builds to people for real use. Section "Before real use" explains why.
 
-1. Install and open Impart. Grant SMS, camera and notifications when asked. Deny nothing.
-2. My QR tab: type the phone's own number with country code (`+44...`, `+1...`). The QR appears once the number is set. If it does not, the text under the card says why.
-3. Dashboard, Node Readiness card. Tap every amber row and follow the prompt until all seven rows are green:
+## Phase 1: first launch on each phone
+
+1. Open Impart. The terms screen comes first. Open "Read the Terms of Service" and "Read the Privacy Policy", scroll to the end of each, go back, and tap I UNDERSTAND AND ACCEPT.
+2. Choose a standard PIN and a duress PIN (4 to 8 digits, different from each other, not 1234 or 9999). Write both down for the test.
+3. Grant SMS, camera and notifications when asked. Deny nothing.
+4. My QR tab: type the phone's own number in international form (`+44...`, `+1...`). The QR and the KEY FINGERPRINT appear once the number is valid. Type a local number such as `07700900123` first and confirm the QR refuses it.
+5. Dashboard, Node Readiness card. Tap every amber row and follow the prompt until they are green:
+   - Build (stays amber on a debug build, which is expected)
    - SMS permissions
    - Notifications
-   - Full-screen alerts (Android 14 and later only; the row opens the system page where you allow it)
-   - Battery optimization (accept the "allow" prompt; on Xiaomi, Oppo, Vivo and some Samsungs also find the OEM's own autostart or background-activity switch in App Info and turn it on)
-   - SIM for SMS (on dual-SIM phones the default SMS SIM must be set)
+   - Full-screen alerts (Android 14 and later: the row opens the page where you allow it)
+   - Battery optimization (accept the prompt; on Xiaomi, Oppo, Vivo and some Samsungs also find the maker's own autostart or background switch in App Info)
+   - SIM for SMS (on dual-SIM phones a default SMS SIM must be set)
    - Own phone number
-   - Trusted contacts (stays amber until Phase 2)
-4. Tap the lock icon, enter `1234`, set a standard PIN and a duress PIN. Remember both. Do not test the duress PIN until Phase 6.
+   - Trusted contacts (stays amber until Phase 3)
+6. Settings tab: open Terms of Service, Privacy Policy and Open source license. All three must render and scroll.
 
-Expected: seven green rows on each phone except "Trusted contacts".
+Expected: every row green except Build and Trusted contacts.
 
-## Phase 2: pairing
+## Phase 2: the lock
+
+1. Press Home, wait more than 30 seconds, and reopen Impart. Expected: IMPART LOCKED. The standard PIN opens it.
+2. Press Home and come back within a few seconds. Expected: no lock.
+3. Enter a wrong PIN five times. Expected: "Try again in 30s", and the countdown runs.
+4. Swipe Impart away from Recents and reopen it. Expected: locked, and the lockout still counts down.
+5. Try to screenshot any Impart screen. Expected: the phone refuses, or saves a black image.
+
+## Phase 3: pairing
 
 Pairing is one direction per scan. For each pair (A-B, A-C, B-C):
 
-1. On the first phone open My QR. On the second open Scan QR and point it at the first. A toast says "Paired with +number" and the Contacts tab opens.
-2. Swap roles and repeat.
-3. On the Contacts tab, tap each contact's name and give it a nickname (the other phone's owner, or "Samsung S23"). That name is what the red screen shows.
+1. The first phone opens My QR. The second opens Scan QR and points at it. A toast says "Paired with +number" and the Contacts tab opens.
+2. On the Contacts tab the new row shows KEY followed by a fingerprint. Read it aloud. It must match the KEY FINGERPRINT under the first phone's QR, character for character.
+3. Swap roles and repeat.
+4. Tap each contact's name and give it a nickname. That name is what the red screen shows.
 
-Check a rejection while you are here: scan your own QR. Expected: a toast saying you scanned this node's own QR, nothing added, and the scanner keeps scanning.
+Rejections to check while you are here:
 
-Expected at the end: every phone lists the other two, each with a nickname, each badge reading "LAST VERIFIED TODAY". Readiness is now fully green.
+- Scan your own QR. Expected: "You scanned this node's own QR code". Nothing is added, and the scanner keeps scanning.
+- Scan any QR that is not Impart's (a website link). Expected: "not an Impart handshake".
+- Scan a contact you already have again. Expected: "Re-paired with", with the nickname kept.
 
-## Phase 3: foreground alert and ACK
+Expected at the end: every phone lists the other two, with nicknames, matching fingerprints and "LAST VERIFIED TODAY". Readiness is fully green except Build.
+
+## Phase 4: foreground alert and acknowledgement
 
 Both phones unlocked, Impart open on both, sitting on the table.
 
-1. On A, hold "INITIATE PANIC: B" for the full 1.5 seconds. Releasing early cancels; that is the point of the hold.
+1. On A, hold "INITIATE PANIC: B" for the full 1.5 seconds. Releasing early cancels, which is the point of the hold.
 2. A shows "Panic dispatched to B" for three seconds.
 
-Expected on B within one to ten seconds (carrier dependent): the screen goes panic red, "FROM: A's nickname" is shown, the alarm tone loops at full alarm volume, the phone vibrates. If location sharing was on for A, coordinates and a NAVIGATE button appear.
+Expected on B within one to ten seconds, depending on the carrier:
 
-3. On B tap ACKNOWLEDGE & DISMISS. The alarm stops, the screen closes.
+- The screen goes panic red.
+- "FROM: A's nickname" and "SENT hh:mm" are shown.
+- The alarm tone loops at full alarm volume, and the phone vibrates.
+- If location sharing was on for A, coordinates and a NAVIGATE button appear.
 
-Expected on A: a notification "PANIC ACKNOWLEDGED".
+3. On B tap ACKNOWLEDGE & DISMISS.
 
-Also expected: the ciphertext SMS shows up in the stock Messages app on B as a long `IMPART_ALERT:...` text. That is normal; a non-default SMS app cannot suppress it.
+Expected on A: a notification "A's nickname acknowledged your panic signal".
 
-If A instead shows an error under the panic buttons, read it. "No SIM is selected for sending SMS" and "Contact has no phone number" are the two it can produce before the radio is involved. A notification "PANIC SMS FAILED TO SEND" means the radio refused a part; the notification names the reason.
+The ciphertext also appears in the stock Messages app on both phones as a long `IMPART_ALERT:...` text. That is expected.
 
-## Phase 4: broadcast
+If A shows an error under the panic buttons, read it. "No SIM is selected for sending SMS" and "Contact has no phone number" come before the radio is involved. A notification "PANIC SMS FAILED TO SEND" means the radio refused a part, and it names the reason.
+
+## Phase 5: replay and misdirection
+
+This checks the two attacks the signed-alert change closed.
+
+1. On B, open the stock Messages app, find the IMPART_ALERT text that A sent in Phase 4, and copy the whole text.
+2. From C (or any phone), send that exact text to B as a normal SMS.
+
+Expected on B: a notification "REPEATED ALERT IGNORED", and no alarm.
+
+3. Send the same text to C.
+
+Expected on C: "UNREADABLE ALERT RECEIVED", and no alarm. The alert was encrypted to B, so C cannot read it.
+
+4. Wait until the Phase 4 alert is more than 24 hours old, then send it to B again (optional).
+
+Expected: "OLD ALERT NOT RAISED".
+
+## Phase 6: broadcast
 
 1. On A, hold "BROADCAST PANIC (ALL NODES)".
 
-Expected: B and C both go red within a few seconds of each other. A shows "Panic dispatched to 2 nodes". If one fails, A shows "Sent to 1 of 2 nodes" and names the failure.
+Expected: B and C both go red within seconds of each other, and A shows "Panic dispatched to 2 nodes". If one fails, A shows "Sent to 1 of 2 nodes" and names it.
 
-## Phase 5: the deep sleep test
+## Phase 7: the deep sleep test
 
 This is the only test that proves the app does its job.
 
 Prepare B:
 
 1. Unplug it. Doze arrives faster on battery.
-2. Swipe Impart away from Recents (force-stop from App Info is harsher and also worth trying as a second run).
+2. Swipe Impart away from Recents. Force-stopping from App Info is harsher, and worth a second run.
 3. Turn on Do Not Disturb.
-4. Lock it, screen off, put it face down, and do not touch it for 20 minutes.
+4. Lock it, screen off, face down, and leave it untouched for 20 minutes.
 
-Then, from A: hold "INITIATE PANIC: B".
+Then from A, hold "INITIATE PANIC: B".
 
-Expected: within a few seconds B lights up, shows the red screen over the lock screen, and sounds the alarm through Do Not Disturb. Dismissing it sends the ACK to A.
+Expected: within seconds B lights up, shows the red screen over the lock screen without asking for the Impart PIN, and sounds the alarm through Do Not Disturb. Dismissing it sends the acknowledgement to A.
 
-Run this once per phone as the receiver. Record the phone model, Android version, and the delay.
+Run this once with each phone as the receiver. Record the model, the Android version and the delay.
 
-## Phase 6: duress and decoy
+## Phase 8: duress and decoy
 
-Do this on one phone you can reinstall on. The wipe is permanent for that install.
+Do this on a phone you can reinstall. The wipe is permanent for that install.
 
-1. Tap the lock icon and enter the duress PIN.
+1. Lock Impart (Home, wait 30 seconds, reopen) and enter the duress PIN at the lock screen.
 
-Expected: no toast, no confirmation. The whole app becomes a grey "NODE CORRUPTED / SYSTEM ERROR" screen with no navigation. Killing and reopening the app shows the same screen. Sending a panic to this phone from A produces nothing on it at all.
+Expected: no message at all. The whole app becomes a grey "NODE CORRUPTED / SYSTEM ERROR" screen with no navigation. Killing and reopening the app shows the same screen. A panic sent to this phone produces nothing on it.
 
-2. Reinstall to recover. The other phones still list the old identity; revoke it and re-pair.
+2. Reinstall to recover. The other phones still list the old identity. Revoke it and pair again. On the other phones, scanning the reinstalled phone's new QR shows "KEYS CHANGED" with an old and a new fingerprint. Accept only after comparing the new fingerprint with the reinstalled phone's screen.
 
 ## When it fails
 
-- **B gets the notification but the screen stays dark.** Android 14 full-screen intent not allowed. Readiness row three. On older Android, check that the lock screen is not a "secure lock screen with notifications hidden" setting.
-- **B does nothing until unlocked, then the alert appears.** The OEM battery saver held the receiver. Readiness row four, then the OEM-specific autostart switch. On Samsung also check "Never sleeping apps" in Battery settings.
-- **B shows "UNREADABLE ALERT RECEIVED".** B's keys changed since A scanned it (reinstall, wipe, or A scanned an old QR). Re-pair.
-- **B shows "PANIC FROM UNRECOGNIZED NODE".** A is not in B's Contact Matrix, or was revoked. B must scan A's QR.
-- **A shows "Panic dispatched" but nothing arrives and no failure notification.** The carrier accepted the SMS and has not delivered it. Wait a minute; check signal on both phones; check that neither number is in a "blocked" list in the stock Messages app. Send a plain text between the two numbers to confirm the route works at all.
-- **Alarm is silent but the screen is red.** Look for "No playable alarm sound" in logcat; the phone has no default alarm tone set. Set one in the Clock app.
-- **Nothing in logcat at all on B.** The broadcast never reached the app. Confirm RECEIVE_SMS is granted (readiness row one) and that no other SMS app is set to block unknown senders.
+- B gets the notification but the screen stays dark. Android 14 has not allowed the full-screen alert: check the readiness row. On older Android, check the lock screen is not set to hide notification content.
+- B does nothing until unlocked, then the alert appears. The maker's battery saver held the receiver. Check the readiness row, then the maker's own autostart switch. On Samsung also check "Never sleeping apps" in the battery settings.
+- B shows "UNREADABLE ALERT RECEIVED" for a genuine panic. B's keys changed since A scanned it (reinstall or wipe). Pair again.
+- B shows "ALERT FROM UNRECOGNIZED NODE". A is not in B's Contact Matrix, or was revoked. B must scan A's QR.
+- B shows "ALERT FAILED VERIFICATION". Either someone is impersonating A, or A reinstalled and B still holds A's old keys. Pair again in person and compare fingerprints.
+- B shows "ALERT WITH AN IMPOSSIBLE TIME". One phone's clock is wrong. Turn on automatic date and time on both.
+- A shows "Panic dispatched" but nothing arrives and no failure notification appears. The carrier accepted the SMS and has not delivered it. Wait a minute, check signal on both phones, and check that neither number is blocked in the stock Messages app. Send a plain text between the two numbers to confirm the route works at all.
+- The screen is red but the alarm is silent. Look for "No playable alarm sound" in logcat: the phone has no default alarm tone. Set one in the Clock app.
+- Nothing in logcat at all on B. The broadcast never reached the app. Confirm SMS permissions are granted and that no other SMS app blocks unknown senders.
 
-Record every failure with phone model, Android version, and the logcat lines. That list is what turns into the OEM deep links on the roadmap.
+Record every failure with the phone model, the Android version and the logcat lines. That list is what turns into the OEM deep links on the roadmap.
+
+## Before real use
+
+The debug build is signed with `debug.keystore`, which is published in this repository with its password. Anyone can sign an APK with it that installs over your debug build as an "update" and inherits your keys and contacts. For anything beyond this test, build a release signed with a key only you hold:
+
+```bash
+export RELEASE_KEYSTORE_PATH=/path/to/your.jks
+export RELEASE_KEYSTORE_PASSWORD=...
+export RELEASE_KEY_ALIAS=...
+export RELEASE_KEY_PASSWORD=...
+./gradlew assembleRelease
+```
+
+A release build cannot be installed over a debug build, so uninstall first and pair again. The readiness card's Build row turns green on a release build.

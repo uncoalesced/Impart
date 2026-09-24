@@ -13,8 +13,8 @@
 | Dependency Injection | Dagger Hilt | `@HiltAndroidApp`, `@AndroidEntryPoint`, `@Inject` constructor injection |
 | Transport / Signaling | **Encrypted SMS only** (`SmsManager` send, `SMS_RECEIVED` `BroadcastReceiver`) | No Firebase, no Cloud Functions, no Google delivery path |
 | Backend / Logic | **None** | Peer-to-peer over the carrier SMS channel; there is no server |
-| Local Storage (structured) | Room Database | Stores the Contact Matrix. Not encrypted at rest yet; SQLCipher is a roadmap item |
-| Local Storage (key-value) | EncryptedSharedPreferences (one instance, `SecurePrefsManager`) | Node UUID, own phone number, location toggle, dead man's switch schedule, PINs, wiped flag |
+| Local Storage (structured) | Room Database (version 4) | The Contact Matrix and the seen-alert IDs used against replay. Not encrypted at rest yet; SQLCipher is a roadmap item |
+| Local Storage (key-value) | EncryptedSharedPreferences (one instance, `SecurePrefsManager`) | Node UUID, own phone number, location toggle, dead man's switch schedule, PINs and lock counters, accepted legal version, wiped flag |
 | Auth | None | Identity is a locally generated UUID; trust is established only by the physical QR handshake |
 
 ## 2. Architectural Style: Event-Driven, OS-First
@@ -51,17 +51,17 @@ sequenceDiagram
 
 This is the single most important transport decision in the system, so it's worth being explicit about why.
 
-The doctrine is **no third-party delivery infrastructure in the loop, at all.** A push relay (FCM or otherwise) means Google's servers see who paged whom and when, decide whether and when to deliver, and can throttle or drop the message. For an emergency tool that is an unacceptable dependency and an unacceptable metadata leak.
+The doctrine is no third-party delivery infrastructure in the loop, at all. A push relay (FCM or otherwise) means Google's servers see who paged whom and when, decide whether and when to deliver, and can throttle or drop the message. For an emergency tool that is an unacceptable dependency and an unacceptable metadata leak.
 
-**SMS is a peer-to-peer carrier primitive.** An incoming SMS is delivered by the modem/RIL and raises the `SMS_RECEIVED` broadcast on the receiver even when the app is killed or the device is in Doze. It is the same wake path an ordinary text uses, which no app-level battery optimizer can suppress. Impart carries only ciphertext in the message body (`IMPART_ALERT:` + Tink output), so the carrier relays an opaque text and never sees plaintext. `ImpartSmsReceiver` matches the prefix and hands control back to Impart's own code the instant the SMS arrives, which is what guarantees the WakeLock → FullScreenIntent → Alarm-Audio chain actually fires.
+SMS is a peer-to-peer carrier primitive. An incoming SMS is delivered by the modem/RIL and raises the `SMS_RECEIVED` broadcast on the receiver even when the app is killed or the device is in Doze. It is the same wake path an ordinary text uses, which no app-level battery optimizer can suppress. Impart carries only ciphertext in the message body (`IMPART_ALERT:` + Tink output), so the carrier relays an opaque text and never sees plaintext. `ImpartSmsReceiver` matches the prefix and hands control back to Impart's own code the instant the SMS arrives, which is what gets the wake lock, full-screen intent and alarm audio chain to fire.
 
-Trade-offs, stated honestly: SMS requires a SIM with an SMS plan and cellular coverage; delivery latency is typically 1–5 s but is carrier-dependent and not guaranteed; and because Impart is not the default SMS app, it cannot `abortBroadcast()`, so the ciphertext SMS also lands in the stock Messages inbox on the receiver. These are accepted costs of removing every server from the path.
+Trade-offs, stated honestly: SMS requires a SIM with an SMS plan and cellular coverage; delivery latency is typically 1 to 5 s but is carrier-dependent and not guaranteed; and because Impart is not the default SMS app, it cannot `abortBroadcast()`, so the ciphertext SMS also lands in the stock Messages inbox on the receiver. These are accepted costs of removing every server from the path.
 
 ## 4. The intrusion pipeline, mechanic by mechanic
 
 ### 4.1 Ingress: `RelayManagerImpl` → `SmsManager`
 
-`RelayManagerImpl.dispatchPanic` runs entirely on the sender's device: it encodes a `PanicPayload.Panic` (type, urgency, the sender's own phone number and public key for the return ACK, optional lat/lng) with `PanicPayloadCodec`, Tink-encrypts it to the target contact's public key, prefixes `IMPART_ALERT:`, resolves the default SMS subscription (so dual-SIM phones send from the right SIM, and a phone with no SIM fails with a message instead of pretending), splits it with `divideMessage`, and sends it with `sendMultipartTextMessage`. Each part carries a sent-intent aimed at `SmsSentReceiver`; a part the radio refuses becomes a notification rather than a log line. There is no ingress server. The "network" is the carrier's SMS channel.
+`RelayManagerImpl.dispatchPanic` runs entirely on the sender's device. It builds a `PanicPayload.Panic` (its own UUID, the recipient's UUID, a fresh random message ID, the time, and lat/lng only if location sharing is on). `AlertEnvelope` signs the serialized payload with the node's Ed25519 key and Tink-encrypts `<signature>.<payload>` to the contact's hybrid public key. The relay then prefixes `IMPART_ALERT:`, resolves the default SMS subscription (so dual-SIM phones send from the right SIM, and a phone with no SIM fails with a message instead of pretending), splits it with `divideMessage`, and sends it with `sendMultipartTextMessage`. Each part carries a sent-intent aimed at `SmsSentReceiver`; a part the radio refuses becomes a notification rather than a log line. There is no ingress server. The "network" is the carrier's SMS channel.
 
 ### 4.2 The Brain: `ImpartSmsReceiver`
 
@@ -69,9 +69,9 @@ Trade-offs, stated honestly: SMS requires a SIM with an SMS plan and cellular co
 
 1. Match the `IMPART_ALERT:` prefix and ignore everything else. If the node has been wiped by the duress PIN, stop here and stay dark.
 2. Acquire the wake lock (below), call `goAsync()`, and move to the IO dispatcher. Nothing after this point runs on the main thread.
-3. Decrypt with Tink. A failure posts an "unreadable alert" notification on the status channel. A payload that decrypts but does not parse posts "malformed alert". Either way something is visible.
-4. Look the sender's public key up in the Contact Matrix. A sender that is not there, or has been revoked, gets a "panic from unrecognized node" heads-up and no alarm. Trust is the handshake, not possession of the key.
-5. Fire the full-screen-intent notification on the panic channel (`CATEGORY_ALARM`, `PRIORITY_MAX`, alarm-stream sound on the channel itself), or post the ACK notification.
+3. Hand the ciphertext to `AlertVerifier`, which decrypts, splits the Ed25519 signature from the payload, finds the sender by UUID among active contacts, verifies the signature with the key stored at pairing, checks the alert is addressed to this node, checks its age (at most 24 hours old, at most 10 minutes in the future) and records its ID so it can never be accepted twice. The exact order and reasoning are in `03_SECURITY_PROTOCOL.md` section 4.3.
+4. Every verdict except acceptance posts a visible notification on the status channel: unreadable, malformed, outdated, unrecognized node, failed verification, misdirected, impossible time, too old, or repeated. None of them raises the alarm.
+5. An accepted panic fires the full-screen-intent notification on the panic channel (`CATEGORY_ALARM`, `PRIORITY_MAX`, alarm-stream sound on the channel itself). An accepted acknowledgement posts "acknowledged by" with the contact's name.
 6. Release the wake lock and finish the async result.
 
 `abortBroadcast()` is not called. `SMS_RECEIVED` is not an ordered broadcast, so the call always threw and was always swallowed. The ciphertext text lands in the stock Messages inbox; that is accepted.
@@ -118,7 +118,7 @@ override fun onCreate(savedInstanceState: Bundle?) {
 }
 ```
 
-`setShowWhenLocked(true)` and `setTurnScreenOn(true)` are the API 27+ replacements for the deprecated `FLAG_SHOW_WHEN_LOCKED` and `FLAG_TURN_SCREEN_ON` window flags; API 26 still gets the flags. `requestDismissKeyguard()` dismisses an insecure keyguard outright; on a secure keyguard it surfaces the activity above the lock screen and the user still authenticates to fully unlock. The intrusion screen renders regardless. The activity is `singleTop`, so a second panic while the first is showing updates the screen through `onNewIntent` instead of stacking a second alarm. It cancels the notification it was launched from, shows the sender's display name, and on acknowledge sends the encrypted ACK back to the phone number carried in the payload.
+`setShowWhenLocked(true)` and `setTurnScreenOn(true)` are the API 27+ replacements for the deprecated `FLAG_SHOW_WHEN_LOCKED` and `FLAG_TURN_SCREEN_ON` window flags; API 26 still gets the flags. `requestDismissKeyguard()` dismisses an insecure keyguard outright; on a secure keyguard it surfaces the activity above the lock screen and the user still authenticates to fully unlock. The intrusion screen renders regardless. The activity is `singleTop`, so a second panic while the first is showing updates the screen through `onNewIntent` instead of stacking a second alarm. It cancels the notification it was launched from, shows the sender's display name and when the panic was sent (with the delay if it arrived late), and blocks screenshots. On acknowledge it looks the contact up again and sends a signed, encrypted ACK to the phone number stored at pairing. It deliberately sits outside the app lock: the alarm and its acknowledgement must work over the lock screen, and this activity shows nothing beyond the one alert.
 
 ### 4.6 Audio Override: `USAGE_ALARM`
 
@@ -145,7 +145,7 @@ Separately, SMS delivery depends on a SIM with SMS service and cellular coverage
 
 Two Hilt modules, both in `SingletonComponent`:
 
-- `DatabaseModule` provides the Room database and `ContactDao`.
-- `RepositoryModule` binds `ContactRepository` to `ContactRepositoryImpl`, `RelayManager` to `RelayManagerImpl` (the SMS dispatcher), and `KeysetSource` to `KeystoreHelper`.
+- `DatabaseModule` provides the Room database, `ContactDao` and `SeenAlertDao`.
+- `RepositoryModule` binds `ContactRepository` to `ContactRepositoryImpl`, `RelayManager` to `RelayManagerImpl` (the SMS dispatcher), `KeysetSource` to `KeystoreHelper`, `SeenAlertStore` to `SeenAlertStoreImpl`, and `WallClock` to `SystemWallClock`.
 
-Everything else (`CryptoManager`, `KeystoreHelper`, the managers, `SecurePrefsManager`, `NodeReadinessChecker`) is a `@Singleton` with an `@Inject` constructor. Framework services such as `PowerManager` are fetched from the context where they are used. The file map is in `04_FILE_STRUCTURE_AND_STATE.md`.
+Everything else (`CryptoManager`, `KeystoreHelper`, `AlertVerifier`, `AppLockManager`, the other managers, `SecurePrefsManager`, `LegalDocumentLoader`, `NodeReadinessChecker`) has an `@Inject` constructor, and the stateful ones are `@Singleton`. Framework services such as `PowerManager` are fetched from the context where they are used. The file map is in `04_FILE_STRUCTURE_AND_STATE.md`.
