@@ -1,83 +1,67 @@
 <!-- Engineered by uncoalesced -->
-# Roadmap & Next Steps — Path to Alpha
+# Roadmap and next steps
 
 ---
 
-## 1. Current State Snapshot
+## 1. Where things stand
 
-Built and functional today:
+Everything the manifesto asks for exists in code and builds from a clean checkout:
 
-- `AndroidManifest.xml` — permissions and activity flags for the lock-screen bypass are in place.
-- `ImpartApplication.kt` — Hilt entry point.
-- `MainActivity.kt` — Compose control panel: notification permission handling, FCM token retrieval/display, "Simulate Alert (Local)" and "Initiate Panic" actions.
-- `ui/IntrusionActivity.kt` — keyguard bypass logic, `ImpartTomato` palette.
-- `core/services/ImpartMessagingService.kt` — FCM data-payload listener that fires the full-screen-intent notification.
-- `build.gradle.kts` — Compose, Hilt, Firebase BoM, FCM, Auth, Firestore, Room all configured.
+- A physical QR handshake in both directions, with key fingerprints to compare out loud, and a confirmation step when a known contact's keys change.
+- Tink hybrid encryption (X25519 HPKE, AES-256-GCM) for confidentiality, and Ed25519 signatures on every alert so only a paired contact can raise your alarm.
+- Replay protection: every alert has a unique ID and a timestamp, and the receiver refuses anything seen before, older than a day, or dated in the future.
+- Encrypted SMS as the only transport, with default-SIM selection and sent-intent failure reports.
+- A receiver that verifies under a wake lock and turns every outcome into something visible. A red intrusion screen with a looping alarm on the alarm stream and vibration, and a signed ACK to the stored contact.
+- An app lock with lockout, a duress PIN that wipes everything the app can reach, a decoy, the launcher cloak and the dead man's switch.
+- A readiness card for the settings that OEMs and Android 14 use to break the wake path.
+- Terms of Service, a Privacy Policy and the Apache license, shown on first launch and in Settings.
+- JVM tests for the crypto, both wire formats, the verifier's attack cases, the handshake rules and the lock policy.
 
-What's missing to go from "one device can locally simulate an alert" to "two devices can actually page each other end-to-end": server-side routing, a way to establish trust between two physical devices, somewhere durable to store that trust, and the encryption that makes the whole thing safe to send over Google's infrastructure. That's exactly the four phases below, in the order they unblock each other.
+What has never happened is a run on three physical phones over a real carrier. That is next, and it is not a code task. The protocol is `08_FLIGHT_CHECK_PROTOCOL.md`.
 
-## 2. Phase 1 — Firebase Cloud Functions (Routing Layer)
+## 2. Alpha means
 
-**Why first:** without this, "Initiate Panic" has nowhere to send the ping — `MainActivity`'s button currently has no server-side counterpart.
+Alpha is reached when, with no manual intervention:
 
-- [ ] Scaffold `functions/` as a Node.js/TypeScript Firebase Functions project (`firebase init functions`).
-- [ ] Implement `initiatePanic` as an `onCall` HTTPS Callable Function:
-  - Accepts `{ targetUuid: string, envelope: EncryptedEnvelope }`.
-  - Validates the calling user is authenticated (Firebase Auth) and, ideally, that a trust record exists — decide explicitly whether that check happens server-side or is left entirely to the client's own Contact Matrix, which is arguably more consistent with the "server sees nothing meaningful" doctrine in `03_SECURITY_PROTOCOL.md`.
-  - Resolves `targetUuid` → current FCM token.
-  - Dispatches via Admin SDK `messaging().send()` with `android: { priority: "high" }` and a `data`-only payload — never `notification`.
-- [ ] Add a minimal `fcmDispatcher.ts` wrapper so the send-with-high-priority configuration lives in exactly one place, not copy-pasted across future callables.
-- [ ] Deploy to a dev project and validate against a single real device before touching client code.
+1. Three phones complete the handshake pairwise, and each shows the other two in its Contact Matrix with matching fingerprints.
+2. Phone A holds INITIATE PANIC for B. Within seconds B, locked, screen off, Do Not Disturb on, wakes, shows the red screen with A's name, and sounds the alarm until dismissed. A receives the acknowledgement.
+3. The same holds after B has been on battery, force-stopped and untouched for 15 minutes.
+4. BROADCAST PANIC from A reaches B and C.
+5. Re-sending a copy of one of those alert texts to B produces "repeated alert ignored" and no alarm.
 
-## 3. Phase 2 — QR Handshake UI (Generator + Scanner)
+## 3. After alpha, in priority order
 
-**Why second:** routing is useless without a way for two devices to know about each other's UUID/token/public key. This phase makes the trust model in `03_SECURITY_PROTOCOL.md` real.
+### Encrypted contact database
 
-- [ ] Add `CameraX` + `ML Kit Barcode Scanning` dependencies.
-- [ ] Build `QrGeneratorScreen.kt` — renders the local device's `{uuid, fcmToken, publicKey}` as a QR code (a lightweight QR-generation library, e.g. ZXing's `core` module, is sufficient — scanning is handled separately by ML Kit).
-- [ ] Build `QrScannerScreen.kt` — live camera preview via CameraX, decoded via ML Kit's barcode analyzer, parsed through `QrPayloadCodec`.
-- [ ] On successful scan, write the new `Contact` into the Contact Matrix (this phase and Phase 3 are effectively built together).
-- [ ] Confirm the two-way nature of the handshake works end-to-end on two physical devices — one QR display + scan is one-directional trust; both directions are required for mutual paging.
+Room is a plain SQLite file inside the app sandbox. A seized, rooted phone gives up the contact list. Wire `net.zetetic:android-database-sqlcipher` with a passphrase held in the Keystore.
 
-## 4. Phase 3 — Room Database: The Contact Matrix
+### Inbox copies
 
-**Why third (or in parallel with Phase 2):** trust established during the handshake needs somewhere durable to live, and it needs to be encrypted at rest given it contains public keys and FCM tokens for real people.
+Android stores a copy of every alert in the stock Messages app because Impart is not the default SMS app. Those copies show who exchanged alerts with whom. The only complete fix is an optional mode where Impart becomes the default SMS app, which is a large piece of work and changes the Play Store story. Until then the privacy policy and the flight check tell users to delete the threads.
 
-- [ ] Add `net.zetetic:android-database-sqlcipher` and wire a `SupportFactory` with a passphrase sourced from the Android Keystore — never hardcoded, never stored in plaintext SharedPreferences.
-- [ ] Define `ContactEntity` — fields: `uuid` (PK), `publicKey`, `fcmToken`, `nickname`, `addedAt`, plus a `revoked: Boolean` flag rather than hard-deleting rows outright (a soft-revoke preserves audit history of who was once trusted). Field shape depends on the §4.4 key-agreement decision in `03_SECURITY_PROTOCOL.md` — resolve that first.
-- [ ] Define `ContactDao` with the standard CRUD set plus a `getActiveContacts()` query filtering out revoked rows.
-- [ ] Implement `ContactRepositoryImpl` satisfying the `domain/repository/ContactRepository` interface.
-- [ ] Build `ContactMatrixScreen.kt` — list view of trusted contacts with a revoke action per row.
+### OEM deep links
 
-## 5. Phase 4 — Cryptography Wrappers
+The readiness card opens the stock battery-optimization prompt. Xiaomi, Oppo, Vivo and some Samsung builds have a second layer (autostart, background pop-ups) with their own settings screens. Detect the manufacturer and offer the right intent, using the "Don't kill my app" list as the reference.
 
-**Why last in build order, but decide the scheme early:** everything above can technically be built and manually tested with plaintext payloads first, but nothing should reach a second physical device carrying real content until this phase is complete — plaintext panic signals traversing Google's infrastructure, even briefly during development, is inconsistent with the security doctrine and should be avoided past the earliest smoke tests.
+### Release hardening
 
-- [ ] Implement `KeystoreHelper.kt` — generates and retrieves key material via `AndroidKeyStore`, non-exportable where hardware supports it.
-- [ ] Implement `CryptoManager.kt` — `encrypt(plaintext, recipientKeyMaterial): EncryptedEnvelope` and `decrypt(envelope, senderKeyMaterial): String`, using AES-256-GCM with a freshly generated nonce per call (never reused — see `03_SECURITY_PROTOCOL.md` §4.2).
-- [ ] Lock in the specific key-agreement scheme (ECDH over Curve25519 vs. pre-shared secret — see `03_SECURITY_PROTOCOL.md` §4.4) before Phase 3's `ContactEntity` schema is finalized.
-- [ ] Wire `ImpartMessagingService` to call `CryptoManager.decrypt()` before doing anything else with an incoming payload; a failed decrypt should log and abort the intrusion pipeline rather than attempting to render garbage content.
-- [ ] Unit test the encrypt/decrypt round trip exhaustively before any device-to-device test — this is the one component in the entire system where a subtle bug is invisible until it silently corrupts or exposes a real message.
+`isMinifyEnabled` is off. Turning R8 on needs keep rules for Tink, the Hilt-generated workers and Room, plus a release build tested on a phone. Do this, and sign with a private key, before anything reaches users beyond the test group. Debug builds are signed with a public key and can be replaced by anyone.
 
-## 6. Definition of "Alpha"
+### Instrumented tests
 
-Impart reaches Alpha when, without any manual server-side intervention:
+`05_CODING_STANDARDS.md` asks for `ComposeTestRule` coverage of the handshake and dashboard flows. None exist yet. The gate order in `MainActivity` (terms, PIN setup, lock) is the first candidate.
 
-1. Two physical devices complete the QR handshake and each has the other in its Contact Matrix.
-2. Device A taps "Initiate Panic," targeting Device B.
-3. The Cloud Function routes an encrypted, high-priority data payload to Device B.
-4. Device B — screen off, locked, Do Not Disturb enabled — wakes, bypasses the lock screen, and sounds an alarm that persists until manually dismissed.
-5. The content of the alert was never visible in plaintext to anything other than Device A and Device B.
+### Key rotation
 
-Every item above must hold with the *receiving* device's screen off and locked at the moment the ping is sent — testing only with the app foregrounded on both devices proves nothing about whether Impart actually does its job.
+Rotation is a manual re-handshake by design (`03` section 7). A "rotate my keys" action that purges both keysets and tells the user which contacts now need re-pairing would make that survivable.
 
-## 7. Suggested Sequencing
+### Play Store
 
-```mermaid
-graph TD
-    P1[Phase 1: Cloud Functions] --> INT1[Integration test: A to B ping, plaintext, foregrounded]
-    P2[Phase 2: QR Handshake] --> INT1
-    P3[Phase 3: Contact Matrix] --> P2
-    INT1 --> P4[Phase 4: Crypto Wrappers]
-    P4 --> ALPHA[Alpha Definition: full end-to-end, receiver locked, screen off]
-```
+Google Play restricts `SEND_SMS` and `RECEIVE_SMS` to default SMS apps and a short list of approved exceptions. It also restricts `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Distribution through IzzyOnDroid or direct APK is unaffected. A Play listing would need a policy declaration and may be refused.
+
+## 4. Considered and dropped
+
+- Firebase Cloud Messaging as a fallback transport. It puts a third party back in the path and brings back the Doze throttling SMS was chosen to escape.
+- Covert audio capture on the receiving phone when a panic arrives. It recorded into files nothing read, ran in a coroutine the OS could kill mid-record, and cost a microphone permission on first launch.
+- Reading the phone's own number from the SIM. It stopped working on API 30 and above without `READ_PHONE_NUMBERS`, and was unreliable below that. The user types it once.
+- Trusting the sender key inside an alert. That was how v1 identified senders, and the security review showed that anyone who had seen two QR codes could forge a panic. v2 checks signatures against the key stored at pairing.

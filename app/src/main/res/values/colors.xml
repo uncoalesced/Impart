@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Mirrors presentation/theme/Color.kt. XML resources (window background, launcher icon)
+     cannot read Compose constants, so this is the one sanctioned duplicate of the palette. -->
+<resources>
+    <color name="impart_ground">#000000</color>
+    <color name="impart_background">#2B2D42</color>
+    <color name="impart_secondary">#8D99AE</color>
+    <color name="impart_text_primary">#EDF2F4</color>
+    <color name="impart_panic_red">#EF233C</color>
+</resources>

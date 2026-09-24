@@ -9,6 +9,7 @@ import com.uncoalesced.impart.domain.model.Contact
 data class ContactEntity(
     @PrimaryKey val uuid: String,
     val publicKeyBase64: String,
+    val signingKeyBase64: String,
     val nickname: String?,
     val phoneNumber: String?,
     val addedAt: Long,
@@ -17,6 +18,7 @@ data class ContactEntity(
     fun toDomain() = Contact(
         uuid = uuid,
         publicKeyBase64 = publicKeyBase64,
+        signingKeyBase64 = signingKeyBase64,
         nickname = nickname,
         phoneNumber = phoneNumber,
         addedAt = addedAt,
@@ -27,6 +29,7 @@ data class ContactEntity(
         fun fromDomain(contact: Contact) = ContactEntity(
             uuid = contact.uuid,
             publicKeyBase64 = contact.publicKeyBase64,
+            signingKeyBase64 = contact.signingKeyBase64,
             nickname = contact.nickname,
             phoneNumber = contact.phoneNumber,
             addedAt = contact.addedAt,

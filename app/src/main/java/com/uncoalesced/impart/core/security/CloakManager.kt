@@ -4,54 +4,45 @@ package com.uncoalesced.impart.core.security
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
+import com.uncoalesced.impart.MainActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// PackageManager is the source of truth for which launcher entry is live; nothing is
+// mirrored into preferences.
 @Singleton
 class CloakManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val PREFS_NAME = "impart_cloak_prefs"
-    private val KEY_IS_CLOAKED = "is_cloaked"
+    private val packageManager = context.packageManager
+    private val mainComponent = ComponentName(context, MainActivity::class.java)
+    private val aliasComponent = ComponentName(context, "${context.packageName}$ALIAS_SUFFIX")
 
-    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-
-    fun isCloaked(): Boolean {
-        return prefs.getBoolean(KEY_IS_CLOAKED, false)
-    }
+    private val _isCloaked = MutableStateFlow(readCloaked())
+    val isCloaked: StateFlow<Boolean> = _isCloaked.asStateFlow()
 
     fun setCloakEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_IS_CLOAKED, enabled).apply()
+        val show = if (enabled) aliasComponent else mainComponent
+        val hide = if (enabled) mainComponent else aliasComponent
+        // Enable the new entry before disabling the old one so the app never vanishes from
+        // the launcher entirely.
+        packageManager.setComponentEnabledSetting(
+            show, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP
+        )
+        packageManager.setComponentEnabledSetting(
+            hide, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP
+        )
+        _isCloaked.value = readCloaked()
+    }
 
-        val packageManager = context.packageManager
-        val mainComponent = ComponentName(context, "com.uncoalesced.impart.MainActivity")
-        val aliasComponent = ComponentName(context, "com.uncoalesced.impart.MainActivityAlias")
+    private fun readCloaked(): Boolean =
+        packageManager.getComponentEnabledSetting(aliasComponent) == PackageManager.COMPONENT_ENABLED_STATE_ENABLED
 
-        if (enabled) {
-            // Enable Calculator Alias, Disable Impart Main
-            packageManager.setComponentEnabledSetting(
-                aliasComponent,
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                PackageManager.DONT_KILL_APP
-            )
-            packageManager.setComponentEnabledSetting(
-                mainComponent,
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                PackageManager.DONT_KILL_APP
-            )
-        } else {
-            // Enable Impart Main, Disable Calculator Alias
-            packageManager.setComponentEnabledSetting(
-                mainComponent,
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-                PackageManager.DONT_KILL_APP
-            )
-            packageManager.setComponentEnabledSetting(
-                aliasComponent,
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                PackageManager.DONT_KILL_APP
-            )
-        }
+    private companion object {
+        const val ALIAS_SUFFIX = ".MainActivityAlias"
     }
 }
