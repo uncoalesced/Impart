@@ -12,38 +12,38 @@ class QrPayloadCodecTest {
     private val payload = HandshakePayload(
         uuid = "3fa2c1b9-1111-2222-3333-444455556666",
         phoneNumber = "+15551234567",
-        publicKeyBase64 = "CAESZ29vZA=="
+        publicKeyBase64 = "CAESZ29vZA==",
+        signingKeyBase64 = "CAESc2lnbg=="
     )
 
     @Test
     fun `round trip preserves every field`() {
-        val decoded = QrPayloadCodec.decode(QrPayloadCodec.encode(payload))
-        assertEquals(payload, decoded.getOrThrow())
+        assertEquals(payload, QrPayloadCodec.decode(QrPayloadCodec.encode(payload)).getOrThrow())
     }
 
     @Test
-    fun `encoded form uses the frozen wire keys`() {
+    fun `encoded form carries the version and both keys`() {
         val json = JSONObject(QrPayloadCodec.encode(payload))
-        assertEquals(payload.uuid, json.getString("uuid"))
-        assertEquals(payload.phoneNumber, json.getString("phoneNumber"))
+        assertEquals(2, json.getInt("v"))
         assertEquals(payload.publicKeyBase64, json.getString("publicKey"))
+        assertEquals(payload.signingKeyBase64, json.getString("signingKey"))
     }
 
     @Test
-    fun `non json input is a typed failure not a null`() {
-        val result = QrPayloadCodec.decode("https://example.com/not-impart")
-        assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+    fun `a v1 QR without a signing key is rejected as outdated`() {
+        val v1 = """{"uuid":"u","phoneNumber":"+15551234567","publicKey":"k"}"""
+        val error = QrPayloadCodec.decode(v1).exceptionOrNull()
+        assertTrue(error?.message.orEmpty().contains("older Impart version"))
+    }
+
+    @Test
+    fun `non json input is a typed failure`() {
+        assertTrue(QrPayloadCodec.decode("https://example.com/not-impart").exceptionOrNull() is IllegalArgumentException)
+        assertTrue(QrPayloadCodec.decode("").isFailure)
     }
 
     @Test
     fun `missing field is a failure`() {
-        val result = QrPayloadCodec.decode("""{"uuid":"abc","phoneNumber":"+1"}""")
-        assertTrue(result.isFailure)
-    }
-
-    @Test
-    fun `empty string is a failure`() {
-        assertTrue(QrPayloadCodec.decode("").isFailure)
+        assertTrue(QrPayloadCodec.decode("""{"v":2,"uuid":"abc","phoneNumber":"+1","signingKey":"s"}""").isFailure)
     }
 }

@@ -13,5 +13,7 @@ interface RelayManager {
         lng: Double? = null
     ): PanicDispatchReport
 
-    suspend fun dispatchAck(targetPhoneNumber: String, counterpartPublicKeyBase64: String): Result<Unit>
+    // The ACK goes to the contact as stored in the Contact Matrix, never to an address
+    // taken from the alert itself.
+    suspend fun dispatchAck(contact: Contact, ackFor: String): Result<Unit>
 }

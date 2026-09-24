@@ -17,23 +17,23 @@ class SmsSentReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_SMS_SENT) return
-        val target = intent.getStringExtra(EXTRA_TARGET).orEmpty()
+        val label = intent.getStringExtra(EXTRA_LABEL).orEmpty()
         val part = intent.getIntExtra(EXTRA_PART_INDEX, 0) + 1
         val partCount = intent.getIntExtra(EXTRA_PART_COUNT, 1)
 
         if (resultCode == Activity.RESULT_OK) {
-            Log.i(TAG, "SMS part $part/$partCount to $target left the radio")
+            Log.i(TAG, "SMS part $part/$partCount left the radio")
             return
         }
 
         val reason = describe(resultCode)
-        Log.e(TAG, "SMS part $part/$partCount to $target failed: $reason")
+        Log.e(TAG, "SMS part $part/$partCount failed: $reason")
         ImpartNotifications.notifyHeadsUp(
             context,
             ImpartNotifications.CHANNEL_STATUS,
             ImpartNotifications.ID_SMS_SEND_FAILED,
             "PANIC SMS FAILED TO SEND",
-            "Part $part of $partCount to $target was not sent: $reason. Check SIM, signal and airplane mode, then hold to fire again."
+            "Part $part of $partCount to $label was not sent: $reason. Check SIM, signal and airplane mode, then hold to fire again."
         )
     }
 
@@ -48,15 +48,16 @@ class SmsSentReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "SmsSentReceiver"
         const val ACTION_SMS_SENT = "com.uncoalesced.impart.SMS_SENT"
-        private const val EXTRA_TARGET = "target"
+        private const val EXTRA_LABEL = "label"
         private const val EXTRA_PART_INDEX = "partIndex"
         private const val EXTRA_PART_COUNT = "partCount"
         private val requestCodes = AtomicInteger(1)
 
-        fun pendingIntent(context: Context, target: String, partIndex: Int, partCount: Int): PendingIntent {
+        // label is the contact's display name, shown in the failure notification only.
+        fun pendingIntent(context: Context, label: String, partIndex: Int, partCount: Int): PendingIntent {
             val intent = Intent(context, SmsSentReceiver::class.java)
                 .setAction(ACTION_SMS_SENT)
-                .putExtra(EXTRA_TARGET, target)
+                .putExtra(EXTRA_LABEL, label)
                 .putExtra(EXTRA_PART_INDEX, partIndex)
                 .putExtra(EXTRA_PART_COUNT, partCount)
             return PendingIntent.getBroadcast(

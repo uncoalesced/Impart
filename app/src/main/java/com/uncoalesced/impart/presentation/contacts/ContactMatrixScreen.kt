@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.uncoalesced.impart.core.security.KeyFingerprint
 import com.uncoalesced.impart.domain.model.Contact
 import com.uncoalesced.impart.domain.model.displayName
 import com.uncoalesced.impart.presentation.theme.*
@@ -192,6 +193,15 @@ fun ContactRow(contact: Contact, onRename: (Contact) -> Unit, onRevoke: (Contact
                     text = contact.phoneNumber ?: "NO NUMBER",
                     color = ImpartSecondary,
                     fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+                val fingerprint = remember(contact.publicKeyBase64, contact.signingKeyBase64) {
+                    KeyFingerprint.of(contact.publicKeyBase64, contact.signingKeyBase64)
+                }
+                Text(
+                    text = "KEY $fingerprint",
+                    color = ImpartTextPrimary,
+                    fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace
                 )
                 Text(

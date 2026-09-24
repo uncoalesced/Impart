@@ -21,8 +21,7 @@ class FakeContactRepository : ContactRepository {
 
     override suspend fun getContactByUuid(uuid: String): Contact? = store.value[uuid]
 
-    override suspend fun findActiveByPublicKey(publicKeyBase64: String): Contact? =
-        store.value.values.firstOrNull { it.publicKeyBase64 == publicKeyBase64 && !it.revoked }
+    override suspend fun findActiveByUuid(uuid: String): Contact? = store.value[uuid]?.takeIf { !it.revoked }
 
     override suspend fun renameContact(uuid: String, nickname: String) {
         store.value[uuid]?.let { store.value = store.value + (uuid to it.copy(nickname = nickname)) }

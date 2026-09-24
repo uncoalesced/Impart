@@ -28,6 +28,7 @@ import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 @Composable
 fun IntrusionScreen(
     senderName: String,
+    sentLabel: String?,
     lat: Double?,
     lng: Double?,
     onDismiss: () -> Unit
@@ -64,6 +65,17 @@ fun IntrusionScreen(
             fontWeight = FontWeight.ExtraBold,
             textAlign = TextAlign.Center
         )
+        if (sentLabel != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = sentLabel,
+                color = ImpartTextPrimary,
+                fontSize = 14.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
 
         Spacer(modifier = Modifier.height(32.dp))
 

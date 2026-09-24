@@ -5,23 +5,31 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,10 +41,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.uncoalesced.impart.core.security.AppLockManager
 import com.uncoalesced.impart.core.security.DuressManager
+import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.domain.model.displayName
 import com.uncoalesced.impart.presentation.contacts.ContactMatrixScreen
 import com.uncoalesced.impart.presentation.dashboard.DashboardScreen
@@ -45,6 +58,9 @@ import com.uncoalesced.impart.presentation.handshake.HandshakeViewModel
 import com.uncoalesced.impart.presentation.handshake.QrGeneratorScreen
 import com.uncoalesced.impart.presentation.handshake.QrScannerScreen
 import com.uncoalesced.impart.presentation.handshake.ScanResult
+import com.uncoalesced.impart.presentation.security.AppLockScreen
+import com.uncoalesced.impart.presentation.security.PinSetupDialog
+import com.uncoalesced.impart.presentation.theme.ImpartAmber
 import com.uncoalesced.impart.presentation.theme.ImpartBackground
 import com.uncoalesced.impart.presentation.theme.ImpartGround
 import com.uncoalesced.impart.presentation.theme.ImpartPanicRed
@@ -60,22 +76,59 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var duressManager: DuressManager
 
+    @Inject
+    lateinit var appLockManager: AppLockManager
+
+    @Inject
+    lateinit var securePrefsManager: SecurePrefsManager
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestMissingPermissions()
+        // Keeps the QR, contacts and fingerprints out of screenshots, screen recorders and
+        // the recent-apps preview.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
 
         setContent {
             ImpartTheme {
-                // The decoy takes over the entire window, nav bar included, the instant the
-                // duress PIN fires. Nothing behind it stays reachable.
                 val corrupted by duressManager.isCorrupted.collectAsStateWithLifecycle()
-                if (corrupted) NodeCorruptedScreen() else MainAppScreen()
+                val pinsChosen by securePrefsManager.hasCustomPins.collectAsStateWithLifecycle()
+                val unlocked by appLockManager.isUnlocked.collectAsStateWithLifecycle()
+
+                // Order matters. The decoy wins over everything once the duress PIN has fired.
+                // Nothing behind the lock is composed until the right PIN is entered.
+                when {
+                    corrupted -> NodeCorruptedScreen()
+                    !pinsChosen -> Box(modifier = Modifier.fillMaxSize().background(ImpartGround)) {
+                        PinSetupDialog(
+                            required = true,
+                            onDismiss = {},
+                            onSave = { standard, duress ->
+                                duressManager.updatePins(standard, duress).onSuccess { appLockManager.unlockAfterSetup() }
+                            }
+                        )
+                    }
+                    !unlocked -> AppLockScreen(onSubmit = appLockManager::submitPin)
+                    else -> {
+                        LaunchedEffect(Unit) { requestMissingPermissions() }
+                        MainAppScreen()
+                    }
+                }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        appLockManager.onForegrounded()
+    }
+
+    override fun onStop() {
+        appLockManager.onBackgrounded()
+        super.onStop()
     }
 
     // Location is deliberately absent: it is requested only from the dashboard toggle.
@@ -116,6 +169,7 @@ private val TABS = listOf(
 fun MainAppScreen() {
     var selectedTab by rememberSaveable { mutableStateOf(TAB_DASHBOARD) }
     var scanGeneration by remember { mutableIntStateOf(0) }
+    var pendingKeyChange by remember { mutableStateOf<ScanResult.ConfirmKeyChange?>(null) }
     val context = LocalContext.current
     val handshakeVm: HandshakeViewModel = hiltViewModel()
 
@@ -126,12 +180,32 @@ fun MainAppScreen() {
                     Toast.makeText(context, "Paired with ${event.contact.displayName}", Toast.LENGTH_SHORT).show()
                     selectedTab = TAB_CONTACTS
                 }
+                is ScanResult.Refreshed -> {
+                    Toast.makeText(context, "Re-paired with ${event.contact.displayName}", Toast.LENGTH_SHORT).show()
+                    selectedTab = TAB_CONTACTS
+                }
+                is ScanResult.ConfirmKeyChange -> pendingKeyChange = event
                 is ScanResult.Rejected -> {
                     Toast.makeText(context, event.reason, Toast.LENGTH_LONG).show()
                     scanGeneration += 1
                 }
             }
         }
+    }
+
+    pendingKeyChange?.let { change ->
+        KeyChangeDialog(
+            change = change,
+            onAccept = {
+                handshakeVm.confirmKeyChange(change.existing, change.candidate)
+                pendingKeyChange = null
+            },
+            onReject = {
+                pendingKeyChange = null
+                scanGeneration += 1
+                Toast.makeText(context, "Kept the existing keys for ${change.existing.displayName}.", Toast.LENGTH_LONG).show()
+            }
+        )
     }
 
     Scaffold(
@@ -185,4 +259,43 @@ fun MainAppScreen() {
             }
         }
     }
+}
+
+// Shown when a scanned QR reuses a known contact's UUID with different keys. That is what a
+// reinstall looks like, and also what a QR built to hijack the contact looks like, so the
+// user decides with both fingerprints in front of them.
+@Composable
+private fun KeyChangeDialog(
+    change: ScanResult.ConfirmKeyChange,
+    onAccept: () -> Unit,
+    onReject: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onReject,
+        containerColor = ImpartBackground,
+        titleContentColor = ImpartTextPrimary,
+        textContentColor = ImpartSecondary,
+        title = { Text("KEYS CHANGED FOR ${change.existing.displayName}") },
+        text = {
+            Column {
+                Text("This QR claims to be ${change.existing.displayName} but carries different keys. Only accept if you are standing with them and they reinstalled Impart.")
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("OLD KEY", color = ImpartSecondary, fontWeight = FontWeight.Bold)
+                Text(change.oldFingerprint, color = ImpartTextPrimary, fontFamily = FontFamily.Monospace)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("NEW KEY", color = ImpartAmber, fontWeight = FontWeight.Bold)
+                Text(change.newFingerprint, color = ImpartTextPrimary, fontFamily = FontFamily.Monospace)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onAccept) {
+                Text("ACCEPT NEW KEYS", color = ImpartAmber, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onReject) {
+                Text("KEEP OLD KEYS", color = ImpartTextPrimary)
+            }
+        }
+    )
 }

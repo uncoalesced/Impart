@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.uncoalesced.impart.core.security.PinVerificationResult
+import com.uncoalesced.impart.core.security.UnlockResult
 import com.uncoalesced.impart.core.util.ReadinessFix
 import com.uncoalesced.impart.core.util.ReadinessItem
 import com.uncoalesced.impart.core.util.formatCountdown
@@ -121,11 +121,15 @@ fun DashboardScreen(
                 showAuthDialog = false
                 // DURESS_TRIGGERED is deliberately silent here: MainActivity swaps the whole
                 // UI to the decoy, and announcing the wipe would defeat the point of it.
-                when (viewModel.verifySecurityPin(pin)) {
-                    PinVerificationResult.STANDARD_SUCCESS -> showPinSetup = true
-                    PinVerificationResult.INVALID_PIN ->
+                when (val result = viewModel.verifySecurityPin(pin)) {
+                    UnlockResult.Unlocked -> showPinSetup = true
+                    is UnlockResult.Invalid ->
                         Toast.makeText(context, "Invalid PIN", Toast.LENGTH_SHORT).show()
-                    PinVerificationResult.DURESS_TRIGGERED -> Unit
+                    is UnlockResult.LockedOut -> {
+                        val seconds = ((result.lockedUntil - System.currentTimeMillis()) / 1000).coerceAtLeast(1L)
+                        Toast.makeText(context, "Too many wrong attempts. Try again in ${seconds}s.", Toast.LENGTH_SHORT).show()
+                    }
+                    UnlockResult.Wiped -> Unit
                 }
             }
         )
@@ -167,7 +171,7 @@ fun DashboardScreen(
             IconButton(onClick = { showAuthDialog = true }) {
                 Icon(
                     imageVector = Icons.Default.Lock,
-                    contentDescription = "Security PINs",
+                    contentDescription = "Change PINs",
                     tint = ImpartPanicRed
                 )
             }
@@ -208,7 +212,7 @@ fun DashboardScreen(
             CardHeader(icon = Icons.Default.CheckCircle, title = "NODE READINESS")
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Every row must be green before the Doze test can pass. Tap a row to fix it.",
+                text = "Every row except Build must be green before the Doze test can pass. Tap a row to fix it.",
                 color = ImpartSecondary,
                 fontSize = 10.sp
             )

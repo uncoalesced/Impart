@@ -24,8 +24,8 @@ class ContactRepositoryImpl @Inject constructor(
     override suspend fun getContactByUuid(uuid: String): Contact? =
         contactDao.getContactByUuid(uuid)?.toDomain()
 
-    override suspend fun findActiveByPublicKey(publicKeyBase64: String): Contact? =
-        contactDao.findActiveByPublicKey(publicKeyBase64)?.toDomain()
+    override suspend fun findActiveByUuid(uuid: String): Contact? =
+        contactDao.findActiveByUuid(uuid)?.toDomain()
 
     override suspend fun renameContact(uuid: String, nickname: String) {
         contactDao.updateNickname(uuid, nickname)

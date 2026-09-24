@@ -5,6 +5,7 @@ import com.uncoalesced.impart.domain.model.PanicPayload
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,71 +13,81 @@ import org.junit.Test
 class PanicPayloadCodecTest {
 
     private val panic = PanicPayload.Panic(
-        senderPhoneNumber = "+15551234567",
-        senderPublicKeyBase64 = "CAESZ29vZA==",
-        lat = 51.5074,
-        lng = -0.1278
+        from = "a-uuid", to = "b-uuid", id = "msg-1", sentAt = 1_800_000_000_000L, lat = 51.5074, lng = -0.1278
     )
 
     @Test
     fun `panic round trip with coordinates`() {
-        val decoded = PanicPayloadCodec.decode(PanicPayloadCodec.encode(panic)).getOrThrow()
-        assertEquals(panic, decoded)
+        assertEquals(panic, PanicPayloadCodec.decode(PanicPayloadCodec.encode(panic)).getOrThrow())
     }
 
     @Test
-    fun `panic round trip without coordinates or phone`() {
-        val bare = PanicPayload.Panic(senderPhoneNumber = null, senderPublicKeyBase64 = "CAESZ29vZA==", lat = null, lng = null)
+    fun `panic without coordinates omits them`() {
+        val bare = panic.copy(lat = null, lng = null)
         val json = JSONObject(PanicPayloadCodec.encode(bare))
-        assertFalse(json.has("senderPhoneNumber"))
         assertFalse(json.has("lat"))
         assertEquals(bare, PanicPayloadCodec.decode(json.toString()).getOrThrow())
     }
 
     @Test
-    fun `wire keys are frozen`() {
-        val json = JSONObject(PanicPayloadCodec.encode(panic))
-        assertEquals("PANIC", json.getString("type"))
-        assertEquals("CRITICAL", json.getString("urgency"))
-        assertEquals(panic.senderPhoneNumber, json.getString("senderPhoneNumber"))
-        assertEquals(panic.senderPublicKeyBase64, json.getString("senderPublicKey"))
-        assertEquals(panic.lat!!, json.getDouble("lat"), 0.0)
-        assertEquals(panic.lng!!, json.getDouble("lng"), 0.0)
-    }
-
-    @Test
     fun `ack round trip`() {
-        val encoded = PanicPayloadCodec.encode(PanicPayload.Ack)
-        assertEquals("ACK", JSONObject(encoded).getString("type"))
-        assertEquals(PanicPayload.Ack, PanicPayloadCodec.decode(encoded).getOrThrow())
+        val ack = PanicPayload.Ack("a-uuid", "b-uuid", "msg-2", 1_800_000_000_000L, ackFor = "msg-1")
+        assertEquals(ack, PanicPayloadCodec.decode(PanicPayloadCodec.encode(ack)).getOrThrow())
     }
 
     @Test
-    fun `legacy payload without type defaults to panic`() {
-        val decoded = PanicPayloadCodec.decode("""{"senderPublicKey":"CAESZ29vZA=="}""").getOrThrow()
-        assertTrue(decoded is PanicPayload.Panic)
-        assertNull((decoded as PanicPayload.Panic).lat)
+    fun `wire keys are the short v2 set and carry no phone number or key`() {
+        val json = JSONObject(PanicPayloadCodec.encode(panic))
+        assertEquals(2, json.getInt("v"))
+        assertEquals("P", json.getString("t"))
+        assertEquals("a-uuid", json.getString("from"))
+        assertEquals("b-uuid", json.getString("to"))
+        assertEquals("msg-1", json.getString("id"))
+        assertEquals(1_800_000_000_000L, json.getLong("ts"))
+        assertFalse(json.has("senderPhoneNumber"))
+        assertFalse(json.has("senderPublicKey"))
     }
 
     @Test
-    fun `panic without sender key is rejected`() {
-        assertTrue(PanicPayloadCodec.decode("""{"type":"PANIC"}""").isFailure)
+    fun `v1 payload is outdated`() {
+        val result = PanicPayloadCodec.decode("""{"type":"PANIC","senderPublicKey":"k"}""")
+        assertTrue(result.exceptionOrNull() is OutdatedAlertException)
     }
 
     @Test
-    fun `unknown type is rejected`() {
-        assertTrue(PanicPayloadCodec.decode("""{"type":"HELLO"}""").isFailure)
+    fun `missing identity fields are rejected`() {
+        assertTrue(PanicPayloadCodec.decode("""{"v":2,"t":"P","to":"b","id":"x","ts":1}""").isFailure)
+        assertTrue(PanicPayloadCodec.decode("""{"v":2,"t":"P","from":"","to":"b","id":"x","ts":1}""").isFailure)
     }
 
     @Test
-    fun `non json is rejected`() {
+    fun `unknown type and non json are rejected`() {
+        assertTrue(PanicPayloadCodec.decode("""{"v":2,"t":"Z","from":"a","to":"b","id":"x","ts":1}""").isFailure)
         assertTrue(PanicPayloadCodec.decode("garbage").isFailure)
     }
 
     @Test
     fun `lone latitude is ignored rather than half applied`() {
-        val decoded = PanicPayloadCodec.decode("""{"type":"PANIC","senderPublicKey":"k","lat":1.0}""").getOrThrow()
+        val decoded = PanicPayloadCodec.decode("""{"v":2,"t":"P","from":"a","to":"b","id":"x","ts":1,"lat":1.0}""").getOrThrow()
         assertNull((decoded as PanicPayload.Panic).lat)
         assertNull(decoded.lng)
+    }
+
+    @Test
+    fun `seal and unseal round trip, and a bare json plaintext is outdated`() {
+        val signed = SignedAlert("c2lnbmF0dXJl", PanicPayloadCodec.encode(panic))
+        assertEquals(signed, PanicPayloadCodec.unseal(PanicPayloadCodec.seal(signed)).getOrThrow())
+        assertTrue(PanicPayloadCodec.unseal("""{"type":"PANIC"}""").exceptionOrNull() is OutdatedAlertException)
+        assertTrue(PanicPayloadCodec.unseal("no-separator").isFailure)
+        assertTrue(PanicPayloadCodec.unseal(".{}").isFailure)
+    }
+
+    @Test
+    fun `message ids are random, url safe and 22 characters`() {
+        val a = PanicPayloadCodec.newMessageId()
+        val b = PanicPayloadCodec.newMessageId()
+        assertNotEquals(a, b)
+        assertEquals(22, a.length)
+        assertTrue(a.all { it.isLetterOrDigit() || it == '-' || it == '_' })
     }
 }

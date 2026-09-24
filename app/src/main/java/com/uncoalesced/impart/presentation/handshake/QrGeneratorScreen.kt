@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -112,6 +113,31 @@ fun QrGeneratorScreen(
                     is QrState.Ready -> QrImage(payloadJson = qrState.payloadJson)
                 }
             }
+        }
+
+        if (qrState is QrState.Ready) {
+            Text(
+                text = "KEY FINGERPRINT",
+                color = ImpartSecondary,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = qrState.fingerprint,
+                color = ImpartTextPrimary,
+                fontSize = 16.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "When pairing, read this aloud. The other phone must show the same fingerprint for you in its Contacts tab.",
+                color = ImpartSecondary,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))

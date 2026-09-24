@@ -15,25 +15,36 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.uncoalesced.impart.core.services.ImpartNotifications
+import com.uncoalesced.impart.domain.repository.ContactRepository
 import com.uncoalesced.impart.domain.repository.RelayManager
 import com.uncoalesced.impart.presentation.theme.ImpartTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 data class IntrusionDetails(
     val senderName: String,
-    val senderPhoneNumber: String?,
-    val senderPublicKeyBase64: String?,
+    val contactUuid: String?,
+    val messageId: String?,
+    val sentAt: Long?,
+    val delayMinutes: Long,
     val lat: Double?,
     val lng: Double?
 )
 
+// Deliberately not behind the app lock: the alarm and its acknowledgement must work over the
+// lock screen, and this activity shows nothing beyond the one alert it was opened for.
 @AndroidEntryPoint
 class IntrusionActivity : ComponentActivity() {
 
     @Inject
     lateinit var relayManager: RelayManager
+
+    @Inject
+    lateinit var contactRepository: ContactRepository
 
     private lateinit var alarm: IntrusionAlarm
     private val details = mutableStateOf(readDetails(null))
@@ -41,6 +52,7 @@ class IntrusionActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
 
         // setShowWhenLocked/setTurnScreenOn are API 27+; minSdk is 26, so API 26 uses the
         // equivalent window flags or the intrusion screen crashes before it renders.
@@ -66,6 +78,7 @@ class IntrusionActivity : ComponentActivity() {
                 val current by details
                 IntrusionScreen(
                     senderName = current.senderName,
+                    sentLabel = sentLabel(current),
                     lat = current.lat,
                     lng = current.lng,
                     onDismiss = ::acknowledgeAndFinish
@@ -94,19 +107,21 @@ class IntrusionActivity : ComponentActivity() {
         alarm.start()
     }
 
+    // The ACK goes to the contact as stored at handshake time. Nothing in the alert decides
+    // where it is sent.
     private fun acknowledgeAndFinish() {
         if (dismissing) return
         dismissing = true
         alarm.stop()
         val current = details.value
-        val phone = current.senderPhoneNumber
-        val key = current.senderPublicKeyBase64
         lifecycleScope.launch {
-            if (phone.isNullOrBlank() || key.isNullOrBlank()) {
-                Log.w(TAG, "Sender left no return address; no ACK sent")
-                Toast.makeText(this@IntrusionActivity, "Sender left no return address. No ACK sent.", Toast.LENGTH_LONG).show()
+            val contact = current.contactUuid?.let { contactRepository.findActiveByUuid(it) }
+            val messageId = current.messageId
+            if (contact == null || messageId == null) {
+                Log.w(TAG, "Sender is no longer an active contact; no ACK sent")
+                Toast.makeText(this@IntrusionActivity, "Sender is no longer a trusted contact. No ACK sent.", Toast.LENGTH_LONG).show()
             } else {
-                relayManager.dispatchAck(phone, key).onFailure { error ->
+                relayManager.dispatchAck(contact, messageId).onFailure { error ->
                     Toast.makeText(
                         this@IntrusionActivity,
                         "ACK could not be sent: ${error.message ?: error.javaClass.simpleName}",
@@ -118,34 +133,53 @@ class IntrusionActivity : ComponentActivity() {
         }
     }
 
+    private fun sentLabel(current: IntrusionDetails): String? {
+        val sentAt = current.sentAt ?: return null
+        val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(sentAt))
+        return if (current.delayMinutes >= DELAY_NOTICE_MINUTES) {
+            "SENT $time, DELAYED ${current.delayMinutes} MIN"
+        } else {
+            "SENT $time"
+        }
+    }
+
     private fun readDetails(intent: Intent?): IntrusionDetails = IntrusionDetails(
         senderName = intent?.getStringExtra(EXTRA_SENDER_NAME) ?: "UNKNOWN NODE",
-        senderPhoneNumber = intent?.getStringExtra(EXTRA_SENDER_PHONE),
-        senderPublicKeyBase64 = intent?.getStringExtra(EXTRA_SENDER_KEY),
+        contactUuid = intent?.getStringExtra(EXTRA_CONTACT_UUID),
+        messageId = intent?.getStringExtra(EXTRA_MESSAGE_ID),
+        sentAt = intent?.takeIf { it.hasExtra(EXTRA_SENT_AT) }?.getLongExtra(EXTRA_SENT_AT, 0L),
+        delayMinutes = intent?.getLongExtra(EXTRA_DELAY_MINUTES, 0L) ?: 0L,
         lat = intent?.takeIf { it.hasExtra(EXTRA_LAT) }?.getDoubleExtra(EXTRA_LAT, 0.0),
         lng = intent?.takeIf { it.hasExtra(EXTRA_LNG) }?.getDoubleExtra(EXTRA_LNG, 0.0)
     )
 
     companion object {
         private const val TAG = "IntrusionActivity"
+        private const val DELAY_NOTICE_MINUTES = 2L
         private const val EXTRA_SENDER_NAME = "senderName"
-        private const val EXTRA_SENDER_PHONE = "senderPhoneNumber"
-        private const val EXTRA_SENDER_KEY = "senderPublicKey"
+        private const val EXTRA_CONTACT_UUID = "contactUuid"
+        private const val EXTRA_MESSAGE_ID = "messageId"
+        private const val EXTRA_SENT_AT = "sentAt"
+        private const val EXTRA_DELAY_MINUTES = "delayMinutes"
         private const val EXTRA_LAT = "lat"
         private const val EXTRA_LNG = "lng"
 
         fun createIntent(
             context: Context,
             senderName: String,
-            senderPhoneNumber: String?,
-            senderPublicKeyBase64: String,
+            contactUuid: String,
+            messageId: String,
+            sentAt: Long,
+            delayMinutes: Long,
             lat: Double?,
             lng: Double?
         ): Intent = Intent(context, IntrusionActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_SENDER_NAME, senderName)
-            putExtra(EXTRA_SENDER_PHONE, senderPhoneNumber)
-            putExtra(EXTRA_SENDER_KEY, senderPublicKeyBase64)
+            putExtra(EXTRA_CONTACT_UUID, contactUuid)
+            putExtra(EXTRA_MESSAGE_ID, messageId)
+            putExtra(EXTRA_SENT_AT, sentAt)
+            putExtra(EXTRA_DELAY_MINUTES, delayMinutes)
             if (lat != null && lng != null) {
                 putExtra(EXTRA_LAT, lat)
                 putExtra(EXTRA_LNG, lng)

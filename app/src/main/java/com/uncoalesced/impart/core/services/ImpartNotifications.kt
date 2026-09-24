@@ -22,6 +22,8 @@ object ImpartNotifications {
     const val ID_UNKNOWN_SENDER = 1005
     const val ID_SMS_SEND_FAILED = 1006
     const val ID_DMS_REPORT = 1007
+    const val ID_SECURITY = 1008
+    const val ID_STALE = 1009
 
     private const val LEGACY_CHANNEL_DMS_WARNING = "impart_dms_warning"
 

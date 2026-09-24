@@ -4,39 +4,59 @@ package com.uncoalesced.impart.core.security
 import com.google.crypto.tink.HybridDecrypt
 import com.google.crypto.tink.HybridEncrypt
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.PublicKeySign
+import com.google.crypto.tink.PublicKeyVerify
 import com.google.crypto.tink.TinkProtoKeysetFormat
+import java.security.GeneralSecurityException
 import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 
-// Pure JVM on purpose: no android.* imports, so the encrypt/decrypt round trip is unit-tested.
-// Every method throws on failure. Callers decide how to surface it; nothing here falls back.
+// Pure JVM on purpose: no android.* imports, so every primitive is unit-tested.
+// encrypt, decrypt and sign throw on failure; verify answers false. Nothing falls back.
 @Singleton
 class CryptoManager @Inject constructor(
     private val keys: KeysetSource
 ) {
-    fun getPublicKey(): String {
-        val publicKeyset = keys.keysetHandle().publicKeysetHandle
-        return encoder.encodeToString(TinkProtoKeysetFormat.serializeKeysetWithoutSecret(publicKeyset))
-    }
+    fun getPublicKey(): String = exportPublic(keys.keysetHandle())
+
+    fun getSigningPublicKey(): String = exportPublic(keys.signingKeysetHandle())
 
     fun encrypt(plaintext: String, counterpartPublicKeyBase64: String): String {
-        val hybridEncrypt = parsePublicKeyset(counterpartPublicKeyBase64).getPrimitive(HybridEncrypt::class.java)
-        val ciphertext = hybridEncrypt.encrypt(plaintext.toByteArray(Charsets.UTF_8), EMPTY_CONTEXT)
-        return encoder.encodeToString(ciphertext)
+        val hybridEncrypt = parsePublic(counterpartPublicKeyBase64).getPrimitive(HybridEncrypt::class.java)
+        return encoder.encodeToString(hybridEncrypt.encrypt(plaintext.toByteArray(Charsets.UTF_8), EMPTY_CONTEXT))
     }
 
     fun decrypt(ciphertextBase64: String): String {
         val hybridDecrypt = keys.keysetHandle().getPrimitive(HybridDecrypt::class.java)
-        val plaintext = hybridDecrypt.decrypt(decode(ciphertextBase64), EMPTY_CONTEXT)
-        return String(plaintext, Charsets.UTF_8)
+        return String(hybridDecrypt.decrypt(decode(ciphertextBase64), EMPTY_CONTEXT), Charsets.UTF_8)
+    }
+
+    fun sign(data: ByteArray): String =
+        encoder.encodeToString(keys.signingKeysetHandle().getPrimitive(PublicKeySign::class.java).sign(data))
+
+    // False for a bad signature, a malformed signature, or a key that is not a signing key.
+    fun verify(signatureBase64: String, data: ByteArray, signingKeyBase64: String): Boolean = try {
+        parsePublic(signingKeyBase64).getPrimitive(PublicKeyVerify::class.java).verify(decode(signatureBase64), data)
+        true
+    } catch (e: GeneralSecurityException) {
+        false
+    } catch (e: IllegalArgumentException) {
+        false
     }
 
     fun isValidPublicKey(publicKeyBase64: String): Boolean = runCatching {
-        parsePublicKeyset(publicKeyBase64).getPrimitive(HybridEncrypt::class.java)
+        parsePublic(publicKeyBase64).getPrimitive(HybridEncrypt::class.java)
     }.isSuccess
 
-    private fun parsePublicKeyset(base64: String): KeysetHandle =
+    fun isValidSigningKey(signingKeyBase64: String): Boolean = runCatching {
+        parsePublic(signingKeyBase64).getPrimitive(PublicKeyVerify::class.java)
+    }.isSuccess
+
+    private fun exportPublic(handle: KeysetHandle): String =
+        encoder.encodeToString(TinkProtoKeysetFormat.serializeKeysetWithoutSecret(handle.publicKeysetHandle))
+
+    private fun parsePublic(base64: String): KeysetHandle =
         TinkProtoKeysetFormat.parseKeysetWithoutSecret(decode(base64))
 
     // Strict decoder, but whitespace-tolerant: an SMS body can pick up a stray space.

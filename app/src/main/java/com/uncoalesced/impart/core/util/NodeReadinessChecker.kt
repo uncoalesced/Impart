@@ -13,6 +13,7 @@ import android.provider.Settings
 import android.telephony.SubscriptionManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.uncoalesced.impart.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -38,6 +39,7 @@ class NodeReadinessChecker @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     fun evaluate(phoneNumberSet: Boolean, contactCount: Int): List<ReadinessItem> = listOf(
+        buildType(),
         smsPermissions(),
         notifications(),
         fullScreenIntent(),
@@ -55,6 +57,15 @@ class NodeReadinessChecker @Inject constructor(
             detail = if (contactCount > 0) "$contactCount paired" else "Scan a QR to pair a node",
             fix = if (contactCount > 0) null else ReadinessFix.PairContact
         )
+    )
+
+    // A debug build is signed with the public key in the repository, so anyone can build an
+    // "update" that installs over it and inherits its data. Fine for testing, not for real use.
+    private fun buildType(): ReadinessItem = ReadinessItem(
+        label = "Build",
+        ok = !BuildConfig.DEBUG,
+        detail = if (BuildConfig.DEBUG) "Debug build, for testing only. Install a release build you signed for real use." else "Release build",
+        fix = null
     )
 
     private fun smsPermissions(): ReadinessItem {

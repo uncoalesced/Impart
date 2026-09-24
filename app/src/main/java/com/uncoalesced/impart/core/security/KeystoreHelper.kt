@@ -7,6 +7,7 @@ import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.hybrid.HybridConfig
 import com.google.crypto.tink.integration.android.AndroidKeysetManager
+import com.google.crypto.tink.signature.SignatureConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.KeyStore
 import javax.inject.Inject
@@ -19,33 +20,38 @@ class KeystoreHelper @Inject constructor(
 
     init {
         HybridConfig.register()
+        SignatureConfig.register()
     }
 
     @Volatile
-    private var cached: KeysetHandle? = null
+    private var hybrid: KeysetHandle? = null
 
-    // Built once per process. The SMS receiver decrypts on a 30 s wake lock, so it must not
-    // pay for a fresh AndroidKeysetManager (prefs read + Keystore unwrap) on every alert.
-    override fun keysetHandle(): KeysetHandle {
-        cached?.let { return it }
-        synchronized(this) {
-            cached?.let { return it }
-            val handle = AndroidKeysetManager.Builder()
-                .withSharedPref(context, KEYSET_NAME, PREF_FILE_NAME)
-                .withKeyTemplate(KeyTemplates.get(KEY_TEMPLATE))
-                .withMasterKeyUri(MASTER_KEY_URI)
-                .build()
-                .keysetHandle
-            cached = handle
-            return handle
-        }
-    }
+    @Volatile
+    private var signing: KeysetHandle? = null
 
+    // Each keyset is built once per process. The SMS receiver decrypts and verifies on a 30 s
+    // wake lock, so it must not pay for a prefs read and Keystore unwrap on every alert.
+    override fun keysetHandle(): KeysetHandle =
+        hybrid ?: synchronized(this) { hybrid ?: load(HYBRID_KEYSET_NAME, HYBRID_KEY_TEMPLATE).also { hybrid = it } }
+
+    override fun signingKeysetHandle(): KeysetHandle =
+        signing ?: synchronized(this) { signing ?: load(SIGNING_KEYSET_NAME, SIGNING_KEY_TEMPLATE).also { signing = it } }
+
+    private fun load(keysetName: String, template: String): KeysetHandle =
+        AndroidKeysetManager.Builder()
+            .withSharedPref(context, keysetName, PREF_FILE_NAME)
+            .withKeyTemplate(KeyTemplates.get(template))
+            .withMasterKeyUri(MASTER_KEY_URI)
+            .build()
+            .keysetHandle
+
+    // Both keysets live in the same prefs file, so one clear() removes both.
     fun purgeKeys() {
         synchronized(this) {
-            cached = null
+            hybrid = null
+            signing = null
             try {
-                context.getSharedPreferences(PREF_FILE_NAME, Context.MODE_PRIVATE).edit().clear().apply()
+                context.getSharedPreferences(PREF_FILE_NAME, Context.MODE_PRIVATE).edit().clear().commit()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to clear the Tink keyset preferences", e)
             }
@@ -63,11 +69,13 @@ class KeystoreHelper @Inject constructor(
 
     companion object {
         private const val TAG = "KeystoreHelper"
-        private const val KEYSET_NAME = "impart_keyset"
+        private const val HYBRID_KEYSET_NAME = "impart_keyset"
+        private const val SIGNING_KEYSET_NAME = "impart_signing_keyset"
         private const val PREF_FILE_NAME = "impart_key_prefs"
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val MASTER_KEY_ALIAS = "impart_master_key"
         private const val MASTER_KEY_URI = "android-keystore://$MASTER_KEY_ALIAS"
-        const val KEY_TEMPLATE = "DHKEM_X25519_HKDF_SHA256_HKDF_SHA256_AES_256_GCM"
+        const val HYBRID_KEY_TEMPLATE = "DHKEM_X25519_HKDF_SHA256_HKDF_SHA256_AES_256_GCM"
+        const val SIGNING_KEY_TEMPLATE = "ED25519"
     }
 }

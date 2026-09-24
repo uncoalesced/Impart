@@ -1,6 +1,7 @@
 // Engineered by uncoalesced
 package com.uncoalesced.impart.core.services
 
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -9,34 +10,38 @@ import android.os.PowerManager
 import android.provider.Telephony
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.uncoalesced.impart.core.security.CryptoManager
+import com.uncoalesced.impart.core.security.AlertVerdict
+import com.uncoalesced.impart.core.security.AlertVerifier
 import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.security.IMPART_ALERT_PREFIX
-import com.uncoalesced.impart.core.security.PanicPayloadCodec
+import com.uncoalesced.impart.core.util.Redact
+import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.domain.model.Contact
 import com.uncoalesced.impart.domain.model.PanicPayload
 import com.uncoalesced.impart.domain.model.displayName
-import com.uncoalesced.impart.domain.repository.ContactRepository
 import com.uncoalesced.impart.presentation.intrusion.IntrusionActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 // The brain of the intrusion pipeline. An incoming SMS wakes this receiver even from Doze;
-// everything after the prefix match runs off the main thread under a wake lock, and every
-// failure path ends in something visible. A dropped alert with no trace is the one outcome
-// this class must never produce.
+// everything after the prefix match runs off the main thread under a wake lock. AlertVerifier
+// decides; this class makes every verdict visible. Only an authenticated, fresh, first-seen
+// panic from a trusted contact raises the alarm, and nothing else is ever silent.
 @AndroidEntryPoint
 class ImpartSmsReceiver : BroadcastReceiver() {
 
     @Inject
-    lateinit var cryptoManager: CryptoManager
+    lateinit var alertVerifier: AlertVerifier
 
     @Inject
-    lateinit var contactRepository: ContactRepository
+    lateinit var securePrefsManager: SecurePrefsManager
 
     @Inject
     lateinit var duressManager: DuressManager
@@ -62,14 +67,12 @@ class ImpartSmsReceiver : BroadcastReceiver() {
         // unstructured; the wake lock timeout is the upper bound on its life.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                handleAlert(appContext, body.removePrefix(IMPART_ALERT_PREFIX))
+                val verdict = alertVerifier.verify(body.removePrefix(IMPART_ALERT_PREFIX), securePrefsManager.localUuid())
+                handle(appContext, verdict)
             } catch (t: Throwable) {
                 Log.e(TAG, "Intrusion pipeline failed", t)
-                ImpartNotifications.notifyHeadsUp(
-                    appContext,
-                    ImpartNotifications.CHANNEL_STATUS,
-                    ImpartNotifications.ID_UNREADABLE,
-                    "ALERT PIPELINE FAILURE",
+                status(
+                    appContext, ImpartNotifications.ID_UNREADABLE, "ALERT PIPELINE FAILURE",
                     "An Impart alert arrived but could not be processed: ${t.message ?: t.javaClass.simpleName}"
                 )
             } finally {
@@ -79,67 +82,66 @@ class ImpartSmsReceiver : BroadcastReceiver() {
         }
     }
 
-    private suspend fun handleAlert(context: Context, ciphertext: String) {
-        val plaintext = try {
-            cryptoManager.decrypt(ciphertext)
-        } catch (e: Exception) {
-            Log.e(TAG, "Decryption failed for an incoming alert", e)
-            ImpartNotifications.notifyHeadsUp(
-                context,
-                ImpartNotifications.CHANNEL_STATUS,
-                ImpartNotifications.ID_UNREADABLE,
-                "UNREADABLE ALERT RECEIVED",
+    private fun handle(context: Context, verdict: AlertVerdict) {
+        Log.i(TAG, "Alert verdict: ${verdict.javaClass.simpleName}")
+        when (verdict) {
+            AlertVerdict.Unreadable -> status(
+                context, ImpartNotifications.ID_UNREADABLE, "UNREADABLE ALERT RECEIVED",
                 "An Impart alert arrived that this node could not decrypt. It was not encrypted to this node's key, or it was damaged in transit."
             )
-            return
-        }
-
-        val payload = PanicPayloadCodec.decode(plaintext).getOrElse { e ->
-            Log.e(TAG, "Malformed alert payload", e)
-            ImpartNotifications.notifyHeadsUp(
-                context,
-                ImpartNotifications.CHANNEL_STATUS,
-                ImpartNotifications.ID_UNREADABLE,
-                "MALFORMED ALERT RECEIVED",
-                "An Impart alert decrypted but its contents were not understood: ${e.message}"
+            AlertVerdict.Malformed -> status(
+                context, ImpartNotifications.ID_UNREADABLE, "MALFORMED ALERT RECEIVED",
+                "An Impart alert decrypted but its contents were not understood. No alarm was raised."
             )
-            return
-        }
-
-        when (payload) {
-            is PanicPayload.Panic -> {
-                val sender = contactRepository.findActiveByPublicKey(payload.senderPublicKeyBase64)
-                if (sender == null) {
-                    Log.w(TAG, "Panic from a node that is not in the Contact Matrix; alarm withheld")
-                    ImpartNotifications.notifyHeadsUp(
-                        context,
-                        ImpartNotifications.CHANNEL_STATUS,
-                        ImpartNotifications.ID_UNKNOWN_SENDER,
-                        "PANIC FROM UNRECOGNIZED NODE",
-                        "A node that is not in your Contact Matrix sent a panic signal. Pair it by QR handshake before it can raise the alarm."
-                    )
-                    return
+            AlertVerdict.Outdated -> status(
+                context, ImpartNotifications.ID_UNREADABLE, "ALERT FROM AN OUTDATED VERSION",
+                "An Impart alert arrived in the old unsigned format. Update Impart on both phones and pair again."
+            )
+            AlertVerdict.UnknownSender -> status(
+                context, ImpartNotifications.ID_UNKNOWN_SENDER, "ALERT FROM UNRECOGNIZED NODE",
+                "A node that is not in your Contact Matrix sent an alert. Pair it by QR handshake before it can raise the alarm."
+            )
+            is AlertVerdict.BadSignature -> security(
+                context, "ALERT FAILED VERIFICATION",
+                "An alert claiming to be from ${verdict.claimedSender.displayName} failed its signature check. Someone may be impersonating them. No alarm was raised."
+            )
+            is AlertVerdict.NotForThisNode -> security(
+                context, "MISDIRECTED ALERT",
+                "${verdict.sender.displayName} sent an alert addressed to a different node. It was not raised."
+            )
+            is AlertVerdict.FromFuture -> security(
+                context, "ALERT WITH AN IMPOSSIBLE TIME",
+                "An alert from ${verdict.sender.displayName} is dated ${format(verdict.sentAt)}, which is in the future. Check this phone's clock. No alarm was raised."
+            )
+            is AlertVerdict.Stale -> status(
+                context, ImpartNotifications.ID_STALE, "OLD ALERT NOT RAISED",
+                "${kind(verdict.payload)} from ${verdict.sender.displayName} sent on ${format(verdict.payload.sentAt)} arrived more than a day late and was not raised."
+            )
+            is AlertVerdict.Replayed -> security(
+                context, "REPEATED ALERT IGNORED",
+                "An alert from ${verdict.sender.displayName} that was already handled arrived again. It may have been copied and re-sent. No alarm was raised."
+            )
+            is AlertVerdict.Accepted -> when (val payload = verdict.payload) {
+                is PanicPayload.Panic -> {
+                    Log.i(TAG, "Panic from trusted node ${Redact.uuid(verdict.sender.uuid)}; firing intrusion")
+                    fireIntrusion(context, verdict.sender, payload, verdict.delayMinutes)
                 }
-                Log.i(TAG, "Panic from trusted node ${sender.uuid.take(8)}; firing intrusion")
-                fireIntrusion(context, sender, payload)
+                is PanicPayload.Ack -> ImpartNotifications.notifyHeadsUp(
+                    context, ImpartNotifications.CHANNEL_ACK, ImpartNotifications.ID_ACK,
+                    "PANIC ACKNOWLEDGED", "${verdict.sender.displayName} acknowledged your panic signal."
+                )
             }
-
-            PanicPayload.Ack -> ImpartNotifications.notifyHeadsUp(
-                context,
-                ImpartNotifications.CHANNEL_ACK,
-                ImpartNotifications.ID_ACK,
-                "PANIC ACKNOWLEDGED",
-                "A trusted node acknowledged your panic signal."
-            )
         }
     }
 
-    private fun fireIntrusion(context: Context, sender: Contact, payload: PanicPayload.Panic) {
+    private fun fireIntrusion(context: Context, sender: Contact, payload: PanicPayload.Panic, delayMinutes: Long) {
         val intrusionIntent = IntrusionActivity.createIntent(
             context = context,
             senderName = sender.displayName,
-            senderPhoneNumber = payload.senderPhoneNumber ?: sender.phoneNumber,
-            senderPublicKeyBase64 = payload.senderPublicKeyBase64,
+            contactUuid = sender.uuid,
+            messageId = payload.id,
+            sentAt = payload.sentAt,
+            delayMinutes = delayMinutes,
             lat = payload.lat,
             lng = payload.lng
         )
@@ -161,9 +163,19 @@ class ImpartSmsReceiver : BroadcastReceiver() {
             .setAutoCancel(false)
             .setOngoing(true)
             .build()
-        context.getSystemService(android.app.NotificationManager::class.java)
-            .notify(ImpartNotifications.ID_PANIC, notification)
+        context.getSystemService(NotificationManager::class.java).notify(ImpartNotifications.ID_PANIC, notification)
     }
+
+    private fun status(context: Context, id: Int, title: String, text: String) =
+        ImpartNotifications.notifyHeadsUp(context, ImpartNotifications.CHANNEL_STATUS, id, title, text)
+
+    private fun security(context: Context, title: String, text: String) =
+        status(context, ImpartNotifications.ID_SECURITY, title, text)
+
+    private fun kind(payload: PanicPayload): String = if (payload is PanicPayload.Ack) "An acknowledgement" else "A panic"
+
+    private fun format(epochMillis: Long): String =
+        SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(epochMillis))
 
     private companion object {
         const val TAG = "ImpartSmsReceiver"

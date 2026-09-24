@@ -3,10 +3,11 @@ package com.uncoalesced.impart.presentation.dashboard
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.uncoalesced.impart.core.security.AppLockManager
 import com.uncoalesced.impart.core.security.CloakManager
 import com.uncoalesced.impart.core.security.DeadManSwitchManager
 import com.uncoalesced.impart.core.security.DuressManager
-import com.uncoalesced.impart.core.security.PinVerificationResult
+import com.uncoalesced.impart.core.security.UnlockResult
 import com.uncoalesced.impart.core.util.LocationHelper
 import com.uncoalesced.impart.core.util.NodeReadinessChecker
 import com.uncoalesced.impart.core.util.ReadinessItem
@@ -44,6 +45,7 @@ class DashboardViewModel @Inject constructor(
     private val relayManager: RelayManager,
     private val locationHelper: LocationHelper,
     private val duressManager: DuressManager,
+    private val appLockManager: AppLockManager,
     private val cloakManager: CloakManager,
     private val deadManSwitchManager: DeadManSwitchManager,
     private val securePrefsManager: SecurePrefsManager,
@@ -114,7 +116,8 @@ class DashboardViewModel @Inject constructor(
 
     fun setLocationSharingEnabled(enabled: Boolean) = securePrefsManager.setLocationSharingEnabled(enabled)
 
-    fun verifySecurityPin(pin: String): PinVerificationResult = duressManager.verifyPin(pin)
+    // Same counters and lockout as the lock screen, and the duress PIN wipes here too.
+    fun verifySecurityPin(pin: String): UnlockResult = appLockManager.submitPin(pin)
 
     fun updatePins(standardPin: String, duressPin: String): Result<Unit> =
         duressManager.updatePins(standardPin, duressPin)

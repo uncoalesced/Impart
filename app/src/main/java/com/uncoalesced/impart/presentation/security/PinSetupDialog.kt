@@ -13,15 +13,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.presentation.theme.*
 
-// Reached only after the standard PIN was entered correctly. onSave returns the manager's
-// verdict so the dialog can show exactly why a pair of PINs was refused.
+// Two uses: changing PINs after the standard PIN was entered, and the mandatory first-run
+// setup (required = true), which cannot be dismissed. onSave returns the manager's verdict
+// so the dialog can show exactly why a pair of PINs was refused.
 @Composable
 fun PinSetupDialog(
     onDismiss: () -> Unit,
-    onSave: (standardPin: String, duressPin: String) -> Result<Unit>
+    onSave: (standardPin: String, duressPin: String) -> Result<Unit>,
+    required: Boolean = false
 ) {
     var standardPin by remember { mutableStateOf("") }
     var standardConfirm by remember { mutableStateOf("") }
@@ -29,7 +32,10 @@ fun PinSetupDialog(
     var duressConfirm by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = { if (!required) onDismiss() },
+        properties = DialogProperties(dismissOnBackPress = !required, dismissOnClickOutside = !required)
+    ) {
         Card(
             colors = CardDefaults.cardColors(containerColor = ImpartBackground),
             shape = RoundedCornerShape(16.dp),
@@ -45,7 +51,7 @@ fun PinSetupDialog(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "SET NODE PINS",
+                    text = if (required) "CHOOSE YOUR PINS" else "SET NODE PINS",
                     color = ImpartTextPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
@@ -53,7 +59,7 @@ fun PinSetupDialog(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "The standard PIN opens this screen. The duress PIN wipes the node and shows the decoy. ${DuressManager.MIN_PIN_LENGTH} to ${DuressManager.MAX_PIN_LENGTH} digits each, and they must differ.",
+                    text = "The standard PIN unlocks Impart. The duress PIN, entered anywhere Impart asks for a PIN, silently wipes the node and shows a fake error screen. ${DuressManager.MIN_PIN_LENGTH} to ${DuressManager.MAX_PIN_LENGTH} digits each, and they must differ.",
                     color = ImpartSecondary,
                     fontSize = 10.sp
                 )
@@ -77,10 +83,12 @@ fun PinSetupDialog(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = if (required) Arrangement.End else Arrangement.SpaceBetween
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("CANCEL", color = ImpartSecondary)
+                    if (!required) {
+                        TextButton(onClick = onDismiss) {
+                            Text("CANCEL", color = ImpartSecondary)
+                        }
                     }
                     Button(
                         onClick = {

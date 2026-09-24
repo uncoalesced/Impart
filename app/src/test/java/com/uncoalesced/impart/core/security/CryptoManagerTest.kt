@@ -1,46 +1,31 @@
 // Engineered by uncoalesced
 package com.uncoalesced.impart.core.security
 
-import com.google.crypto.tink.KeyTemplates
-import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.hybrid.HybridConfig
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
-import org.junit.BeforeClass
 import org.junit.Test
 import java.security.GeneralSecurityException
+import java.util.Base64
 
 // The one component where a subtle bug is invisible until it corrupts or exposes a real
-// message, so the round trip is exercised on the JVM with in-memory keysets.
+// message, so every primitive is exercised on the JVM with real Tink keysets.
 class CryptoManagerTest {
 
-    private class InMemoryKeys(private val handle: KeysetHandle) : KeysetSource {
-        override fun keysetHandle(): KeysetHandle = handle
-    }
-
-    private fun newNode(): CryptoManager =
-        CryptoManager(InMemoryKeys(KeysetHandle.generateNew(KeyTemplates.get(KeystoreHelper.KEY_TEMPLATE))))
+    private val sender = TestNode().crypto
+    private val receiver = TestNode().crypto
 
     @Test
     fun `receiver decrypts what sender encrypted to its public key`() {
-        val sender = newNode()
-        val receiver = newNode()
-        val plaintext = """{"type":"PANIC","senderPublicKey":"x","lat":1.5,"lng":-2.5}"""
-
-        val ciphertext = sender.encrypt(plaintext, receiver.getPublicKey())
-
-        assertEquals(plaintext, receiver.decrypt(ciphertext))
+        val plaintext = """{"v":2,"t":"P","lat":1.5,"lng":-2.5}"""
+        assertEquals(plaintext, receiver.decrypt(sender.encrypt(plaintext, receiver.getPublicKey())))
     }
 
     @Test
     fun `sender cannot decrypt its own outgoing message`() {
-        val sender = newNode()
-        val receiver = newNode()
         val ciphertext = sender.encrypt("secret", receiver.getPublicKey())
-
         try {
             sender.decrypt(ciphertext)
             fail("Expected decryption with the wrong private key to throw")
@@ -51,15 +36,10 @@ class CryptoManagerTest {
 
     @Test
     fun `tampered ciphertext fails closed`() {
-        val sender = newNode()
-        val receiver = newNode()
-        val ciphertext = sender.encrypt("secret", receiver.getPublicKey())
-        val bytes = java.util.Base64.getDecoder().decode(ciphertext)
+        val bytes = Base64.getDecoder().decode(sender.encrypt("secret", receiver.getPublicKey()))
         bytes[bytes.size - 1] = (bytes[bytes.size - 1].toInt() xor 0x01).toByte()
-        val tampered = java.util.Base64.getEncoder().encodeToString(bytes)
-
         try {
-            receiver.decrypt(tampered)
+            receiver.decrypt(Base64.getEncoder().encodeToString(bytes))
             fail("Expected tampered ciphertext to throw")
         } catch (expected: GeneralSecurityException) {
             // authentication tag rejected it
@@ -67,54 +47,59 @@ class CryptoManagerTest {
     }
 
     @Test
-    fun `fresh nonce per message`() {
-        val sender = newNode()
-        val receiver = newNode()
+    fun `fresh randomness per message`() {
         val key = receiver.getPublicKey()
         assertNotEquals(sender.encrypt("same", key), sender.encrypt("same", key))
     }
 
     @Test
-    fun `public key export is stable and base64 without line breaks`() {
-        val node = newNode()
-        val first = node.getPublicKey()
-        assertEquals(first, node.getPublicKey())
-        assertFalse(first.contains('\n'))
-        assertFalse(first.contains(' '))
+    fun `public keys export stably without line breaks`() {
+        assertEquals(sender.getPublicKey(), sender.getPublicKey())
+        assertEquals(sender.getSigningPublicKey(), sender.getSigningPublicKey())
+        assertFalse(sender.getPublicKey().contains('\n'))
+        assertFalse(sender.getSigningPublicKey().contains('\n'))
+        assertNotEquals(sender.getPublicKey(), sender.getSigningPublicKey())
     }
 
     @Test
-    fun `public key validation`() {
-        val node = newNode()
-        assertTrue(node.isValidPublicKey(node.getPublicKey()))
-        assertFalse(node.isValidPublicKey("not base64 at all!"))
-        assertFalse(node.isValidPublicKey(java.util.Base64.getEncoder().encodeToString("random bytes".toByteArray())))
-        assertFalse(node.isValidPublicKey(""))
+    fun `key validation tells the two key types apart`() {
+        assertTrue(sender.isValidPublicKey(sender.getPublicKey()))
+        assertTrue(sender.isValidSigningKey(sender.getSigningPublicKey()))
+        assertFalse(sender.isValidPublicKey(sender.getSigningPublicKey()))
+        assertFalse(sender.isValidSigningKey(sender.getPublicKey()))
+        assertFalse(sender.isValidPublicKey("not base64 at all!"))
+        assertFalse(sender.isValidSigningKey(""))
+        assertFalse(sender.isValidPublicKey(Base64.getEncoder().encodeToString("random bytes".toByteArray())))
+    }
+
+    @Test
+    fun `signature verifies with the signer's public key only`() {
+        val data = "payload".toByteArray()
+        val signature = sender.sign(data)
+
+        assertTrue(receiver.verify(signature, data, sender.getSigningPublicKey()))
+        assertFalse(receiver.verify(signature, data, receiver.getSigningPublicKey()))
+        assertFalse(receiver.verify(signature, "payloaD".toByteArray(), sender.getSigningPublicKey()))
+    }
+
+    @Test
+    fun `verify answers false for junk instead of throwing`() {
+        val data = "payload".toByteArray()
+        assertFalse(receiver.verify("", data, sender.getSigningPublicKey()))
+        assertFalse(receiver.verify("!!!", data, sender.getSigningPublicKey()))
+        assertFalse(receiver.verify(sender.sign(data), data, "not a key"))
+        assertFalse(receiver.verify(sender.sign(data), data, sender.getPublicKey()))
     }
 
     @Test
     fun `decrypt tolerates whitespace an SMS body may pick up`() {
-        val sender = newNode()
-        val receiver = newNode()
-        val ciphertext = sender.encrypt("hello", receiver.getPublicKey())
-        val padded = ciphertext.chunked(20).joinToString(" \n")
-
+        val padded = sender.encrypt("hello", receiver.getPublicKey()).chunked(20).joinToString(" \n")
         assertEquals("hello", receiver.decrypt(padded))
     }
 
     @Test
     fun `unicode survives the round trip`() {
-        val sender = newNode()
-        val receiver = newNode()
         val plaintext = "Ünïcödé 日本語 +15551234567"
         assertEquals(plaintext, receiver.decrypt(sender.encrypt(plaintext, receiver.getPublicKey())))
-    }
-
-    companion object {
-        @BeforeClass
-        @JvmStatic
-        fun registerTink() {
-            HybridConfig.register()
-        }
     }
 }

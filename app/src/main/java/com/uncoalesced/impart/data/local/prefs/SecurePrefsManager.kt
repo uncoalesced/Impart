@@ -14,8 +14,9 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-// The single encrypted key-value store. Node identity, the dead man's switch schedule and
-// the PINs all live here behind one Keystore-backed master key.
+// The single encrypted key-value store: node identity, PINs and lock counters, the dead
+// man's switch schedule, the location toggle and the accepted legal version, all behind one
+// Keystore-backed master key.
 @Singleton
 class SecurePrefsManager @Inject constructor(
     @ApplicationContext context: Context
@@ -30,19 +31,28 @@ class SecurePrefsManager @Inject constructor(
 
     private val _localPhoneNumber = MutableStateFlow(readPhoneNumber())
 
-    // This node's own number, typed in on the My QR screen. Android cannot read it from the
-    // SIM reliably, so the user is the source of truth. Null until entered.
+    // This node's own number, typed in on the My QR screen and validated there. Android
+    // cannot read it from the SIM reliably, so the user is the source of truth.
     val localPhoneNumber: StateFlow<String?> = _localPhoneNumber.asStateFlow()
 
     private val _locationSharingEnabled = MutableStateFlow(prefs.getBoolean(KEY_LOCATION_SHARING, false))
     val locationSharingEnabled: StateFlow<Boolean> = _locationSharingEnabled.asStateFlow()
+
+    private val _hasCustomPins = MutableStateFlow(prefs.getBoolean(KEY_CUSTOM_PINS, false))
+
+    // False until the user has chosen their own PINs. The app refuses to go past the PIN
+    // setup screen until then, so the public defaults never guard anything.
+    val hasCustomPins: StateFlow<Boolean> = _hasCustomPins.asStateFlow()
+
+    private val _acceptedLegalVersion = MutableStateFlow(prefs.getInt(KEY_LEGAL_VERSION, 0))
+    val acceptedLegalVersion: StateFlow<Int> = _acceptedLegalVersion.asStateFlow()
 
     fun setLocationSharingEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_LOCATION_SHARING, enabled).apply()
         _locationSharingEnabled.value = enabled
     }
 
-    // Generated once so the handshake QR and every panic advertise the same UUID forever.
+    // Generated once so the handshake QR and every alert advertise the same UUID forever.
     fun localUuid(): String {
         prefs.getString(KEY_LOCAL_UUID, null)?.let { return it }
         val generated = UUID.randomUUID().toString()
@@ -84,14 +94,38 @@ class SecurePrefsManager @Inject constructor(
         prefs.edit()
             .putString(KEY_STANDARD_PIN, standardPin)
             .putString(KEY_DURESS_PIN, duressPin)
+            .putBoolean(KEY_CUSTOM_PINS, true)
             .apply()
+        _hasCustomPins.value = true
+    }
+
+    fun failedUnlockAttempts(): Int = prefs.getInt(KEY_FAILED_ATTEMPTS, 0)
+
+    fun lockedUntil(): Long = prefs.getLong(KEY_LOCKED_UNTIL, 0L)
+
+    fun recordUnlockFailure(attempts: Int, lockedUntil: Long) {
+        prefs.edit().putInt(KEY_FAILED_ATTEMPTS, attempts).putLong(KEY_LOCKED_UNTIL, lockedUntil).apply()
+    }
+
+    fun clearUnlockFailures() {
+        prefs.edit().remove(KEY_FAILED_ATTEMPTS).remove(KEY_LOCKED_UNTIL).apply()
+    }
+
+    fun acceptLegal(version: Int) {
+        prefs.edit().putInt(KEY_LEGAL_VERSION, version).apply()
+        _acceptedLegalVersion.value = version
     }
 
     fun isNodeCorrupted(): Boolean = prefs.getBoolean(KEY_NODE_CORRUPTED, false)
 
-    // commit(), not apply(): the wipe must be durable before the keys are purged.
-    fun markNodeCorrupted() {
-        prefs.edit().putBoolean(KEY_NODE_CORRUPTED, true).commit()
+    // Duress wipe: every stored value goes, the decoy flag is set, in one synchronous commit,
+    // so a crash straight after still leaves the node in decoy mode.
+    fun wipeForDuress() {
+        prefs.edit().clear().putBoolean(KEY_NODE_CORRUPTED, true).commit()
+        _localPhoneNumber.value = null
+        _locationSharingEnabled.value = false
+        _hasCustomPins.value = false
+        _acceptedLegalVersion.value = 0
     }
 
     private fun readPhoneNumber(): String? =
@@ -106,6 +140,10 @@ class SecurePrefsManager @Inject constructor(
         private const val KEY_DMS_LAST_CHECKIN = "dms_last_checkin"
         private const val KEY_STANDARD_PIN = "standard_pin"
         private const val KEY_DURESS_PIN = "duress_pin"
+        private const val KEY_CUSTOM_PINS = "custom_pins_set"
+        private const val KEY_FAILED_ATTEMPTS = "failed_unlock_attempts"
+        private const val KEY_LOCKED_UNTIL = "unlock_locked_until"
+        private const val KEY_LEGAL_VERSION = "accepted_legal_version"
         private const val KEY_NODE_CORRUPTED = "is_node_corrupted"
         const val DEFAULT_STANDARD_PIN = "1234"
         const val DEFAULT_DURESS_PIN = "9999"

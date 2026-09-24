@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.room.Room
 import com.uncoalesced.impart.data.local.db.ContactDao
 import com.uncoalesced.impart.data.local.db.ImpartDatabase
+import com.uncoalesced.impart.data.local.db.SeenAlertDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -25,4 +26,7 @@ object DatabaseModule {
 
     @Provides
     fun provideContactDao(database: ImpartDatabase): ContactDao = database.contactDao()
+
+    @Provides
+    fun provideSeenAlertDao(database: ImpartDatabase): SeenAlertDao = database.seenAlertDao()
 }

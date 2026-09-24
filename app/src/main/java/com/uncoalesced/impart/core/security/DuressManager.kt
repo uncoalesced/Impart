@@ -32,6 +32,8 @@ class DuressManager @Inject constructor(
 
     fun verifyPin(enteredPin: String): PinVerificationResult {
         if (_isCorrupted.value) return PinVerificationResult.DURESS_TRIGGERED
+        // Until the user has chosen PINs, the public defaults must not unlock or wipe anything.
+        if (!securePrefsManager.hasCustomPins.value) return PinVerificationResult.INVALID_PIN
         return when (enteredPin) {
             securePrefsManager.standardPin() -> PinVerificationResult.STANDARD_SUCCESS
             securePrefsManager.duressPin() -> {
@@ -51,14 +53,17 @@ class DuressManager @Inject constructor(
         if (standardPin == duressPin) {
             return Result.failure(IllegalArgumentException("The duress PIN must differ from the standard PIN."))
         }
+        if (standardPin in PUBLIC_DEFAULTS || duressPin in PUBLIC_DEFAULTS) {
+            return Result.failure(IllegalArgumentException("1234 and 9999 are the published defaults. Choose other PINs."))
+        }
         securePrefsManager.setPins(standardPin, duressPin)
         return Result.success(Unit)
     }
 
-    // Irreversible by design. Order matters: mark corrupted first so a crash mid-wipe still
-    // leaves the node in decoy mode on next launch.
+    // Irreversible by design. The preferences wipe runs first and commits the decoy flag in
+    // the same write, so a crash mid-wipe still leaves the node in decoy mode.
     fun executeNuclearWipe() {
-        securePrefsManager.markNodeCorrupted()
+        securePrefsManager.wipeForDuress()
         _isCorrupted.value = true
 
         try {
@@ -69,7 +74,7 @@ class DuressManager @Inject constructor(
         try {
             context.deleteDatabase(ImpartDatabase.NAME)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to delete the contact database during wipe", e)
+            Log.e(TAG, "Failed to delete the database during wipe", e)
         }
         keystoreHelper.purgeKeys()
     }
@@ -81,5 +86,6 @@ class DuressManager @Inject constructor(
         private const val TAG = "DuressManager"
         const val MIN_PIN_LENGTH = 4
         const val MAX_PIN_LENGTH = 8
+        private val PUBLIC_DEFAULTS = setOf(SecurePrefsManager.DEFAULT_STANDARD_PIN, SecurePrefsManager.DEFAULT_DURESS_PIN)
     }
 }
