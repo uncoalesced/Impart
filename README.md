@@ -1,64 +1,72 @@
 <!-- Engineered by uncoalesced -->
-# Project Impart
+# Impart
 
-Impart is a closed-loop emergency summoning and paging system designed for trusted devices. It enables direct, end-to-end encrypted panic signals between physical nodes, waking the receiving device from sleep, bypassing lock screens, and sounding an immediate alarm regardless of OS state or Doze mode.
+Impart is a panic button for a small circle of people who trust each other. Hold the button on one phone and a paired phone wakes up, takes over the lock screen, and sounds an alarm, even if it was asleep in a pocket with Do Not Disturb on.
 
----
+The whole thing runs over ordinary SMS. There is no server, no account, no Firebase, no push service. The only thing that ever leaves a phone is a text message whose body is `IMPART_ALERT:` followed by ciphertext. Your carrier sees that two numbers texted each other. It does not see what was said.
 
-## Key Principles & Architecture
+## How it works
 
-- **End-to-End Encryption**: Payloads are encrypted using Tink AES-256-GCM before leaving the device. Firebase and transit layers serve purely as a blind relay and cannot inspect or alter message contents.
-- **Physical Out-of-Band Handshake**: Trust relationships are established via CameraX / ML Kit QR code exchanges directly between two physical devices. No central server brokers or approves contact connections.
-- **High-Priority FCM Data Payloads**: Message delivery relies solely on data-only Firebase Cloud Messaging payloads with high priority, ensuring the app process wakes on demand even in deep sleep / Doze mode.
-- **Lock-Screen Intrusion Screen**: Incoming emergency signals trigger a full-screen intent activity over the lock screen with a distinct high-contrast alert design and continuous audio alert.
-- **Jetpack Compose UI**: Built with 100% Jetpack Compose, Material 3, Hilt dependency injection, Room database persistence, and Google Cloud Functions.
+Two phones become trusted by scanning each other's QR codes in person. The QR carries a UUID, a phone number, and a Tink public key. Nothing remote can add a contact; someone has to be standing next to you.
 
----
+When you hold a panic button, the app encrypts a small JSON payload to the recipient's public key (Tink hybrid encryption, X25519 plus AES-256-GCM), prefixes it, and sends it as a multipart SMS. On the other side a broadcast receiver matches the prefix, grabs a wake lock, decrypts, checks that the sender is in the Contact Matrix, and fires a full-screen notification that launches the red intrusion screen with a looping alarm on the alarm audio stream. Tapping acknowledge sends an encrypted ACK back the same way.
 
-## Directory Structure
+SMS was chosen because an incoming text is delivered by the modem and wakes the receiver even under Doze, and because it keeps every third party out of the loop. The cost is honest: you need a SIM with SMS service, delivery usually takes a few seconds but the carrier makes no promises, and both phone numbers are visible to the network. Impart gives you confidentiality of content, not privacy of metadata.
 
-```
-/
-├── app/                      # Android application module
-│   └── src/main/java/com/uncoalesced/impart/
-│       ├── core/             # DI, security, Keystore, FCM messaging service
-│       ├── data/             # Local database (Room), repositories, remote implementations
-│       ├── domain/           # Models, interfaces, use cases
-│       └── presentation/     # Compose screens (Dashboard, Contacts, Handshake, Intrusion)
-├── functions/                # Firebase Cloud Functions (TypeScript)
-│   └── src/                  # Blind router function (initiatePanic)
-├── specs/                    # Architecture, security protocol, and design specifications
-├── LICENSE                   # Apache License 2.0
-└── README.md                 # GitHub repository overview
-```
+There is also a dead man's switch (miss a check-in and a panic goes out to everyone), a duress PIN that wipes the node and leaves a fake "system error" screen behind, and a launcher disguise that renames the app to Calculator.
 
----
+## Building
 
-## Setup & Deployment
-
-### 1. Firebase Configuration
-1. Register an Android app in your Firebase Console with package name `com.uncoalesced.impart`.
-2. Download `google-services.json` and place it in the `app/` directory.
-
-### 2. Cloud Functions Router
-Deploy the blind routing Cloud Function to Firebase:
+You need JDK 17 and an Android SDK with API 35. Nothing else. No `google-services.json`, no secrets, no backend to deploy.
 
 ```bash
-cd functions
-npm install
-npm run build
-firebase deploy --only functions:initiatePanic
+./gradlew assembleDebug            # app/build/outputs/apk/debug/app-debug.apk
+./gradlew installDebug             # onto a connected phone
+./gradlew test                     # JVM unit tests (crypto round trip, codecs, use cases)
+./gradlew lint                     # Android Lint
+bash .github/scripts/standards-check.sh   # signature, palette and Compose-only rules
 ```
 
-### 3. Build Android App
-Open the project in Android Studio or compile using Gradle:
+The debug build signs with `debug.keystore` at the repo root (password `android`), so every machine produces the same debug signature and you can reinstall over an existing debug build.
 
-```bash
-gradle assembleDebug
+Minimum Android is 8.0 (API 26). Target is 35.
+
+## First run on a phone
+
+1. Grant the SMS, camera and notification permissions when asked.
+2. Open the My QR tab and type your own phone number with country code. Android cannot read it from the SIM reliably, so you are the source of truth. The QR appears once the number is in.
+3. On the Dashboard, open the Node Readiness card and tap every amber row until they are all green. Two of them matter more than the rest on real hardware: Android 14 hides the full-screen alert unless you allow it, and most OEM battery savers kill the SMS receiver unless the app is exempt.
+4. Tap the lock icon, enter the standard PIN (default `1234`), and set your own standard and duress PINs. The default duress PIN is `9999`. Change both before you rely on the app.
+5. Pair with another phone: they scan your QR, then you scan theirs. Pairing is one-directional per scan, so do it both ways. Tap a contact's name to give it a nickname you will recognise on a red screen at 3am.
+
+The full test protocol for three phones, including the deep-sleep test, is in `specs/08_FLIGHT_CHECK_PROTOCOL.md`.
+
+## What you are trusting
+
+- Private keys are generated by Tink inside the Android Keystore and never exported. The QR only carries the public half.
+- The contact database is a plain Room database inside the app sandbox. It is not encrypted at rest yet; that is on the roadmap.
+- Backups are disabled on purpose. The keys that wrap the local data live in this phone's Keystore, so a restored copy on another phone would be unreadable and would crash on launch.
+- Anyone who photographs your QR gets your public key and phone number. They could send you an alert, but the receiver only sounds the alarm for senders already in your Contact Matrix, and revoking a contact stops both directions.
+
+## Repository layout
+
+```
+app/src/main/java/com/uncoalesced/impart/
+  core/         security (Tink, keystore, PINs, cloak, dead man's switch), SMS receiver,
+                notifications, WorkManager workers, Hilt modules, readiness checks
+  data/         Room database and DAO, encrypted preferences, the SMS relay
+  domain/       pure Kotlin models, repository interfaces, use cases
+  presentation/ Compose screens and ViewModels, one folder per feature
+app/src/test/   JVM unit tests
+specs/          the design documents; read them before changing anything structural
 ```
 
----
+Coding rules that CI enforces: every Kotlin and Gradle script file starts with `// Engineered by uncoalesced`, colors come from `presentation/theme/Color.kt` and nowhere else, and there is no XML layout, Fragment or `findViewById` anywhere. Details in `specs/05_CODING_STANDARDS.md`.
+
+## Branches
+
+Work lands on `development`, is promoted to `main` when the release gate passes, and `deployment` is what stores build from. CI on `development` builds debug, runs the unit tests and lint, and runs the standards script.
 
 ## License
 
-Project Impart is released under the [Apache License 2.0](LICENSE).
+Apache 2.0. See `LICENSE`.
