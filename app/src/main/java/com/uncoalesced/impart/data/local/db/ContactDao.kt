@@ -19,6 +19,12 @@ interface ContactDao {
     @Query("SELECT * FROM contacts WHERE uuid = :uuid LIMIT 1")
     suspend fun getContactByUuid(uuid: String): ContactEntity?
 
+    @Query("SELECT * FROM contacts WHERE publicKeyBase64 = :publicKeyBase64 AND revoked = 0 LIMIT 1")
+    suspend fun findActiveByPublicKey(publicKeyBase64: String): ContactEntity?
+
+    @Query("UPDATE contacts SET nickname = :nickname WHERE uuid = :uuid")
+    suspend fun updateNickname(uuid: String, nickname: String)
+
     @Query("UPDATE contacts SET revoked = 1 WHERE uuid = :uuid")
     suspend fun revokeContact(uuid: String)
 }

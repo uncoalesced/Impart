@@ -8,4 +8,8 @@ import com.uncoalesced.impart.data.local.db.entity.ContactEntity
 @Database(entities = [ContactEntity::class], version = 3, exportSchema = false)
 abstract class ImpartDatabase : RoomDatabase() {
     abstract fun contactDao(): ContactDao
+
+    companion object {
+        const val NAME = "impart_database"
+    }
 }

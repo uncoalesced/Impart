@@ -8,32 +8,32 @@ import com.uncoalesced.impart.core.security.DeadManSwitchManager
 import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.security.PinVerificationResult
 import com.uncoalesced.impart.core.util.LocationHelper
-import com.uncoalesced.impart.core.util.NodeIdentityHelper
+import com.uncoalesced.impart.core.util.NodeReadinessChecker
+import com.uncoalesced.impart.core.util.ReadinessItem
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.domain.model.Contact
+import com.uncoalesced.impart.domain.model.displayName
 import com.uncoalesced.impart.domain.repository.ContactRepository
 import com.uncoalesced.impart.domain.repository.RelayManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 sealed interface DashboardUiState {
-    object Idle : DashboardUiState
-    object Loading : DashboardUiState
-    object Success : DashboardUiState
-    object NodeCorrupted : DashboardUiState
+    data object Idle : DashboardUiState
+    data object Loading : DashboardUiState
+    data class Success(val message: String) : DashboardUiState
     data class Error(val message: String) : DashboardUiState
 }
 
 sealed interface NodeIdentityState {
-    object Loading : NodeIdentityState
     data class Ready(val uuid: String, val phoneNumber: String) : NodeIdentityState
     data class Unavailable(val uuid: String, val message: String) : NodeIdentityState
 }
@@ -47,130 +47,94 @@ class DashboardViewModel @Inject constructor(
     private val cloakManager: CloakManager,
     private val deadManSwitchManager: DeadManSwitchManager,
     private val securePrefsManager: SecurePrefsManager,
-    private val nodeIdentityHelper: NodeIdentityHelper
+    private val readinessChecker: NodeReadinessChecker
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<DashboardUiState>(DashboardUiState.Idle)
-    val uiState: StateFlow<DashboardUiState> = _uiState
+    val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
-    private val _isCloaked = MutableStateFlow(cloakManager.isCloaked())
-    val isCloaked: StateFlow<Boolean> = _isCloaked
-
-    private val _dmsIntervalHours = MutableStateFlow(deadManSwitchManager.getIntervalHours())
-    val dmsIntervalHours: StateFlow<Int> = _dmsIntervalHours
-
-    private val _dmsLastCheckin = MutableStateFlow(deadManSwitchManager.getLastCheckin())
-    val dmsLastCheckin: StateFlow<Long> = _dmsLastCheckin
-
-    private val _locationSharingEnabled = MutableStateFlow(securePrefsManager.isLocationSharingEnabled())
-    val locationSharingEnabled: StateFlow<Boolean> = _locationSharingEnabled
-
-    private val _nodeIdentity = MutableStateFlow<NodeIdentityState>(NodeIdentityState.Loading)
-    val nodeIdentity: StateFlow<NodeIdentityState> = _nodeIdentity
+    // Manager-owned state is exposed directly; nothing is mirrored into a second flow.
+    val isCloaked: StateFlow<Boolean> = cloakManager.isCloaked
+    val dmsIntervalHours: StateFlow<Int> = deadManSwitchManager.intervalHours
+    val dmsLastCheckin: StateFlow<Long> = deadManSwitchManager.lastCheckin
+    val locationSharingEnabled: StateFlow<Boolean> = securePrefsManager.locationSharingEnabled
 
     val activeContacts: StateFlow<List<Contact>> = contactRepository.getActiveContacts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    init {
-        viewModelScope.launch(Dispatchers.IO) {
-            val uuid = nodeIdentityHelper.localUuid()
-            _nodeIdentity.value = nodeIdentityHelper.resolve().fold(
-                onSuccess = { NodeIdentityState.Ready(it.uuid, it.phoneNumber) },
-                onFailure = {
-                    NodeIdentityState.Unavailable(uuid, it.message ?: "Phone number unavailable")
-                }
-            )
-        }
+    val nodeIdentity: StateFlow<NodeIdentityState> = securePrefsManager.localPhoneNumber
+        .map { toIdentityState(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, toIdentityState(securePrefsManager.localPhoneNumber.value))
+
+    private val readinessTick = MutableStateFlow(0)
+
+    // Re-evaluated when the user returns from Settings, pairs a contact, or sets a number.
+    val readiness: StateFlow<List<ReadinessItem>> = combine(
+        readinessTick, activeContacts, securePrefsManager.localPhoneNumber
+    ) { _, contacts, phone ->
+        readinessChecker.evaluate(phoneNumberSet = !phone.isNullOrBlank(), contactCount = contacts.size)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun refreshReadiness() {
+        readinessTick.value += 1
     }
 
     fun initiatePanic(contact: Contact) {
         viewModelScope.launch {
             _uiState.value = DashboardUiState.Loading
-
-            val loc = resolveLocation()
-
-            val result = relayManager.dispatchPanic(
-                targetPhoneNumber = contact.phoneNumber,
-                counterpartPublicKeyBase64 = contact.publicKeyBase64,
-                lat = loc?.first,
-                lng = loc?.second
+            val location = resolveLocation()
+            _uiState.value = relayManager.dispatchPanic(contact, location?.first, location?.second).fold(
+                onSuccess = { DashboardUiState.Success("Panic dispatched to ${contact.displayName}") },
+                onFailure = { DashboardUiState.Error(it.message ?: "Unknown error") }
             )
-            
-            if (result.isSuccess) {
-                _uiState.value = DashboardUiState.Success
-            } else {
-                _uiState.value = DashboardUiState.Error(result.exceptionOrNull()?.message ?: "Unknown error")
-            }
         }
     }
 
     fun broadcastPanic(contacts: List<Contact>) {
         if (contacts.isEmpty()) return
-        
         viewModelScope.launch {
             _uiState.value = DashboardUiState.Loading
-
-            val loc = resolveLocation()
-
-            val deferreds = contacts.map { contact ->
-                async {
-                    relayManager.dispatchPanic(
-                        targetPhoneNumber = contact.phoneNumber,
-                        counterpartPublicKeyBase64 = contact.publicKeyBase64,
-                        lat = loc?.first,
-                        lng = loc?.second
-                    )
-                }
-            }
-            
-            val results = deferreds.awaitAll()
-            if (results.any { it.isFailure }) {
-                _uiState.value = DashboardUiState.Error("One or more dispatches failed.")
+            val location = resolveLocation()
+            val report = relayManager.broadcastPanic(contacts, location?.first, location?.second)
+            _uiState.value = if (report.allSent) {
+                DashboardUiState.Success("Panic dispatched to ${report.sent} nodes")
             } else {
-                _uiState.value = DashboardUiState.Success
+                DashboardUiState.Error(
+                    "Sent to ${report.sent} of ${report.attempted} nodes. Failed: ${report.failed.joinToString()}"
+                )
             }
         }
     }
 
-    // Location is opt-in. Off means the panic payload carries no coordinates at all,
-    // not a stale or coarse fallback.
+    // Location is opt-in. Off means the payload carries no coordinates at all.
     private suspend fun resolveLocation(): Pair<Double, Double>? {
-        if (!_locationSharingEnabled.value) return null
+        if (!locationSharingEnabled.value) return null
         return locationHelper.getCurrentLocation()
     }
 
-    fun setLocationSharingEnabled(enabled: Boolean) {
-        securePrefsManager.setLocationSharingEnabled(enabled)
-        _locationSharingEnabled.value = enabled
-    }
+    fun setLocationSharingEnabled(enabled: Boolean) = securePrefsManager.setLocationSharingEnabled(enabled)
 
-    fun verifySecurityPin(pin: String): PinVerificationResult {
-        val result = duressManager.verifyPin(pin)
-        if (result == PinVerificationResult.DURESS_TRIGGERED) {
-            _uiState.value = DashboardUiState.NodeCorrupted
-        }
-        return result
-    }
+    fun verifySecurityPin(pin: String): PinVerificationResult = duressManager.verifyPin(pin)
 
-    fun toggleCloakMode(enabled: Boolean) {
-        cloakManager.setCloakEnabled(enabled)
-        _isCloaked.value = enabled
-    }
+    fun updatePins(standardPin: String, duressPin: String): Result<Unit> =
+        duressManager.updatePins(standardPin, duressPin)
 
-    fun setDmsInterval(hours: Int) {
-        deadManSwitchManager.setIntervalHours(hours)
-        _dmsIntervalHours.value = hours
-        _dmsLastCheckin.value = deadManSwitchManager.getLastCheckin()
-    }
+    fun toggleCloakMode(enabled: Boolean) = cloakManager.setCloakEnabled(enabled)
 
-    fun dmsCheckIn() {
-        deadManSwitchManager.checkIn()
-        _dmsLastCheckin.value = deadManSwitchManager.getLastCheckin()
-    }
+    fun setDmsInterval(hours: Int) = deadManSwitchManager.setIntervalHours(hours)
 
-    fun isNodeCorrupted(): Boolean = duressManager.isNodeCorrupted()
+    fun dmsCheckIn() = deadManSwitchManager.checkIn()
 
     fun resetState() {
         _uiState.value = DashboardUiState.Idle
+    }
+
+    private fun toIdentityState(phone: String?): NodeIdentityState {
+        val uuid = securePrefsManager.localUuid()
+        return if (phone.isNullOrBlank()) {
+            NodeIdentityState.Unavailable(uuid, "Enter your phone number on the My QR tab.")
+        } else {
+            NodeIdentityState.Ready(uuid, phone)
+        }
     }
 }

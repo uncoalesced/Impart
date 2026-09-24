@@ -2,56 +2,112 @@
 package com.uncoalesced.impart.data.local.prefs
 
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.uncoalesced.impart.domain.model.NodeIdentity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// The single encrypted key-value store. Node identity, the dead man's switch schedule and
+// the PINs all live here behind one Keystore-backed master key.
 @Singleton
 class SecurePrefsManager @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext context: Context
 ) {
-    private val PREFS_NAME = "impart_node_secure_prefs"
-    private val KEY_LOCATION_SHARING = "location_sharing_enabled"
-    private val KEY_LOCAL_UUID = "local_node_uuid"
-    private val KEY_LOCAL_PHONE = "local_node_phone_number"
-
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
-
-    private val securePrefs = EncryptedSharedPreferences.create(
+    private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
         context,
         PREFS_NAME,
-        masterKey,
+        MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
         EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
 
-    fun isLocationSharingEnabled(): Boolean =
-        securePrefs.getBoolean(KEY_LOCATION_SHARING, false)
+    private val _localPhoneNumber = MutableStateFlow(readPhoneNumber())
+
+    // This node's own number, typed in on the My QR screen. Android cannot read it from the
+    // SIM reliably, so the user is the source of truth. Null until entered.
+    val localPhoneNumber: StateFlow<String?> = _localPhoneNumber.asStateFlow()
+
+    private val _locationSharingEnabled = MutableStateFlow(prefs.getBoolean(KEY_LOCATION_SHARING, false))
+    val locationSharingEnabled: StateFlow<Boolean> = _locationSharingEnabled.asStateFlow()
 
     fun setLocationSharingEnabled(enabled: Boolean) {
-        securePrefs.edit().putBoolean(KEY_LOCATION_SHARING, enabled).apply()
+        prefs.edit().putBoolean(KEY_LOCATION_SHARING, enabled).apply()
+        _locationSharingEnabled.value = enabled
     }
 
-    // Stable node identity. Generated once on first read so a handshake QR and a
-    // panic dispatch always advertise the same UUID across process restarts.
-    fun getOrCreateLocalUuid(): String {
-        securePrefs.getString(KEY_LOCAL_UUID, null)?.let { return it }
+    // Generated once so the handshake QR and every panic advertise the same UUID forever.
+    fun localUuid(): String {
+        prefs.getString(KEY_LOCAL_UUID, null)?.let { return it }
         val generated = UUID.randomUUID().toString()
-        securePrefs.edit().putString(KEY_LOCAL_UUID, generated).apply()
+        prefs.edit().putString(KEY_LOCAL_UUID, generated).apply()
         return generated
     }
 
-    // This node's own phone number, advertised in the handshake QR so counterparts
-    // know where to send the SMS panic. Set manually because TelephonyManager cannot
-    // reliably read a device's own number on modern Android / most carriers.
-    fun getLocalPhoneNumber(): String? = securePrefs.getString(KEY_LOCAL_PHONE, null)
-
     fun setLocalPhoneNumber(number: String) {
-        securePrefs.edit().putString(KEY_LOCAL_PHONE, number).apply()
+        val trimmed = number.trim()
+        prefs.edit().putString(KEY_LOCAL_PHONE, trimmed).apply()
+        _localPhoneNumber.value = trimmed.takeIf { it.isNotBlank() }
+    }
+
+    fun nodeIdentity(): Result<NodeIdentity> {
+        val phone = _localPhoneNumber.value
+            ?: return Result.failure(
+                IllegalStateException("No phone number set for this node. Enter it on the My QR screen.")
+            )
+        return Result.success(NodeIdentity(localUuid(), phone))
+    }
+
+    fun dmsIntervalHours(): Int = prefs.getInt(KEY_DMS_INTERVAL_HOURS, 0)
+
+    fun setDmsIntervalHours(hours: Int) {
+        prefs.edit().putInt(KEY_DMS_INTERVAL_HOURS, hours).apply()
+    }
+
+    fun dmsLastCheckin(): Long = prefs.getLong(KEY_DMS_LAST_CHECKIN, 0L)
+
+    fun setDmsLastCheckin(epochMillis: Long) {
+        prefs.edit().putLong(KEY_DMS_LAST_CHECKIN, epochMillis).apply()
+    }
+
+    fun standardPin(): String = prefs.getString(KEY_STANDARD_PIN, null) ?: DEFAULT_STANDARD_PIN
+
+    fun duressPin(): String = prefs.getString(KEY_DURESS_PIN, null) ?: DEFAULT_DURESS_PIN
+
+    fun setPins(standardPin: String, duressPin: String) {
+        prefs.edit()
+            .putString(KEY_STANDARD_PIN, standardPin)
+            .putString(KEY_DURESS_PIN, duressPin)
+            .apply()
+    }
+
+    fun isNodeCorrupted(): Boolean = prefs.getBoolean(KEY_NODE_CORRUPTED, false)
+
+    // commit(), not apply(): the wipe must be durable before the keys are purged.
+    fun markNodeCorrupted() {
+        prefs.edit().putBoolean(KEY_NODE_CORRUPTED, true).commit()
+    }
+
+    private fun readPhoneNumber(): String? =
+        prefs.getString(KEY_LOCAL_PHONE, null)?.trim()?.takeIf { it.isNotBlank() }
+
+    companion object {
+        private const val PREFS_NAME = "impart_node_secure_prefs"
+        private const val KEY_LOCATION_SHARING = "location_sharing_enabled"
+        private const val KEY_LOCAL_UUID = "local_node_uuid"
+        private const val KEY_LOCAL_PHONE = "local_node_phone_number"
+        private const val KEY_DMS_INTERVAL_HOURS = "dms_interval_hours"
+        private const val KEY_DMS_LAST_CHECKIN = "dms_last_checkin"
+        private const val KEY_STANDARD_PIN = "standard_pin"
+        private const val KEY_DURESS_PIN = "duress_pin"
+        private const val KEY_NODE_CORRUPTED = "is_node_corrupted"
+        const val DEFAULT_STANDARD_PIN = "1234"
+        const val DEFAULT_DURESS_PIN = "9999"
     }
 }

@@ -8,13 +8,16 @@ import androidx.compose.runtime.Composable
 private val DarkColorScheme = darkColorScheme(
     primary = ImpartPanicRed,
     secondary = ImpartSecondary,
-    background = ImpartBackground,
+    background = ImpartGround,
     surface = ImpartBackground,
+    surfaceVariant = ImpartBackground,
     onPrimary = ImpartTextPrimary,
     onSecondary = ImpartTextPrimary,
     onBackground = ImpartTextPrimary,
     onSurface = ImpartTextPrimary,
-    error = ImpartPanicDark
+    onSurfaceVariant = ImpartSecondary,
+    error = ImpartPanicDark,
+    onError = ImpartTextPrimary
 )
 
 @Composable
@@ -27,4 +30,3 @@ fun ImpartTheme(
         content = content
     )
 }
-

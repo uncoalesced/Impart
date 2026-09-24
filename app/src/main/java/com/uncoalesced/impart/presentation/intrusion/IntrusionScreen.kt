@@ -17,14 +17,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.uncoalesced.impart.presentation.theme.ImpartBackground
 import com.uncoalesced.impart.presentation.theme.ImpartPanicRed
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 
+// Background is always the panic red. That color means one thing in this app.
 @Composable
 fun IntrusionScreen(
+    senderName: String,
     lat: Double?,
     lng: Double?,
     onDismiss: () -> Unit
@@ -42,17 +45,28 @@ fun IntrusionScreen(
         Text(
             text = "CRITICAL EMERGENCY",
             style = MaterialTheme.typography.displaySmall,
-            color = ImpartTextPrimary
+            color = ImpartTextPrimary,
+            textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "INCOMING PANIC SIGNAL DETECTED",
             style = MaterialTheme.typography.titleLarge,
-            color = ImpartTextPrimary
+            color = ImpartTextPrimary,
+            textAlign = TextAlign.Center
         )
-        
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "FROM: $senderName",
+            color = ImpartTextPrimary,
+            fontSize = 18.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.ExtraBold,
+            textAlign = TextAlign.Center
+        )
+
         Spacer(modifier = Modifier.height(32.dp))
-        
+
         if (lat != null && lng != null) {
             Column(
                 modifier = Modifier
@@ -85,11 +99,7 @@ fun IntrusionScreen(
                         try {
                             context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                         } catch (e: ActivityNotFoundException) {
-                            Toast.makeText(
-                                context,
-                                "No maps application installed on this node.",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            Toast.makeText(context, "No maps application installed on this node.", Toast.LENGTH_LONG).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -102,9 +112,9 @@ fun IntrusionScreen(
                 }
             }
         }
-        
+
         Spacer(modifier = Modifier.height(48.dp))
-        
+
         Button(
             onClick = onDismiss,
             colors = ButtonDefaults.buttonColors(
