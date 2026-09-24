@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Impart" parent="@android:style/Theme.Material.NoActionBar" />
+    <!-- Black window chrome so there is no white flash before Compose draws, and the
+         status/navigation bars match the AMOLED ground. -->
+    <style name="Theme.Impart" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/impart_ground</item>
+        <item name="android:statusBarColor">@color/impart_ground</item>
+        <item name="android:navigationBarColor">@color/impart_ground</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>

@@ -24,7 +24,7 @@ fun NodeCorruptedScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(ImpartBackground),
+            .background(ImpartGround),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -62,7 +62,7 @@ fun NodeCorruptedScreen() {
             Spacer(modifier = Modifier.height(16.dp))
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = ImpartSecondary.copy(alpha = 0.15f)),
+                colors = CardDefaults.cardColors(containerColor = ImpartBackground),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {

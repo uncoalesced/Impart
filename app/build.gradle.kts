@@ -1,3 +1,4 @@
+// Engineered by uncoalesced
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -72,9 +73,48 @@ kotlin {
     }
 }
 
+// TERMS.md, PRIVACY.md and LICENSE live at the repository root, where GitHub shows them and
+// store listings can link to them. This copies them into each variant's assets under legal/
+// at build time, so the app always ships the same text with no second copy in src/.
+abstract class CopyLegalDocuments : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val documents: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val root = outputDir.get().asFile
+        root.deleteRecursively()
+        val target = root.resolve("legal").apply { mkdirs() }
+        documents.files.forEach { source ->
+            require(source.isFile) { "Legal document missing: ${source.path}" }
+            source.copyTo(target.resolve(source.name), overwrite = true)
+        }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val copyTask = tasks.register<CopyLegalDocuments>(
+            "copy${variant.name.replaceFirstChar { it.uppercase() }}LegalDocuments"
+        ) {
+            documents.from(
+                rootProject.file("LICENSE"),
+                rootProject.file("TERMS.md"),
+                rootProject.file("PRIVACY.md")
+            )
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(copyTask, CopyLegalDocuments::outputDir)
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
@@ -82,6 +122,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
+    debugImplementation(libs.androidx.ui.tooling)
 
     // Room
     implementation(libs.androidx.room.runtime)
@@ -92,9 +133,15 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
+    implementation(libs.androidx.hilt.work)
+    ksp(libs.androidx.hilt.compiler)
 
-    // Tink
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
+
+    // Security
     implementation(libs.tink.android)
+    implementation(libs.androidx.security.crypto)
 
     // CameraX & Barcode
     implementation(libs.zxing.core)
@@ -105,11 +152,9 @@ dependencies {
     implementation(libs.mlkit.barcode.scanning)
 
     // Location
-    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation(libs.play.services.location)
 
-    // WorkManager & Security
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
-    implementation("androidx.hilt:hilt-work:1.2.0")
-    ksp("androidx.hilt:hilt-compiler:1.2.0")
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    // JVM unit tests. org.json ships a real JSONObject so the codecs run without an emulator.
+    testImplementation(libs.junit)
+    testImplementation(libs.org.json)
 }

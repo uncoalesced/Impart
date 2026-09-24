@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- No INTERNET permission: the only thing that ever leaves this device is an SMS. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -10,14 +10,15 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <!-- Lets the readiness card ask for a battery-optimization exemption directly. OEM
+         battery savers are the documented number-one reason the receiver never runs. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Hardware is optional: a node without a camera can still receive panics (it just
-         cannot scan a handshake QR), and a node without telephony loses only the SMS
-         fallback. Marking these required would drop tablets and Chromebooks. -->
+         cannot scan a handshake QR). Telephony is what the transport rides on, but marking
+         it required would drop tablets that only ever need to receive. -->
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
@@ -25,17 +26,20 @@
         android:name="android.hardware.telephony"
         android:required="false" />
 
+    <!-- allowBackup is off on purpose. The Tink keyset and the encrypted preferences are
+         wrapped by keys that live only in this device's Keystore; restoring them onto
+         another device produces an app that crashes on its first preferences read. -->
     <application
         android:name=".ImpartApplication"
-        android:allowBackup="true"
-        android:icon="@android:drawable/stat_sys_warning"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.Impart">
 
         <activity
             android:name=".MainActivity"
-            android:enabled="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -48,25 +52,41 @@
             android:targetActivity=".MainActivity"
             android:enabled="false"
             android:exported="true"
-            android:icon="@android:drawable/ic_menu_compass"
-            android:label="Calculator">
+            android:icon="@mipmap/ic_launcher_calculator"
+            android:roundIcon="@mipmap/ic_launcher_calculator"
+            android:label="@string/cloak_label">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
 
+        <!-- singleTop: a second panic while the alarm is showing updates the existing
+             screen instead of stacking a second alarm activity on top of it. -->
         <activity
             android:name=".presentation.intrusion.IntrusionActivity"
             android:exported="false"
+            android:launchMode="singleTop"
+            android:excludeFromRecents="true"
             android:showWhenLocked="true"
             android:turnScreenOn="true" />
 
+        <!-- BROADCAST_SMS is held only by the telephony stack, so no other app can deliver a
+             forged SMS_RECEIVED broadcast to this receiver. -->
         <receiver
             android:name=".core.services.ImpartSmsReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
             <intent-filter android:priority="999">
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".core.services.SmsSentReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.uncoalesced.impart.SMS_SENT" />
             </intent-filter>
         </receiver>
 

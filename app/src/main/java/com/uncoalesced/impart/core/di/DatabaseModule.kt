@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.room.Room
 import com.uncoalesced.impart.data.local.db.ContactDao
 import com.uncoalesced.impart.data.local.db.ImpartDatabase
+import com.uncoalesced.impart.data.local.db.SeenAlertDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -18,16 +19,14 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideImpartDatabase(@ApplicationContext context: Context): ImpartDatabase {
-        return Room.databaseBuilder(
-            context,
-            ImpartDatabase::class.java,
-            "impart_database"
-        ).fallbackToDestructiveMigration().build()
-    }
+    fun provideImpartDatabase(@ApplicationContext context: Context): ImpartDatabase =
+        Room.databaseBuilder(context, ImpartDatabase::class.java, ImpartDatabase.NAME)
+            .fallbackToDestructiveMigration()
+            .build()
 
     @Provides
-    fun provideContactDao(database: ImpartDatabase): ContactDao {
-        return database.contactDao()
-    }
+    fun provideContactDao(database: ImpartDatabase): ContactDao = database.contactDao()
+
+    @Provides
+    fun provideSeenAlertDao(database: ImpartDatabase): SeenAlertDao = database.seenAlertDao()
 }

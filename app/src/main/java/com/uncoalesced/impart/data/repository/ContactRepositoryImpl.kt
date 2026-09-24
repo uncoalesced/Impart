@@ -18,14 +18,17 @@ class ContactRepositoryImpl @Inject constructor(
         contactDao.insertOrUpdate(ContactEntity.fromDomain(contact))
     }
 
-    override fun getActiveContacts(): Flow<List<Contact>> {
-        return contactDao.getActiveContacts().map { entities -> 
-            entities.map { it.toDomain() } 
-        }
-    }
+    override fun getActiveContacts(): Flow<List<Contact>> =
+        contactDao.getActiveContacts().map { entities -> entities.map { it.toDomain() } }
 
-    override suspend fun getContactByUuid(uuid: String): Contact? {
-        return contactDao.getContactByUuid(uuid)?.toDomain()
+    override suspend fun getContactByUuid(uuid: String): Contact? =
+        contactDao.getContactByUuid(uuid)?.toDomain()
+
+    override suspend fun findActiveByUuid(uuid: String): Contact? =
+        contactDao.findActiveByUuid(uuid)?.toDomain()
+
+    override suspend fun renameContact(uuid: String, nickname: String) {
+        contactDao.updateNickname(uuid, nickname)
     }
 
     override suspend fun revokeContact(uuid: String) {

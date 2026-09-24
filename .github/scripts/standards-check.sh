@@ -14,7 +14,7 @@ while IFS= read -r f; do
 done < <(find app/src/main/java -name '*.kt')
 
 echo "== Palette check (no hardcoded colors outside theme/Color.kt) =="
-palette=$(grep -rnE 'Color\.(Red|White|Black|Blue|Green|Gray|Cyan|Magenta|Yellow)|0xFF[0-9A-Fa-f]{6}|Indigo|Teal|Slate|Purple' \
+palette=$(grep -rnE 'Color\.(Red|White|Black|Blue|Green|Gray|Cyan|Magenta|Yellow)|0xFF[0-9A-Fa-f]{6}|"#[0-9A-Fa-f]{6}"|Indigo|Teal|Slate|Purple' \
   --include='*.kt' app/src/main/java/com/uncoalesced/impart/presentation 2>/dev/null \
   | grep -v 'presentation/theme/Color.kt' || true)
 if [ -n "$palette" ]; then
@@ -34,7 +34,7 @@ fi
 
 echo "== Secret scan =="
 if git ls-files | grep -qE '(^|/)google-services\.json$'; then
-  echo "::error::google-services.json is tracked in git (must stay gitignored)"
+  echo "::error::google-services.json is tracked in git (there is no Firebase; this file must not exist)"
   fail=1
 fi
 keys=$(git grep -nE -- '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' -- '*.kt' '*.ts' '*.json' '*.kts' 2>/dev/null || true)

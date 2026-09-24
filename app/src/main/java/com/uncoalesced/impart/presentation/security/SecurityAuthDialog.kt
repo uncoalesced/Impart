@@ -1,7 +1,6 @@
 // Engineered by uncoalesced
 package com.uncoalesced.impart.presentation.security
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -15,6 +14,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.presentation.theme.*
 
 @Composable
@@ -56,25 +56,16 @@ fun SecurityAuthDialog(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                OutlinedTextField(
+                PinField(
                     value = pin,
-                    onValueChange = { if (it.length <= 8) pin = it },
-                    label = { Text("PIN Code", color = ImpartSecondary) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ImpartPanicRed,
-                        unfocusedBorderColor = ImpartSecondary,
-                        focusedTextColor = ImpartTextPrimary,
-                        unfocusedTextColor = ImpartTextPrimary
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+                    onValueChange = { pin = it },
+                    label = "PIN Code"
                 )
 
-                if (errorMessage != null) {
+                val error = errorMessage
+                if (error != null) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = errorMessage!!, color = ImpartPanicRed, fontSize = 12.sp)
+                    Text(text = error, color = ImpartPanicRed, fontSize = 12.sp)
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -89,11 +80,7 @@ fun SecurityAuthDialog(
 
                     Button(
                         onClick = {
-                            if (pin.isNotBlank()) {
-                                onPinSubmit(pin)
-                            } else {
-                                errorMessage = "PIN cannot be empty"
-                            }
+                            if (pin.isNotBlank()) onPinSubmit(pin) else errorMessage = "PIN cannot be empty"
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = ImpartPanicRed,
@@ -107,4 +94,28 @@ fun SecurityAuthDialog(
             }
         }
     }
+}
+
+@Composable
+internal fun PinField(value: String, onValueChange: (String) -> Unit, label: String) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { candidate ->
+            if (candidate.length <= DuressManager.MAX_PIN_LENGTH && candidate.all { it.isDigit() }) {
+                onValueChange(candidate)
+            }
+        },
+        label = { Text(label, color = ImpartSecondary) },
+        singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = ImpartPanicRed,
+            unfocusedBorderColor = ImpartSecondary,
+            focusedTextColor = ImpartTextPrimary,
+            unfocusedTextColor = ImpartTextPrimary,
+            cursorColor = ImpartPanicRed
+        ),
+        modifier = Modifier.fillMaxWidth()
+    )
 }

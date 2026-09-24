@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Impart</string>
+    <string name="cloak_label">Calculator</string>
 </resources>
