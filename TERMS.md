@@ -25,7 +25,7 @@ Test Impart with the people you pair with before you rely on it, and test again 
 
 ## SMS costs
 
-Every alert is a text message, usually split into three or four parts, and your carrier may charge for each part. A broadcast sends one alert to every trusted contact. The dead man's switch sends a broadcast by itself if you miss a check-in. Acknowledging a panic sends a text back. You pay whatever your carrier charges for these. We never charge you anything.
+Every alert is a text message, usually split into three or four parts, and your carrier may charge for each part. A broadcast sends one alert to every trusted contact. The dead man's switch sends a broadcast by itself if you miss a check-in. Acknowledging a panic sends a text back. You pay whatever your carrier charges for these, so a plan with unlimited texts is recommended. We never charge you anything.
 
 ## Your responsibilities
 

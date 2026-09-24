@@ -58,7 +58,7 @@ fun LegalAcceptanceScreen(viewModel: LegalViewModel, onDecline: () -> Unit) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Warning("Impart is not an emergency service. If someone is in danger, call your local emergency number first.")
                 Warning("Alerts travel by SMS. Delivery is not guaranteed, and a panic can arrive late or not at all.")
-                Warning("Every alert is a text message, and your carrier may charge for it.")
+                Warning("Alerts are sent as regular texts. We recommend a plan with unlimited texts. Without one, your carrier may charge you for every alert.")
                 Warning("Nothing leaves your phone except encrypted texts to the people you pair with.")
             }
         }
