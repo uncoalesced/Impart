@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -50,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uncoalesced.impart.core.security.AppLockManager
 import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
+import com.uncoalesced.impart.domain.model.LegalDocument
 import com.uncoalesced.impart.domain.model.displayName
 import com.uncoalesced.impart.presentation.contacts.ContactMatrixScreen
 import com.uncoalesced.impart.presentation.dashboard.DashboardScreen
@@ -58,8 +60,10 @@ import com.uncoalesced.impart.presentation.handshake.HandshakeViewModel
 import com.uncoalesced.impart.presentation.handshake.QrGeneratorScreen
 import com.uncoalesced.impart.presentation.handshake.QrScannerScreen
 import com.uncoalesced.impart.presentation.handshake.ScanResult
+import com.uncoalesced.impart.presentation.legal.LegalAcceptanceScreen
 import com.uncoalesced.impart.presentation.security.AppLockScreen
 import com.uncoalesced.impart.presentation.security.PinSetupDialog
+import com.uncoalesced.impart.presentation.settings.SettingsScreen
 import com.uncoalesced.impart.presentation.theme.ImpartAmber
 import com.uncoalesced.impart.presentation.theme.ImpartBackground
 import com.uncoalesced.impart.presentation.theme.ImpartGround
@@ -95,13 +99,19 @@ class MainActivity : ComponentActivity() {
         setContent {
             ImpartTheme {
                 val corrupted by duressManager.isCorrupted.collectAsStateWithLifecycle()
+                val acceptedLegal by securePrefsManager.acceptedLegalVersion.collectAsStateWithLifecycle()
                 val pinsChosen by securePrefsManager.hasCustomPins.collectAsStateWithLifecycle()
                 val unlocked by appLockManager.isUnlocked.collectAsStateWithLifecycle()
 
                 // Order matters. The decoy wins over everything once the duress PIN has fired.
-                // Nothing behind the lock is composed until the right PIN is entered.
+                // Then the terms (first run, or after they change), then choosing PINs, then
+                // the lock. Nothing behind the lock is composed until the right PIN is entered.
                 when {
                     corrupted -> NodeCorruptedScreen()
+                    acceptedLegal < LegalDocument.CURRENT_VERSION -> LegalAcceptanceScreen(
+                        viewModel = hiltViewModel(),
+                        onDecline = { finish() }
+                    )
                     !pinsChosen -> Box(modifier = Modifier.fillMaxSize().background(ImpartGround)) {
                         PinSetupDialog(
                             required = true,
@@ -155,6 +165,7 @@ private const val TAB_DASHBOARD = 0
 private const val TAB_MY_QR = 1
 private const val TAB_SCAN = 2
 private const val TAB_CONTACTS = 3
+private const val TAB_SETTINGS = 4
 
 private data class Tab(val index: Int, val label: String, val icon: ImageVector)
 
@@ -162,7 +173,8 @@ private val TABS = listOf(
     Tab(TAB_DASHBOARD, "Dashboard", Icons.Default.Home),
     Tab(TAB_MY_QR, "My QR", Icons.Default.QrCode),
     Tab(TAB_SCAN, "Scan QR", Icons.Default.QrCodeScanner),
-    Tab(TAB_CONTACTS, "Contacts", Icons.Default.People)
+    Tab(TAB_CONTACTS, "Contacts", Icons.Default.People),
+    Tab(TAB_SETTINGS, "Settings", Icons.Default.Settings)
 )
 
 @Composable
@@ -255,6 +267,10 @@ fun MainAppScreen() {
                     viewModel = hiltViewModel(),
                     onMyQr = { selectedTab = TAB_MY_QR },
                     onScanQr = { selectedTab = TAB_SCAN }
+                )
+                TAB_SETTINGS -> SettingsScreen(
+                    settingsViewModel = hiltViewModel(),
+                    legalViewModel = hiltViewModel()
                 )
             }
         }

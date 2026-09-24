@@ -40,15 +40,13 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.uncoalesced.impart.core.security.UnlockResult
 import com.uncoalesced.impart.core.util.ReadinessFix
 import com.uncoalesced.impart.core.util.ReadinessItem
 import com.uncoalesced.impart.core.util.formatCountdown
 import com.uncoalesced.impart.domain.model.Contact
 import com.uncoalesced.impart.domain.model.displayName
 import com.uncoalesced.impart.presentation.components.HoldToFireButton
-import com.uncoalesced.impart.presentation.security.PinSetupDialog
-import com.uncoalesced.impart.presentation.security.SecurityAuthDialog
+import com.uncoalesced.impart.presentation.security.ChangePinsFlow
 import com.uncoalesced.impart.presentation.theme.*
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
@@ -75,8 +73,7 @@ fun DashboardScreen(
 
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
-    var showAuthDialog by remember { mutableStateOf(false) }
-    var showPinSetup by remember { mutableStateOf(false) }
+    var showChangePins by remember { mutableStateOf(false) }
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     val readinessPermissionLauncher = rememberLauncherForActivityResult(
@@ -114,36 +111,11 @@ fun DashboardScreen(
         }
     }
 
-    if (showAuthDialog) {
-        SecurityAuthDialog(
-            onDismiss = { showAuthDialog = false },
-            onPinSubmit = { pin ->
-                showAuthDialog = false
-                // DURESS_TRIGGERED is deliberately silent here: MainActivity swaps the whole
-                // UI to the decoy, and announcing the wipe would defeat the point of it.
-                when (val result = viewModel.verifySecurityPin(pin)) {
-                    UnlockResult.Unlocked -> showPinSetup = true
-                    is UnlockResult.Invalid ->
-                        Toast.makeText(context, "Invalid PIN", Toast.LENGTH_SHORT).show()
-                    is UnlockResult.LockedOut -> {
-                        val seconds = ((result.lockedUntil - System.currentTimeMillis()) / 1000).coerceAtLeast(1L)
-                        Toast.makeText(context, "Too many wrong attempts. Try again in ${seconds}s.", Toast.LENGTH_SHORT).show()
-                    }
-                    UnlockResult.Wiped -> Unit
-                }
-            }
-        )
-    }
-
-    if (showPinSetup) {
-        PinSetupDialog(
-            onDismiss = { showPinSetup = false },
-            onSave = { standard, duress ->
-                viewModel.updatePins(standard, duress).onSuccess {
-                    showPinSetup = false
-                    Toast.makeText(context, "PINs updated", Toast.LENGTH_SHORT).show()
-                }
-            }
+    if (showChangePins) {
+        ChangePinsFlow(
+            onVerify = viewModel::verifySecurityPin,
+            onSave = viewModel::updatePins,
+            onFinished = { showChangePins = false }
         )
     }
 
@@ -168,7 +140,7 @@ fun DashboardScreen(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.ExtraBold
             )
-            IconButton(onClick = { showAuthDialog = true }) {
+            IconButton(onClick = { showChangePins = true }) {
                 Icon(
                     imageVector = Icons.Default.Lock,
                     contentDescription = "Change PINs",

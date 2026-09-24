@@ -34,7 +34,7 @@ class DeadMansSwitchWorker @AssistedInject constructor(
                 Log.i(TAG, "Dead man's switch dispatched to ${report.sent} nodes")
                 notify("DEAD MAN'S SWITCH FIRED", "Panic dispatched to ${report.sent} trusted nodes.")
             } else {
-                Log.e(TAG, "Dead man's switch partial failure: ${report.failed}")
+                Log.e(TAG, "Dead man's switch partial failure: ${report.failed.size} of ${report.attempted} nodes failed")
                 notify(
                     "DEAD MAN'S SWITCH PARTIAL FAILURE",
                     "Sent to ${report.sent} of ${report.attempted} nodes. Failed: ${report.failed.joinToString()}"

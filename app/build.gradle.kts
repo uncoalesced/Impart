@@ -73,6 +73,44 @@ kotlin {
     }
 }
 
+// TERMS.md, PRIVACY.md and LICENSE live at the repository root, where GitHub shows them and
+// store listings can link to them. This copies them into each variant's assets under legal/
+// at build time, so the app always ships the same text with no second copy in src/.
+abstract class CopyLegalDocuments : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val documents: ConfigurableFileCollection
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val root = outputDir.get().asFile
+        root.deleteRecursively()
+        val target = root.resolve("legal").apply { mkdirs() }
+        documents.files.forEach { source ->
+            require(source.isFile) { "Legal document missing: ${source.path}" }
+            source.copyTo(target.resolve(source.name), overwrite = true)
+        }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        val copyTask = tasks.register<CopyLegalDocuments>(
+            "copy${variant.name.replaceFirstChar { it.uppercase() }}LegalDocuments"
+        ) {
+            documents.from(
+                rootProject.file("LICENSE"),
+                rootProject.file("TERMS.md"),
+                rootProject.file("PRIVACY.md")
+            )
+        }
+        variant.sources.assets?.addGeneratedSourceDirectory(copyTask, CopyLegalDocuments::outputDir)
+    }
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
