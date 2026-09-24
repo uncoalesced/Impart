@@ -16,6 +16,7 @@ class SecurePrefsManager @Inject constructor(
     private val PREFS_NAME = "impart_node_secure_prefs"
     private val KEY_LOCATION_SHARING = "location_sharing_enabled"
     private val KEY_LOCAL_UUID = "local_node_uuid"
+    private val KEY_LOCAL_PHONE = "local_node_phone_number"
 
     private val masterKey = MasterKey.Builder(context)
         .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -43,5 +44,14 @@ class SecurePrefsManager @Inject constructor(
         val generated = UUID.randomUUID().toString()
         securePrefs.edit().putString(KEY_LOCAL_UUID, generated).apply()
         return generated
+    }
+
+    // This node's own phone number, advertised in the handshake QR so counterparts
+    // know where to send the SMS panic. Set manually because TelephonyManager cannot
+    // reliably read a device's own number on modern Android / most carriers.
+    fun getLocalPhoneNumber(): String? = securePrefs.getString(KEY_LOCAL_PHONE, null)
+
+    fun setLocalPhoneNumber(number: String) {
+        securePrefs.edit().putString(KEY_LOCAL_PHONE, number).apply()
     }
 }

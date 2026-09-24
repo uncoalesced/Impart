@@ -8,7 +8,7 @@ object QrPayloadCodec {
     fun encode(payload: HandshakePayload): String {
         val json = JSONObject()
         json.put("uuid", payload.uuid)
-        json.put("fcmToken", payload.fcmToken)
+        json.put("phoneNumber", payload.phoneNumber)
         json.put("publicKey", payload.publicKeyBase64)
         return json.toString()
     }
@@ -18,7 +18,7 @@ object QrPayloadCodec {
             val json = JSONObject(jsonString)
             HandshakePayload(
                 uuid = json.getString("uuid"),
-                fcmToken = json.getString("fcmToken"),
+                phoneNumber = json.getString("phoneNumber"),
                 publicKeyBase64 = json.getString("publicKey")
             )
         } catch (e: Exception) {

@@ -34,7 +34,7 @@ sealed interface DashboardUiState {
 
 sealed interface NodeIdentityState {
     object Loading : NodeIdentityState
-    data class Ready(val uuid: String, val fcmToken: String) : NodeIdentityState
+    data class Ready(val uuid: String, val phoneNumber: String) : NodeIdentityState
     data class Unavailable(val uuid: String, val message: String) : NodeIdentityState
 }
 
@@ -75,9 +75,9 @@ class DashboardViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val uuid = nodeIdentityHelper.localUuid()
             _nodeIdentity.value = nodeIdentityHelper.resolve().fold(
-                onSuccess = { NodeIdentityState.Ready(it.uuid, it.fcmToken) },
+                onSuccess = { NodeIdentityState.Ready(it.uuid, it.phoneNumber) },
                 onFailure = {
-                    NodeIdentityState.Unavailable(uuid, it.message ?: "FCM token unavailable")
+                    NodeIdentityState.Unavailable(uuid, it.message ?: "Phone number unavailable")
                 }
             )
         }
@@ -90,9 +90,8 @@ class DashboardViewModel @Inject constructor(
             val loc = resolveLocation()
 
             val result = relayManager.dispatchPanic(
-                targetFcmToken = contact.fcmToken, 
-                counterpartPublicKeyBase64 = contact.publicKeyBase64,
                 targetPhoneNumber = contact.phoneNumber,
+                counterpartPublicKeyBase64 = contact.publicKeyBase64,
                 lat = loc?.first,
                 lng = loc?.second
             )
@@ -116,9 +115,8 @@ class DashboardViewModel @Inject constructor(
             val deferreds = contacts.map { contact ->
                 async {
                     relayManager.dispatchPanic(
-                        targetFcmToken = contact.fcmToken, 
-                        counterpartPublicKeyBase64 = contact.publicKeyBase64,
                         targetPhoneNumber = contact.phoneNumber,
+                        counterpartPublicKeyBase64 = contact.publicKeyBase64,
                         lat = loc?.first,
                         lng = loc?.second
                     )

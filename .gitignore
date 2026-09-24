@@ -28,22 +28,14 @@ captures/
 .cxx/
 local.properties
 
-# Secrets, Environment & Firebase Configs
+# Secrets & Environment
 .env
 *.env
-google-services.json
-service-account*.json
 *.keystore
 *.jks
 !debug.keystore
-
-# Node / Firebase Functions
-functions/node_modules/
-functions/lib/
-functions/.project
 
 # OS & Log files
 .DS_Store
 Thumbs.db
 *.log
-CLAUDE.md

@@ -208,11 +208,11 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         IdentityRow(
-                            label = "FCM TOKEN",
-                            value = identity.fcmToken,
+                            label = "PHONE NUMBER",
+                            value = identity.phoneNumber,
                             onCopy = {
-                                clipboardManager.setText(AnnotatedString(identity.fcmToken))
-                                Toast.makeText(context, "FCM token copied", Toast.LENGTH_SHORT).show()
+                                clipboardManager.setText(AnnotatedString(identity.phoneNumber))
+                                Toast.makeText(context, "Phone number copied", Toast.LENGTH_SHORT).show()
                             }
                         )
                     }
@@ -227,7 +227,7 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "FCM TOKEN UNAVAILABLE: ${identity.message}",
+                            text = "PHONE NUMBER UNAVAILABLE: ${identity.message}",
                             color = ImpartAmber,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold

@@ -68,16 +68,16 @@ class ImpartSmsReceiver : BroadcastReceiver() {
                 val type = json.optString("type", "PANIC")
                 
                 if (type == "PANIC") {
-                    val senderFcmToken = json.optString("senderFcmToken")
+                    val senderPhoneNumber = json.optString("senderPhoneNumber")
                     val senderPublicKey = json.optString("senderPublicKey")
                     val lat = if (json.has("lat")) json.getDouble("lat") else null
                     val lng = if (json.has("lng")) json.getDouble("lng") else null
-                    
+
                     CoroutineScope(Dispatchers.IO).launch {
                         audioCaptureHelper.captureAndEncrypt(10_000L)
                     }
 
-                    fireIntrusionIntent(context, senderFcmToken, senderPublicKey, lat, lng)
+                    fireIntrusionIntent(context, senderPhoneNumber, senderPublicKey, lat, lng)
                 } else if (type == "ACK") {
                     fireAckNotification(context)
                 }
@@ -93,9 +93,9 @@ class ImpartSmsReceiver : BroadcastReceiver() {
 
     private fun fireIntrusionIntent(
         context: Context,
-        senderFcmToken: String, 
-        senderPublicKey: String, 
-        lat: Double?, 
+        senderPhoneNumber: String,
+        senderPublicKey: String,
+        lat: Double?,
         lng: Double?
     ) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -113,7 +113,7 @@ class ImpartSmsReceiver : BroadcastReceiver() {
 
         val intrusionIntent = Intent(context, IntrusionActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("senderFcmToken", senderFcmToken)
+            putExtra("senderPhoneNumber", senderPhoneNumber)
             putExtra("senderPublicKey", senderPublicKey)
             if (lat != null && lng != null) {
                 putExtra("lat", lat)

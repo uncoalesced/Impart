@@ -5,9 +5,9 @@
 
 ## 1. Threat Model & Trust Doctrine
 
-Impart's security posture starts from an uncomfortable but necessary premise: **the infrastructure carrying the message is not trusted with its contents.** Firebase — meaning Google's servers, Firestore, and Cloud Functions — is treated as a relay, not a confidant. It is trusted to route ciphertext reliably. It is never trusted to see plaintext.
+Impart's security posture starts from an uncomfortable but necessary premise: **the infrastructure carrying the message is not trusted with its contents.** The transport is now the carrier SMS channel — the mobile network operator and any SS7 intermediary — and it is treated as a dumb relay, not a confidant. It is trusted to move ciphertext from A to B. It is never trusted to see plaintext. There is deliberately no Google infrastructure (no Firebase, no Cloud Functions, no FCM) anywhere in the delivery path.
 
-This has a concrete implication for every design decision downstream: if a piece of data would be meaningful to an attacker (or to Google itself) in plaintext, it must never exist in plaintext outside the sender's and receiver's devices.
+This has a concrete implication for every design decision downstream: if a piece of data would be meaningful to an attacker (or to the carrier itself) in plaintext, it must never exist in plaintext outside the sender's and receiver's devices.
 
 ## 2. Identity Layer: UUIDs
 
@@ -15,7 +15,7 @@ Every node in Impart is identified by a version-4 UUID, generated locally on fir
 
 - **Not derived from personal information.** No phone number, no email, no device serial.
 - **Immutable** once created — a new UUID means a new identity, with all existing trust relationships requiring re-establishment.
-- **Meaningless without a corresponding trust record.** Possessing someone's UUID alone grants no capability; it must be paired with the public key and FCM token exchanged during the handshake below.
+- **Meaningless without a corresponding trust record.** Possessing someone's UUID alone grants no capability; it must be paired with the public key and phone number exchanged during the handshake below.
 
 ## 3. The Handshake Protocol
 
@@ -26,19 +26,19 @@ sequenceDiagram
     participant A as Device A
     participant B as Device B
 
-    Note over A: Generate QR containing:<br/>UUID_A, FCM_Token_A, PublicKey_A
+    Note over A: Generate QR containing:<br/>UUID_A, PhoneNumber_A, PublicKey_A
     A->>B: Display QR code (physical presence required)
     B->>B: Scan QR via CameraX + ML Kit
-    B->>B: Store UUID_A, FCM_Token_A, PublicKey_A in Contact Matrix
-    Note over B: Generate QR containing:<br/>UUID_B, FCM_Token_B, PublicKey_B
+    B->>B: Store UUID_A, PhoneNumber_A, PublicKey_A in Contact Matrix
+    Note over B: Generate QR containing:<br/>UUID_B, PhoneNumber_B, PublicKey_B
     B->>A: Display QR code
-    A->>A: Scan QR, store UUID_B, FCM_Token_B, PublicKey_B
+    A->>A: Scan QR, store UUID_B, PhoneNumber_B, PublicKey_B
     Note over A,B: Mutual trust established.<br/>No server ever brokered this exchange.
 ```
 
-The QR payload contains exactly three fields: the presenting device's UUID, its current FCM registration token, and its asymmetric public key (or a shared-secret seed — see §4.4 for why this is still an open decision). This is a two-way exchange; both devices must scan each other's codes for the trust relationship to be bidirectional, meaning either party can page the other.
+The QR payload contains exactly three fields: the presenting device's UUID, its phone number (the SMS destination a counterpart will page), and its asymmetric public key (or a shared-secret seed — see §4.4 for why this is still an open decision). Because a device cannot reliably read its own number from the SIM, the phone number is entered by the user on the My QR screen and persisted locally. This is a two-way exchange; both devices must scan each other's codes for the trust relationship to be bidirectional, meaning either party can page the other.
 
-**Why out-of-band matters:** because the exchange never touches Firebase, there is no remote code path — no API call, no cloud function, no database write — that can silently add a contact. Adding someone to your Contact Matrix requires their device to be physically present and cooperating. This closes off the entire class of "attacker adds themselves as a trusted contact remotely" attacks by construction, not by policy.
+**Why out-of-band matters:** because the exchange never touches any server, there is no remote code path — no API call, no server, no database write — that can silently add a contact. Adding someone to your Contact Matrix requires their device to be physically present and cooperating. This closes off the entire class of "attacker adds themselves as a trusted contact remotely" attacks by construction, not by policy.
 
 ## 4. End-to-End Encryption Pipeline
 
@@ -48,7 +48,7 @@ Each device generates its own keypair (or key material — see §4.4) on first l
 
 ### 4.2 Message Envelope Structure
 
-Every payload sent between nodes — whether an "Initiate Panic" trigger or a future richer message type — is wrapped in a standard envelope before it ever reaches Firebase:
+Every payload sent between nodes — whether an "Initiate Panic" trigger or a future richer message type — is wrapped in a standard envelope before it is handed to the SMS transport:
 
 ```json
 {
@@ -67,9 +67,9 @@ Every payload sent between nodes — whether an "Initiate Panic" trigger or a fu
 
 ### 4.3 Encryption / Decryption Pipeline
 
-**Send path:** plaintext payload → JSON-serialize → AES-256-GCM encrypt (fresh nonce, key from the Contact Matrix record) → base64-encode → wrap in envelope → hand to Cloud Function → FCM.
+**Send path:** plaintext payload → JSON-serialize → AES-256-GCM encrypt (fresh nonce, key from the Contact Matrix record) → base64-encode → prefix `IMPART_ALERT:` → `SmsManager.sendMultipartTextMessage` to the contact's phone number → carrier SMS.
 
-**Receive path:** `ImpartMessagingService.onMessageReceived()` → extract envelope → look up sender's key material from the Contact Matrix by `senderUuid` → AES-256-GCM decrypt + verify auth tag → reject on failure, proceed to the intrusion pipeline on success.
+**Receive path:** `ImpartSmsReceiver.onReceive()` → match the `IMPART_ALERT:` prefix and strip it → Tink decrypt + verify auth tag → reject on failure, proceed to the intrusion pipeline on success. (The current build addresses the ciphertext to the recipient's public key and identifies the sender by the `senderPhoneNumber`/`senderPublicKey` carried inside the decrypted payload, used to route the return ACK.)
 
 ### 4.4 Open Decision: Key-Agreement Scheme
 
@@ -84,23 +84,23 @@ Resolve this before Phase 3 of `06_ROADMAP_AND_NEXT_STEPS.md` locks the `Contact
 
 Being explicit about this is a security requirement in itself — an honest threat model is one that doesn't overclaim.
 
-**Google's servers (Firestore / Cloud Functions / FCM) can see:**
-- That Node A sent *something* to Node B, and when.
-- The size of the encrypted envelope.
-- Both parties' FCM tokens and UUIDs (needed for routing, and not secret by design — they're only meaningful when paired with private key material neither Google nor an attacker possesses).
+**The carrier (and any SMS/SS7 intermediary) can see:**
+- That the sender's number texted the receiver's number, and when.
+- The size of the message (number of SMS parts).
+- Both parties' phone numbers — these are the routing addresses and are inherently visible to the network. This is a real metadata exposure, and a stronger identifier than an opaque token because a phone number ties to a subscriber identity.
 
-**Google's servers cannot see:**
-- The plaintext content of any message.
+**The carrier cannot see:**
+- The plaintext content of any message (the body is `IMPART_ALERT:` + Tink ciphertext).
 - The nature of the alert (panic vs. a future non-emergency message type, if those are ever added).
 
-This means Impart provides **confidentiality of content**, not **metadata privacy**. State that distinction plainly to anyone relying on the system, rather than implying it away.
+This means Impart provides **confidentiality of content**, not **metadata privacy** — and over SMS the metadata (both real phone numbers, timing) is arguably more exposing than a push token would be. State that distinction plainly to anyone relying on the system, rather than implying it away. The trade accepted here is metadata visibility to the carrier in exchange for removing Google entirely from the loop and gaining a Doze-proof, server-free wake path.
 
 ## 6. Attack Surface & Mitigations
 
 | Threat | Mitigation |
 |---|---|
 | Replay attack (attacker re-sends a captured envelope) | `timestamp` checked against a tolerance window (e.g. ±2 minutes) on receipt; stale envelopes are discarded |
-| FCM token compromise / device loss | Trust records support **revocation** — removing a contact from the Contact Matrix invalidates their ability to page you. A lost/stolen device should trigger the owner to manually revoke its UUID from all counterpart Contact Matrices, since there's no central authority to do this for them |
+| Phone-number change / device loss | Trust records support **revocation** — removing a contact from the Contact Matrix invalidates their ability to page you. A lost/stolen device (or a reassigned number) should trigger the owner to manually revoke its UUID from all counterpart Contact Matrices, since there's no central authority to do this for them. Note the SIM/number is a recycled identifier: if a number is reassigned to a stranger, stale contacts would page the wrong handset until revoked (the payload still won't decrypt without the private key) |
 | Man-in-the-middle during handshake | Mitigated structurally — the handshake requires physical co-presence for the QR scan, a stronger channel-authentication guarantee than any remote key-exchange protocol alone |
 | Ciphertext tampering in transit | GCM authentication tag; any modification causes decryption to fail closed, not open |
 | Private key extraction | Android Keystore-backed storage; on devices with a TEE or StrongBox, key material is not extractable even with root access |
