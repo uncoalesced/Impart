@@ -32,9 +32,8 @@ class DeadMansSwitchWorker @AssistedInject constructor(
             val deferreds = contacts.map { contact ->
                 async {
                     relayManager.dispatchPanic(
-                        targetFcmToken = contact.fcmToken,
-                        counterpartPublicKeyBase64 = contact.publicKeyBase64,
                         targetPhoneNumber = contact.phoneNumber,
+                        counterpartPublicKeyBase64 = contact.publicKeyBase64,
                         lat = null,
                         lng = null
                     )

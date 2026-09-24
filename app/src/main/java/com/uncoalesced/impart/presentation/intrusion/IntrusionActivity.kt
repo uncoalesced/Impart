@@ -39,7 +39,7 @@ class IntrusionActivity : ComponentActivity() {
         val keyguardManager = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
         keyguardManager.requestDismissKeyguard(this, null)
         
-        val senderFcmToken = intent.getStringExtra("senderFcmToken")
+        val senderPhoneNumber = intent.getStringExtra("senderPhoneNumber")
         val senderPublicKey = intent.getStringExtra("senderPublicKey")
         val lat = if (intent.hasExtra("lat")) intent.getDoubleExtra("lat", 0.0) else null
         val lng = if (intent.hasExtra("lng")) intent.getDoubleExtra("lng", 0.0) else null
@@ -50,9 +50,9 @@ class IntrusionActivity : ComponentActivity() {
                     lat = lat,
                     lng = lng,
                     onDismiss = {
-                        if (senderFcmToken != null && senderPublicKey != null) {
+                        if (senderPhoneNumber != null && senderPublicKey != null) {
                             lifecycleScope.launch {
-                                relayManager.dispatchAck(senderFcmToken, senderPublicKey)
+                                relayManager.dispatchAck(senderPhoneNumber, senderPublicKey)
                                 finish()
                             }
                         } else {

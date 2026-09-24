@@ -1,8 +1,0 @@
-{
-  "name": "Impart",
-  "description": "Panic signal and trusted contact handshake app",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}

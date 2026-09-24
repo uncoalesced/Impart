@@ -147,9 +147,12 @@ fun MainAppScreen() {
                     }
                     val payloadJson by handshakeVm.localPayloadJson.collectAsState()
                     val payloadError by handshakeVm.payloadError.collectAsState()
+                    val phoneNumber by handshakeVm.localPhoneNumber.collectAsState()
                     QrGeneratorScreen(
                         payloadJson = payloadJson ?: "",
-                        errorMessage = payloadError
+                        errorMessage = payloadError,
+                        phoneNumber = phoneNumber,
+                        onPhoneNumberChange = { handshakeVm.setLocalPhoneNumber(it) }
                     )
                 }
                 2 -> {

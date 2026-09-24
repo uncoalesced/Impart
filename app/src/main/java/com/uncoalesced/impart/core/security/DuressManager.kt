@@ -2,11 +2,7 @@
 package com.uncoalesced.impart.core.security
 
 import android.content.Context
-import com.google.firebase.messaging.FirebaseMessaging
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -78,14 +74,5 @@ class DuressManager @Inject constructor(
 
         // 3. Purge Tink E2EE Keystore
         keystoreHelper.purgeKeys()
-
-        // 4. Unregister FCM Token
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                FirebaseMessaging.getInstance().deleteToken()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
     }
 }

@@ -8,7 +8,6 @@ import com.uncoalesced.impart.domain.model.Contact
 @Entity(tableName = "contacts")
 data class ContactEntity(
     @PrimaryKey val uuid: String,
-    val fcmToken: String,
     val publicKeyBase64: String,
     val nickname: String?,
     val phoneNumber: String?,
@@ -17,7 +16,6 @@ data class ContactEntity(
 ) {
     fun toDomain() = Contact(
         uuid = uuid,
-        fcmToken = fcmToken,
         publicKeyBase64 = publicKeyBase64,
         nickname = nickname,
         phoneNumber = phoneNumber,
@@ -28,7 +26,6 @@ data class ContactEntity(
     companion object {
         fun fromDomain(contact: Contact) = ContactEntity(
             uuid = contact.uuid,
-            fcmToken = contact.fcmToken,
             publicKeyBase64 = contact.publicKeyBase64,
             nickname = contact.nickname,
             phoneNumber = contact.phoneNumber,

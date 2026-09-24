@@ -3,16 +3,14 @@ package com.uncoalesced.impart.domain.repository
 
 interface RelayManager {
     suspend fun dispatchPanic(
-        targetFcmToken: String, 
+        targetPhoneNumber: String?,
         counterpartPublicKeyBase64: String,
-        targetPhoneNumber: String? = null,
         lat: Double? = null,
         lng: Double? = null
     ): Result<Unit>
 
     suspend fun dispatchAck(
-        targetFcmToken: String,
-        counterpartPublicKeyBase64: String,
-        targetPhoneNumber: String? = null
+        targetPhoneNumber: String?,
+        counterpartPublicKeyBase64: String
     ): Result<Unit>
 }

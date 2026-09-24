@@ -12,8 +12,8 @@ class AddContactUseCase @Inject constructor(
     suspend operator fun invoke(payload: HandshakePayload) {
         val contact = Contact(
             uuid = payload.uuid,
-            fcmToken = payload.fcmToken,
-            publicKeyBase64 = payload.publicKeyBase64
+            publicKeyBase64 = payload.publicKeyBase64,
+            phoneNumber = payload.phoneNumber
         )
         contactRepository.addContact(contact)
     }

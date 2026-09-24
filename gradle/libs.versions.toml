@@ -9,8 +9,6 @@ room = "2.6.1"
 ksp = "2.0.21-1.0.27"
 hilt = "2.51.1"
 hiltNavigationCompose = "1.2.0"
-firebaseBom = "33.9.0"
-googleServices = "4.5.0"
 tink = "1.12.0"
 zxing = "3.5.3"
 camerax = "1.4.1"
@@ -38,11 +36,6 @@ hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref
 hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 
-# Firebase
-firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
-firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
-firebase-functions = { group = "com.google.firebase", name = "firebase-functions-ktx" }
-
 # Security / Crypto
 tink-android = { group = "com.google.crypto.tink", name = "tink-android", version.ref = "tink" }
 
@@ -60,4 +53,3 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
-google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }

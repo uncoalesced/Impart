@@ -27,13 +27,22 @@ class HandshakeViewModel @Inject constructor(
     private val _payloadError = MutableStateFlow<String?>(null)
     val payloadError: StateFlow<String?> = _payloadError
 
+    private val _localPhoneNumber = MutableStateFlow(nodeIdentityHelper.localPhoneNumber().orEmpty())
+    val localPhoneNumber: StateFlow<String> = _localPhoneNumber
+
+    fun setLocalPhoneNumber(number: String) {
+        nodeIdentityHelper.setLocalPhoneNumber(number)
+        _localPhoneNumber.value = number
+        generatePayload()
+    }
+
     fun generatePayload() {
         viewModelScope.launch {
             nodeIdentityHelper.resolve()
                 .onSuccess { identity ->
                     val payload = HandshakePayload(
                         uuid = identity.uuid,
-                        fcmToken = identity.fcmToken,
+                        phoneNumber = identity.phoneNumber,
                         publicKeyBase64 = cryptoManager.getPublicKey()
                     )
                     _payloadError.value = null
