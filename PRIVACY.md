@@ -25,7 +25,7 @@ A database holds:
 - Your trusted contacts: their random ID, their two public keys, their phone number, the nickname you gave them, the date you paired, and whether you revoked them. Revoking a contact stops them paging you and you paging them, but the entry stays in the database, marked as revoked, until you use the duress PIN or uninstall.
 - The IDs of alerts you received in the last 48 hours, so that a copied alert cannot raise the alarm twice.
 
-The database is protected by Android's app sandbox but is not encrypted separately. Someone with a rooted phone or forensic tools could read your contact list.
+The database is encrypted with a random key that is itself encrypted with a key held in the Android Keystore. Copying the database file off the phone does not reveal your contact list. The duress PIN destroys that key along with the database.
 
 Your private keys, one for decrypting alerts and one for signing them, are stored encrypted with a key held in the Android Keystore. They never leave your phone and are never shown in the app.
 

@@ -142,6 +142,7 @@ dependencies {
     // Security
     implementation(libs.tink.android)
     implementation(libs.androidx.security.crypto)
+    implementation(libs.sqlcipher.android)
 
     // CameraX & Barcode
     implementation(libs.zxing.core)

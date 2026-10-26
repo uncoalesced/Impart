@@ -67,7 +67,7 @@ The full test protocol for three phones, including the deep-sleep test and a rep
 - Copies of alert texts, including the ones Android saves in your Messages app, cannot raise the alarm a second time.
 - The app has no network access at all. Someone on the same Wi-Fi has nothing to connect to.
 - Screenshots and screen recording are blocked, the app locks after 30 seconds in the background, and repeated wrong PINs lock it out for up to 15 minutes.
-- Limits: the contact database is sandboxed but not encrypted at rest, copies of alerts in the Messages app reveal who you exchanged alerts with until you delete them, and nothing protects a phone that is already rooted or running malware. Impart has not been independently audited.
+- Limits: copies of alerts in the Messages app reveal who you exchanged alerts with until you delete them, and nothing protects a phone that is already rooted or running malware. Impart has not been independently audited.
 
 The full threat model and the attack table are in `specs/03_SECURITY_PROTOCOL.md`.
 

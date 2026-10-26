@@ -179,7 +179,7 @@ private val TABS = listOf(
 
 @Composable
 fun MainAppScreen() {
-    var selectedTab by rememberSaveable { mutableStateOf(TAB_DASHBOARD) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(TAB_DASHBOARD) }
     var scanGeneration by remember { mutableIntStateOf(0) }
     var pendingKeyChange by remember { mutableStateOf<ScanResult.ConfirmKeyChange?>(null) }
     val context = LocalContext.current

@@ -1,8 +1,10 @@
 // Engineered by uncoalesced
 package com.uncoalesced.impart.data.local.prefs
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.uncoalesced.impart.domain.model.NodeIdentity
@@ -10,6 +12,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.security.SecureRandom
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -57,6 +60,19 @@ class SecurePrefsManager @Inject constructor(
         prefs.getString(KEY_LOCAL_UUID, null)?.let { return it }
         val generated = UUID.randomUUID().toString()
         prefs.edit().putString(KEY_LOCAL_UUID, generated).apply()
+        return generated
+    }
+
+    fun hasDatabasePassphrase(): Boolean = prefs.contains(KEY_DB_PASSPHRASE)
+
+    // SQLCipher key for the Room database. Lives here so the duress wipe's clear() destroys
+    // it with everything else, leaving any surviving database file unreadable. Committed
+    // synchronously because the database is created with it straight after.
+    @SuppressLint("ApplySharedPref")
+    fun databasePassphrase(): ByteArray {
+        prefs.getString(KEY_DB_PASSPHRASE, null)?.let { return Base64.decode(it, Base64.NO_WRAP) }
+        val generated = ByteArray(DB_PASSPHRASE_BYTES).also { SecureRandom().nextBytes(it) }
+        prefs.edit().putString(KEY_DB_PASSPHRASE, Base64.encodeToString(generated, Base64.NO_WRAP)).commit()
         return generated
     }
 
@@ -120,6 +136,7 @@ class SecurePrefsManager @Inject constructor(
 
     // Duress wipe: every stored value goes, the decoy flag is set, in one synchronous commit,
     // so a crash straight after still leaves the node in decoy mode.
+    @SuppressLint("ApplySharedPref")
     fun wipeForDuress() {
         prefs.edit().clear().putBoolean(KEY_NODE_CORRUPTED, true).commit()
         _localPhoneNumber.value = null
@@ -145,6 +162,8 @@ class SecurePrefsManager @Inject constructor(
         private const val KEY_LOCKED_UNTIL = "unlock_locked_until"
         private const val KEY_LEGAL_VERSION = "accepted_legal_version"
         private const val KEY_NODE_CORRUPTED = "is_node_corrupted"
+        private const val KEY_DB_PASSPHRASE = "database_passphrase"
+        private const val DB_PASSPHRASE_BYTES = 32
         const val DEFAULT_STANDARD_PIN = "1234"
         const val DEFAULT_DURESS_PIN = "9999"
     }

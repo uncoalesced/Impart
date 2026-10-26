@@ -140,7 +140,7 @@ This review covers the build on branch `claude/impart-kotlin-refactor-t8fwjh`, d
 | Contact names and numbers in logcat | Fixed | Logs carry redacted numbers (`***67`) and UUID prefixes only |
 | Tampering with ciphertext in transit | Fixed | HPKE AEAD fails closed, and the signature covers the payload |
 | A debug build replaced by an "update" | Open, documented | The debug keystore is public, so anyone can sign an APK that installs over a debug build. Use a release build signed with a private key for real use. The readiness card flags debug builds. |
-| Reading the contact list on a rooted or seized phone | Open, documented | Room is sandboxed but not encrypted at rest. SQLCipher is on the roadmap. |
+| Reading the contact list on a rooted or seized phone | Mitigated | Room is SQLCipher-encrypted with a random key stored in `SecurePrefsManager` under the Keystore master key. The duress wipe clears that key. A phone already compromised while unlocked is out of scope. |
 | Malware already on the phone (root, accessibility service) | Out of scope | Code running as the app, or driving its UI, can do anything the user can. |
 | Number reassigned to a stranger | Mitigated | Panics to the old number cannot be decrypted by the new owner. Revoke the contact. |
 

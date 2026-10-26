@@ -12,7 +12,7 @@ enum class LegalDocument(val title: String, val assetPath: String, val format: F
     enum class Format { MARKDOWN, PLAIN }
 
     companion object {
-        const val CURRENT_VERSION = 1
+        const val CURRENT_VERSION = 2
         const val CONTACT_EMAIL = "mail@uncoalesced.com"
         const val SOURCE_URL = "https://github.com/uncoalesced/Impart"
         const val ISSUES_URL = "$SOURCE_URL/issues"

@@ -13,6 +13,7 @@ Everything the manifesto asks for exists in code and builds from a clean checkou
 - Encrypted SMS as the only transport, with default-SIM selection and sent-intent failure reports.
 - A receiver that verifies under a wake lock and turns every outcome into something visible. A red intrusion screen with a looping alarm on the alarm stream and vibration, and a signed ACK to the stored contact.
 - An app lock with lockout, a duress PIN that wipes everything the app can reach, a decoy, the launcher cloak and the dead man's switch.
+- A SQLCipher-encrypted contact database whose key lives under the Keystore and dies with the duress wipe.
 - A readiness card for the settings that OEMs and Android 14 use to break the wake path.
 - Terms of Service, a Privacy Policy and the Apache license, shown on first launch and in Settings.
 - JVM tests for the crypto, both wire formats, the verifier's attack cases, the handshake rules and the lock policy.
@@ -31,10 +32,6 @@ Alpha is reached when, with no manual intervention:
 
 ## 3. After alpha, in priority order
 
-### Encrypted contact database
-
-Room is a plain SQLite file inside the app sandbox. A seized, rooted phone gives up the contact list. Wire `net.zetetic:android-database-sqlcipher` with a passphrase held in the Keystore.
-
 ### Inbox copies
 
 Android stores a copy of every alert in the stock Messages app because Impart is not the default SMS app. Those copies show who exchanged alerts with whom. The only complete fix is an optional mode where Impart becomes the default SMS app, which is a large piece of work and changes the Play Store story. Until then the privacy policy and the flight check tell users to delete the threads.
@@ -45,7 +42,7 @@ The readiness card opens the stock battery-optimization prompt. Xiaomi, Oppo, Vi
 
 ### Release hardening
 
-`isMinifyEnabled` is off. Turning R8 on needs keep rules for Tink, the Hilt-generated workers and Room, plus a release build tested on a phone. Do this, and sign with a private key, before anything reaches users beyond the test group. Debug builds are signed with a public key and can be replaced by anyone.
+`isMinifyEnabled` is off. Turning R8 on needs keep rules for Tink, the Hilt-generated workers, Room and SQLCipher (`net.zetetic.database.**`, which is reached through JNI), plus a release build tested on a phone. Do this, and sign with a private key, before anything reaches users beyond the test group. Debug builds are signed with a public key and can be replaced by anyone.
 
 ### Instrumented tests
 
