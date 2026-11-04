@@ -122,27 +122,113 @@ A copy of each alert also lands in the phone's normal Messages app, because Andr
 
 ## 6. Attack surface and mitigations
 
-This review covers the build on branch `claude/impart-kotlin-refactor-t8fwjh`, dated 24 September 2026.
+This table is the authoritative result of the adversarial audit (task T01, 4 November 2026). It absorbs and renumbers the rows from the 24 September 2026 review of branch `claude/impart-kotlin-refactor-t8fwjh`. The adversaries are defined in `specs/fable/00_BRIEF.md` section 4.
 
-| Threat | Status | How |
-|---|---|---|
-| Attacker on the same Wi-Fi or LAN | Not applicable | No INTERNET permission, no socket, server, WebView, Bluetooth or local discovery. Nothing listens. |
-| Forged panic from someone who has seen both QR codes | Fixed | Ed25519 signature checked against the key stored at pairing (§4.3 step 5) |
-| Replay of a copied alert SMS (Messages inbox, backup, carrier) | Fixed | Unique ID recorded in `seen_alerts` for 48 hours, plus a 24-hour age limit |
-| A trusted contact forwarding someone else's alert | Fixed | Signed `to` field must equal this node (§4.3 step 6) |
-| ACK redirected to an attacker's number | Fixed | ACK uses the stored contact, never the payload |
-| QR that reuses a contact's UUID with new keys | Mitigated | Nothing written until the user confirms with both fingerprints in front of them |
-| QR that points panics at a premium short code | Fixed | Numbers must be full international numbers |
-| Someone holding the unlocked phone | Mitigated | App lock: PIN on every start and after 30 s in the background. Four free attempts, then a lockout from 30 s doubling to 15 min. The duress PIN works at the lock screen, even during a lockout. |
-| Coercion to open the app | Mitigated | Duress PIN wipes contacts, keys, seen IDs, scheduled work and every preference, then shows a decoy. It cannot remove the copies in the Messages app. |
-| Screenshots, screen recorders, recent-apps preview | Fixed | `FLAG_SECURE` on both activities |
-| Another app forging an `SMS_RECEIVED` broadcast | Fixed | Receiver requires `BROADCAST_SMS`, held only by the telephony stack |
-| Contact names and numbers in logcat | Fixed | Logs carry redacted numbers (`***67`) and UUID prefixes only |
-| Tampering with ciphertext in transit | Fixed | HPKE AEAD fails closed, and the signature covers the payload |
-| A debug build replaced by an "update" | Open, documented | The debug keystore is public, so anyone can sign an APK that installs over a debug build. Use a release build signed with a private key for real use. The readiness card flags debug builds. |
-| Reading the contact list on a rooted or seized phone | Mitigated | Room is SQLCipher-encrypted with a random key stored in `SecurePrefsManager` under the Keystore master key. The duress wipe clears that key. A phone already compromised while unlocked is out of scope. |
-| Malware already on the phone (root, accessibility service) | Out of scope | Code running as the app, or driving its UI, can do anything the user can. |
-| Number reassigned to a stranger | Mitigated | Panics to the old number cannot be decrypted by the new owner. Revoke the contact. |
+Status values: **mitigated** (the attack fails, and a test or a cited line proves it), **partly** (the attack is made harder, residual risk stated), **open** (nothing stops it yet; the owner task closes it), **out of reach** (no app can stop it; written down so nobody believes otherwise).
+
+### A1: phone thief
+
+| ID | Attack | Status | Defense | Test | Owner |
+|---|---|---|---|---|---|
+| A1-1 | Open the app on an unlocked phone and read the contacts | mitigated | `AppLockManager` starts every process locked and relocks after 30 s in the background; `MainActivity` composes nothing behind the lock until the PIN passes | gate order in T17; `AppLockManagerTest` | T04 adds lock on screen off |
+| A1-2 | Guess the PIN with the phone in hand | partly | Four free attempts, then a 30 s lockout doubling to 15 min (`LockoutPolicy`) | `LockoutPolicyTest` | T03 (hard cap: wipe after 20 consecutive failures, Joel approved, setting off by default) |
+| A1-3 | Skip the lockout by changing the clock, rebooting or force-stopping the app | open | Today the deadline is a wall-clock instant read from prefs and compared with `WallClock.now()`; a clock set backwards shortens it | none yet | T03 |
+| A1-4 | Read the PINs out of the app's storage with the phone's own privileges (ADB backup, `run-as` on a debug build, a file manager on a rooted phone) | open | PINs are stored as plaintext strings inside EncryptedSharedPreferences; anything running as the app UID reads them back with one call | none yet | T02 |
+| A1-5 | Look at the recent-apps preview to see the last screen | mitigated | `FLAG_SECURE` blanks the preview on both activities | assert in T04 test | T04 (recents snapshot disabled explicitly on API 33+) |
+| A1-6 | Send a fake panic from the stolen unlocked phone | partly | The thief holds the private keys, so the panic is genuine as far as the receivers know. The lock limits the window; the dead man's switch and the duress wipe do not help once the app is open | n/a | T13 lets the owner rotate keys; contacts should revoke a stolen node |
+| A1-7 | Install an "update" over a debug build to inherit its data | open, documented | The debug keystore is public. The readiness card flags debug builds | `NodeReadinessChecker` row | T11 |
+
+### A2: forensic examiner
+
+| ID | Attack | Status | Defense | Test | Owner |
+|---|---|---|---|---|---|
+| A2-1 | Extract the contact database from a seized phone | mitigated | Room is SQLCipher-encrypted with a 256-bit random key held in EncryptedSharedPreferences under the Keystore master key (`DatabaseModule`, `SecurePrefsManager.databasePassphrase`) | manual (flight check) | T08 (inventory), T19 |
+| A2-2 | Extract the Tink keysets | mitigated | Both keysets are wrapped by `android-keystore://impart_master_key`; the unwrapped keys exist only in app memory | `CryptoManagerTest` (JVM) | T06 |
+| A2-3 | Brute-force the PINs offline from an extracted prefs file | open | Plaintext PINs under one Keystore key: once the prefs are decrypted, a 4 to 8 digit PIN needs no brute force at all | none yet | T02 (keyed HMAC in a non-exportable Keystore key, salted) |
+| A2-4 | Recover data the duress wipe missed | open | The wipe clears the encrypted prefs, cancels work, deletes `impart_database` and purges the Tink prefs and master key. It leaves the WorkManager database, the MasterKey prefs file of `androidx.security`, `files/`, `cache/`, `code_cache/`, `no_backup/` and the SQLCipher `-wal`/`-shm` sidecars to the OS | none yet | T08 |
+| A2-5 | Read decrypted payloads or PINs from a memory dump | partly | Payloads are decrypted into a `String` and kept until the verdict is handled; PINs are `String`s in Compose state | none yet | T06 (CharArray/ByteArray buffers zeroed after use; JVM copying documented as a limit) |
+| A2-6 | Read symbols and strings from the release APK to map the code | partly | R8 is off, so every class name and string is in the clear. Nothing secret is in the APK; it only makes targeted exploitation easier | none | T10 |
+| A2-7 | Restore a cloud or device-to-device backup onto an examiner's phone | mitigated | `allowBackup="false"`, `backup_rules.xml` and `data_extraction_rules.xml` exclude every domain; Keystore-wrapped data cannot be read elsewhere anyway | manifest check in T05 | T05 |
+| A2-8 | Code running as the app's UID on a rooted or exploited phone while the app is unlocked | out of reach | It can read everything the app can. Documented in `PRIVACY.md` and the README | n/a | T19 |
+| A2-9 | A compromised OS or bootloader | out of reach | Nothing in an app survives that | n/a | T19 |
+
+### A3: SMS attacker
+
+| ID | Attack | Status | Defense | Test | Owner |
+|---|---|---|---|---|---|
+| A3-1 | Send a forged panic after seeing both QR codes (knows both public keys) | mitigated | Ed25519 signature checked against the signing key stored at pairing (section 4.3 step 5); the public keys cannot sign | `AlertVerifierTest.forged panic claiming to be a trusted contact is rejected` | done |
+| A3-2 | Edit a captured alert in transit | mitigated | HPKE AEAD fails closed; the signature covers the exact payload bytes | `payload edited after signing is rejected` | done |
+| A3-3 | Replay a copied alert (Messages inbox, backup, carrier) | mitigated | Unique 128-bit ID recorded in `seen_alerts` once accepted, 24-hour age limit, IDs kept for 48 h | `replayed alert is rejected the second time`, `alert older than a day is stale` | done |
+| A3-4 | A trusted contact forwards a third node's signed alert | mitigated | Signed `to` must equal this node (step 6) | `signed alert addressed to another node is rejected` | done |
+| A3-5 | Spoof the sender phone number | mitigated | The sender number is never consulted. Trust is by UUID and stored key inside the ciphertext; the ACK goes to the stored number | `ack round trip is accepted`; `IntrusionActivity` ACK path | done |
+| A3-6 | Trigger a false alarm with a random `IMPART_ALERT:` text | mitigated | Decrypt fails: `Unreadable`, reported as a status notification, no alarm | `garbage is unreadable` | done |
+| A3-7 | SIM swap or number reassignment: a stranger now holds a contact's number | partly | Panics to the old number cannot be decrypted by the new holder, and the stranger cannot sign. The owner must revoke the contact to stop paging a stranger's phone. If the owner's own number moves, every contact re-pairs with the new QR | `alert from a revoked contact is rejected` | spec 08 says revoke; T13 rotation helps after a device loss |
+| A3-8 | Another app forges an `SMS_RECEIVED` broadcast | mitigated | Receiver requires `BROADCAST_SMS`, held only by the telephony stack | manifest check in T05 | done |
+| A3-9 | A QR that points panics at a premium short code | mitigated | Numbers must be full E.164 (`PhoneNumbers`) | `PhoneNumbersTest`, `AddContactUseCaseTest` | done |
+| A3-10 | Flood the receiver with alert-shaped texts to drain the battery | partly | Each costs one decrypt attempt under a 30 s wake lock cap; every failure is a visible notification, so the flood is noticed | n/a | T07 (trial decryption would make this worse; stays prefixed) |
+
+### A4: OSINT and metadata watcher
+
+| ID | Attack | Status | Defense | Test | Owner |
+|---|---|---|---|---|---|
+| A4-1 | Read the stock Messages inbox and see `IMPART_ALERT:` texts between two numbers | open | Android stores a copy for every app that is not the default SMS app. The copies cannot be decrypted or replayed, but they name the app and the pair | n/a | T14 (optional default SMS mode keeps alerts out of the provider); T07 (prefix proposal) |
+| A4-2 | Tell a panic from an ACK by the message length or part count | open | Nothing pads the ciphertext | measurements in section 6.1 | T07 (proposal, Joel decides) |
+| A4-3 | Carrier records show that number A texted number B at a time, in N parts | out of reach | SMS has no metadata privacy. Stated in section 5, the README and the privacy policy | n/a | T19 |
+| A4-4 | A screenshot or screen recording of the app | mitigated | `FLAG_SECURE` on both activities; T04 extends it to every dialog window | T04 | T04 |
+| A4-5 | Learn that the phone runs Impart from the launcher | partly | The Calculator cloak (`CloakManager`) renames the launcher entry; the package name still says `com.uncoalesced.impart` to anything that lists packages | manual | documented |
+| A4-6 | Learn the user's location from an alert | mitigated | Coordinates are opt-in, inside the ciphertext, and present only when location sharing is on. The fix is asked from Play Services' fused provider in Google's own process; that process, not Impart, has network access | `PanicPayloadCodecTest` | T19 documents the Play Services point |
+| A4-7 | Logcat over ADB | mitigated | Numbers become `***67`, contacts become UUID prefixes (`Redact`); names, payloads and keys are never logged | `RedactTest`; T19 grep of the final diff | done |
+
+### A5: hostile app on the same phone
+
+| ID | Attack | Status | Defense | Test | Owner |
+|---|---|---|---|---|---|
+| A5-1 | A malicious keyboard records the PIN | open | Every PIN entry is an `OutlinedTextField`, so the IME sees each digit | none yet | T04 (in-app numeric pad; the IME never sees a PIN) |
+| A5-2 | An overlay or tapjacking window drives the panic button, the acknowledge button or the PIN pad | open | Nothing rejects obscured touches | none yet | T04 (`FLAG_WINDOW_IS_OBSCURED` rejection, `setHideOverlayWindows` on API 31+) |
+| A5-3 | An accessibility service reads the screen | out of reach, partly | A granted accessibility service can read any window the user can; `FLAG_SECURE` does not stop it. T04 makes PIN controls describe state, not value | T04 | T04, T19 |
+| A5-4 | Read the clipboard after the user copies something | open | The dashboard copies the UUID and the phone number to the clipboard without the sensitive flag or a timeout | none yet | T04 (sensitive clip, cleared after 60 s, or no copy at all) |
+| A5-5 | Send an intent to an exported component | mitigated | `MainActivity` and its alias are the only exported components without a permission, and they are the launcher. `ImpartSmsReceiver` requires `BROADCAST_SMS`. `IntrusionActivity` and `SmsSentReceiver` are not exported. WorkManager's startup initializer is removed | `manifest-check.sh` in T05 | T05 (audit of library-added components) |
+| A5-6 | Screen-record the intrusion screen or the QR | mitigated | `FLAG_SECURE` | T04 | done |
+| A5-7 | Read the SMS itself from the inbox (`READ_SMS` apps) | partly | The body is ciphertext; the metadata is A4-1 | n/a | T14 |
+| A5-8 | Post a fake "panic" notification that looks like Impart's | out of reach | Any app with notification permission can post anything. The real alarm is the full-screen red activity, not a notification | n/a | documented |
+
+### A6: coercer
+
+| ID | Attack | Status | Defense | Test | Owner |
+|---|---|---|---|---|---|
+| A6-1 | Force the owner to unlock the app | mitigated | The duress PIN wipes contacts, keys, seen IDs, work and preferences, then shows the decoy, with no toast, sound or delay | `DuressManagerTest` (T08), flight check phase 8 | T08 completes the inventory |
+| A6-2 | Fail on purpose to lock the app so the duress PIN cannot be entered | mitigated | The duress PIN wins even during a lockout (`AppLockManager.submitPin` checks the verdict before the lockout) | `AppLockManagerTest` (T03) | T03 |
+| A6-3 | Watch the icon change or a message appear during the wipe | mitigated | Nothing announces the wipe; the launcher cloak state is left untouched (Joel, 2026-11-04) | T08 | T08 |
+| A6-4 | Recover what the wipe left behind | open | See A2-4 | T08 | T08 |
+| A6-5 | Force the owner to hand over both PINs | out of reach | Stated in the brief and `PRIVACY.md` | n/a | T19 |
+| A6-6 | Stop an outgoing alert by taking the phone | partly | The SMS leaves the radio in seconds; the dead man's switch fires if the owner is prevented from checking in | flight check | done |
+
+### A7: pairing eavesdropper
+
+| ID | Attack | Status | Defense | Test | Owner |
+|---|---|---|---|---|---|
+| A7-1 | Photograph a QR and impersonate its owner | mitigated | The QR carries only public keys. Signing needs the private Ed25519 key, which never leaves the phone | `forged panic claiming to be a trusted contact is rejected` | done |
+| A7-2 | Photograph a QR and decrypt alerts sent to its owner | mitigated | HPKE uses the recipient's private key; the public key in the QR cannot decrypt | `alert encrypted to someone else is unreadable` | done |
+| A7-3 | Show a crafted QR that reuses a contact's UUID with the attacker's keys | mitigated | `AddContactUseCase` returns `KeyChanged`; nothing is written until the user compares both fingerprints in the dialog | `AddContactUseCaseTest` | done |
+| A7-4 | Show a crafted QR with the attacker's number under a contact's identity | mitigated | Same as A7-3: a known UUID with the same keys updates the number only in a re-pair, which requires the same private keys to be useful; different keys trigger the dialog | `AddContactUseCaseTest` | done |
+| A7-5 | Pair with the victim by being shown their QR on a photo instead of in person | partly | The fingerprint is read aloud at pairing (spec 08 phase 3). Someone who pairs with the victim's public QR can send alerts only if the victim also scans theirs | spec 08 | documented |
+| A7-6 | A contact's phone is compromised after pairing | partly | Revoke stops both directions. Rotation of the owner's keys after a suspected compromise is a manual reinstall today | `alert from a revoked contact is rejected` | T13 |
+
+### A8: supply chain
+
+| ID | Attack | Status | Defense | Test | Owner |
+|---|---|---|---|---|---|
+| A8-1 | A tampered dependency from a repository | open | Versions are pinned in `gradle/libs.versions.toml` but there is no checksum verification | none yet | T09 (dependency verification metadata) |
+| A8-2 | A tampered Gradle wrapper or distribution | open | `distributionSha256Sum` is not set; no wrapper validation in CI | none yet | T09 |
+| A8-3 | A compromised GitHub Action | open | Actions are referenced by tag | none yet | T09 (SHA pinning, minimal `permissions:`) |
+| A8-4 | A fake update APK | open, documented | Debug builds are signed with the public debug key, so anything can install over them. Release builds are unsigned unless the deployment secrets are present | none yet | T11 (deployment fails without secrets and on a debug-signed output; readiness card checks the certificate) |
+| A8-5 | A change that adds a network path | open | Nothing in CI fails on `INTERNET` | none yet | T05 (manifest check on the merged manifest, every variant) |
+| A8-6 | A dependency that phones home | mitigated | No `INTERNET` permission means no socket from this process, whatever a library wants. Play Services location runs in Google's process (A4-6) | T05 manifest check | T05 |
+| A8-7 | Hostile code hidden in a shrunk release | partly | R8 off means the release is readable; T10 keeps the mapping file so every release can be audited | T10 | T10 |
+
+### 6.1 Metadata
+
+Written by T07. Measurements of alert sizes and the padding and prefix options, with a recommendation for Joel.
 
 ## 7. Key rotation and revocation
 

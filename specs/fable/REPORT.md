@@ -5,8 +5,8 @@ Fable fills every section before handing back (task T20). Joel builds and tests 
 
 ## 1. Summary
 
-- Branch and head commit:
-- PR:
+- Branch and head commit: `fable/finish-impart` (head filled in at T20)
+- PR: draft #8, https://github.com/uncoalesced/Impart/pull/8 (PR #7 was merged into `development` before this session started)
 - Latest green CI run:
 - One paragraph on what changed:
 

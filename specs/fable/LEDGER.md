@@ -25,9 +25,9 @@ Disagreements found during orientation, each owned by a later task:
 
 ## T01: Adversarial audit and the attack table
 
-- [ ] Spec 03 section 6 has rows for all eight adversaries, each with status, defense, test and owner task.
-- [ ] Every open row maps to a task ID.
-- [ ] Any new task files are listed in the ledger.
+- [x] Spec 03 section 6 has rows for all eight adversaries, each with status, defense, test and owner task. (T01 commit: 60 rows, A1-1 to A8-7)
+- [x] Every open row maps to a task ID. (T01 commit: open rows map to T02, T03, T04, T05, T07, T08, T09, T10, T11, T14)
+- [x] Any new task files are listed in the ledger. (none needed: every open attack has an owner among T02 to T19)
 
 ## T02: PINs are verified, never stored
 
@@ -159,7 +159,7 @@ Disagreements found during orientation, each owned by a later task:
 
 Record each question asked and Joel's answer, with the date.
 
-- 2026-11-04, PR target: PR #7 was already merged into `development`. Joel: push to `fable/finish-impart` and open a new draft PR from it into `development`. Number recorded in REPORT.md section 1.
+- 2026-11-04, PR target: PR #7 was already merged into `development`. Joel: push to `fable/finish-impart` and open a new draft PR from it into `development`. Draft PR #8: https://github.com/uncoalesced/Impart/pull/8.
 - 2026-11-04, T03 hard cap: Joel: yes, wipe after 20 consecutive wrong PINs, behind a Settings toggle that defaults off.
 - 2026-11-04, T08 cloak: Joel: leave the launcher cloak state untouched during the duress wipe.
 - 2026-11-04, T09 CodeQL: Joel will enable GitHub code scanning on the repository, so the upload step is strict. If the first run still refuses the upload, make it tolerant and tell him.
