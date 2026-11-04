@@ -34,7 +34,10 @@ class WindowHardeningSourceTest {
     @Test
     fun `every activity hardens its window`() {
         val activities = sources.filter { it.readText().contains(": ComponentActivity()") }
-        assertEquals(listOf("MainActivity.kt", "presentation/intrusion/IntrusionActivity.kt").sorted(), activities.map { it.relativeTo(root).path }.sorted())
+        assertEquals(
+            listOf("MainActivity.kt", "presentation/intrusion/IntrusionActivity.kt", "presentation/messages/ComposeSmsActivity.kt").sorted(),
+            activities.map { it.relativeTo(root).path }.sorted()
+        )
         activities.forEach { file ->
             assertTrue("${file.name} must call WindowHardening.harden(this)", file.readText().contains("WindowHardening.harden(this)"))
         }

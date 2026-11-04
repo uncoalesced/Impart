@@ -21,7 +21,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +64,18 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
     val shufflePad by settingsViewModel.shufflePinPad.collectAsStateWithLifecycle()
     var pendingWipeToggle by remember { mutableStateOf<Boolean?>(null) }
     var rotateStep by remember { mutableStateOf(RotateStep.IDLE) }
+    val isDefaultSms by settingsViewModel.isDefaultSmsApp.collectAsStateWithLifecycle()
+    val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        settingsViewModel.refreshDefaultSmsState()
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) settingsViewModel.refreshDefaultSmsState()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(settingsViewModel) {
         settingsViewModel.messages.collect { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
@@ -155,6 +173,35 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
                 if (index > 0) Divider()
                 NavRow(title = document.title) { legalViewModel.open(document) }
             }
+        }
+
+        Section("SMS APP MODE") {
+            SwitchRow(
+                title = "Make Impart your SMS app",
+                subtitle = if (isDefaultSms) {
+                    "On. Alerts are no longer copied into any inbox on this phone. Ordinary texts show on the Texts tab, stored on this phone only."
+                } else {
+                    "Off. Android keeps a copy of every alert in your messaging app, which shows who you exchange alerts with. As your SMS app, Impart receives texts first and never writes an alert anywhere. It then also has to show your ordinary texts (MMS only as a notice)."
+                },
+                checked = isDefaultSms,
+                onCheckedChange = { wanted ->
+                    if (wanted) {
+                        val request = settingsViewModel.defaultSmsRequestIntent()
+                        if (request == null) {
+                            Toast.makeText(context, "This phone does not offer the SMS role.", Toast.LENGTH_LONG).show()
+                        } else {
+                            roleLauncher.launch(request)
+                        }
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "Pick another SMS app in the system settings. From then on, copies of alerts land in that app's inbox again.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        open(context, settingsViewModel.manageDefaultAppsIntent())
+                    }
+                }
+            )
         }
 
         Section("SECURITY") {

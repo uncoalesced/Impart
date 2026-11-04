@@ -2,6 +2,7 @@
 package com.uncoalesced.impart
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -49,6 +51,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uncoalesced.impart.core.security.AppLockManager
 import com.uncoalesced.impart.core.security.DuressManager
+import com.uncoalesced.impart.core.sms.DefaultSmsRole
+import com.uncoalesced.impart.presentation.messages.MessagesScreen
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import com.uncoalesced.impart.core.util.WindowHardening
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.domain.model.LegalDocument
@@ -80,6 +86,12 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        // From ComposeSmsActivity (default SMS mode): open the Texts tab on this number.
+        const val EXTRA_COMPOSE_TO = "composeTo"
+        const val EXTRA_COMPOSE_BODY = "composeBody"
+    }
+
     @Inject
     lateinit var duressManager: DuressManager
 
@@ -88,6 +100,14 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var securePrefsManager: SecurePrefsManager
+
+    @Inject
+    lateinit var defaultSmsRole: DefaultSmsRole
+
+    // Who holds the SMS role can change in system settings while the app is away, so it is
+    // re-read on every resume. The Texts tab exists only while Impart holds it.
+    private val isDefaultSmsApp = MutableStateFlow(false)
+    private val composeRequest = MutableStateFlow<Pair<String?, String?>?>(null)
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -129,7 +149,13 @@ class MainActivity : ComponentActivity() {
                     !unlocked -> AppLockScreen(shufflePad = shufflePad, onSubmit = appLockManager::submitPin)
                     else -> {
                         LaunchedEffect(Unit) { requestMissingPermissions() }
-                        MainAppScreen()
+                        val smsDefault by isDefaultSmsApp.collectAsStateWithLifecycle()
+                        val compose by composeRequest.collectAsStateWithLifecycle()
+                        MainAppScreen(
+                            isDefaultSmsApp = smsDefault,
+                            composeRequest = compose,
+                            onComposeHandled = { composeRequest.value = null }
+                        )
                     }
                 }
             }
@@ -139,6 +165,25 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         appLockManager.onForegrounded()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isDefaultSmsApp.value = defaultSmsRole.isDefault()
+        readComposeRequest(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        readComposeRequest(intent)
+    }
+
+    private fun readComposeRequest(intent: Intent?) {
+        val to = intent?.getStringExtra(EXTRA_COMPOSE_TO) ?: return
+        composeRequest.value = to to intent.getStringExtra(EXTRA_COMPOSE_BODY)
+        intent.removeExtra(EXTRA_COMPOSE_TO)
+        intent.removeExtra(EXTRA_COMPOSE_BODY)
     }
 
     // Screen off locks at once. Anything else (a Settings page, a permission prompt) gets the
@@ -177,6 +222,7 @@ private const val TAB_MY_QR = 1
 private const val TAB_SCAN = 2
 private const val TAB_CONTACTS = 3
 private const val TAB_SETTINGS = 4
+private const val TAB_TEXTS = 5
 
 private data class Tab(val index: Int, val label: String, val icon: ImageVector)
 
@@ -187,10 +233,20 @@ private val TABS = listOf(
     Tab(TAB_CONTACTS, "Contacts", Icons.Default.People),
     Tab(TAB_SETTINGS, "Settings", Icons.Default.Settings)
 )
+private val TEXTS_TAB = Tab(TAB_TEXTS, "Texts", Icons.Default.Message)
 
 @Composable
-fun MainAppScreen() {
+fun MainAppScreen(
+    isDefaultSmsApp: Boolean = false,
+    composeRequest: Pair<String?, String?>? = null,
+    onComposeHandled: () -> Unit = {}
+) {
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_DASHBOARD) }
+    val tabs = if (isDefaultSmsApp) TABS + TEXTS_TAB else TABS
+    if (!isDefaultSmsApp && selectedTab == TAB_TEXTS) selectedTab = TAB_DASHBOARD
+    LaunchedEffect(composeRequest) {
+        if (composeRequest != null && isDefaultSmsApp) selectedTab = TAB_TEXTS
+    }
     var scanGeneration by remember { mutableIntStateOf(0) }
     var pendingKeyChange by remember { mutableStateOf<ScanResult.ConfirmKeyChange?>(null) }
     val context = LocalContext.current
@@ -242,7 +298,7 @@ fun MainAppScreen() {
                     unselectedTextColor = ImpartSecondary,
                     indicatorColor = ImpartBackground
                 )
-                TABS.forEach { tab ->
+                tabs.forEach { tab ->
                     NavigationBarItem(
                         selected = selectedTab == tab.index,
                         onClick = { selectedTab = tab.index },
@@ -283,6 +339,14 @@ fun MainAppScreen() {
                     settingsViewModel = hiltViewModel(),
                     legalViewModel = hiltViewModel()
                 )
+                TAB_TEXTS -> {
+                    MessagesScreen(
+                        viewModel = hiltViewModel(),
+                        composeTo = composeRequest?.first,
+                        composeBody = composeRequest?.second
+                    )
+                    LaunchedEffect(composeRequest) { if (composeRequest != null) onComposeHandled() }
+                }
             }
         }
     }

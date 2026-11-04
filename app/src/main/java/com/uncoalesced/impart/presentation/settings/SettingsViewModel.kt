@@ -9,6 +9,7 @@ import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.security.KeyFingerprint
 import com.uncoalesced.impart.core.security.KeyGeneration
 import com.uncoalesced.impart.core.security.UnlockResult
+import com.uncoalesced.impart.core.sms.DefaultSmsRole
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.domain.usecase.RotateKeysUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,8 +31,21 @@ class SettingsViewModel @Inject constructor(
     private val duressManager: DuressManager,
     private val securePrefsManager: SecurePrefsManager,
     private val rotateKeysUseCase: RotateKeysUseCase,
-    private val keyGeneration: KeyGeneration
+    private val keyGeneration: KeyGeneration,
+    private val defaultSmsRole: DefaultSmsRole
 ) : ViewModel() {
+
+    // Default SMS app mode (T14). The system is the source of truth; re-read on demand.
+    private val _isDefaultSmsApp = MutableStateFlow(defaultSmsRole.isDefault())
+    val isDefaultSmsApp: StateFlow<Boolean> = _isDefaultSmsApp.asStateFlow()
+
+    fun refreshDefaultSmsState() {
+        _isDefaultSmsApp.value = defaultSmsRole.isDefault()
+    }
+
+    fun defaultSmsRequestIntent() = defaultSmsRole.requestIntent()
+
+    fun manageDefaultAppsIntent() = defaultSmsRole.manageDefaultAppsIntent()
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
