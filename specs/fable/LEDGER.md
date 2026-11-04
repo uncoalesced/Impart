@@ -53,9 +53,11 @@ Pending Joel: `setHideOverlayWindows(true)` (T04 step 3) needs the normal permis
 
 ## T05: Manifest and component audit, plus the no-INTERNET CI job
 
-- [ ] `manifest-check.sh` runs in CI on both workflows.
+- [x] `manifest-check.sh` runs in CI on both workflows. (`manifest` job in `development.yml` and `main.yml`; T05 commit)
 - [ ] A deliberate test commit adding INTERNET made the job fail (link the failed run, then revert).
-- [ ] Component list documented in spec 04.
+- [x] Component list documented in spec 04. (spec 04 section 4.1; T05 commit)
+
+Finding: before T05 the merged manifest of every variant carried `android.permission.INTERNET` (from `com.google.android.datatransport:transport-backend-cct`, ML Kit's telemetry backend) and `ACCESS_NETWORK_STATE` (WorkManager). Both are now removed at merge time. Pending Joel: replace ML Kit barcode scanning with the bundled ZXing decoder and fused location with `LocationManager`, which would remove every Google component from the APK.
 
 ## T06: Plaintext lives as briefly as possible
 

@@ -2,7 +2,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- No INTERNET permission: the only thing that ever leaves this device is an SMS. -->
+    <!-- No INTERNET permission: the only thing that ever leaves this device is an SMS.
+         ML Kit's telemetry backend (com.google.android.datatransport:transport-backend-cct)
+         and WorkManager declare network permissions in their own manifests; the merger
+         removes them here, so the merged manifest of every variant has no network path.
+         .github/scripts/manifest-check.sh fails CI if one ever comes back. -->
+    <uses-permission
+        android:name="android.permission.INTERNET"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.ACCESS_NETWORK_STATE"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.ACCESS_WIFI_STATE"
+        tools:node="remove" />
+
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -77,7 +91,12 @@
             tools:targetApi="27" />
 
         <!-- BROADCAST_SMS is held only by the telephony stack, so no other app can deliver a
-             forged SMS_RECEIVED broadcast to this receiver. -->
+             forged SMS_RECEIVED broadcast to this receiver.
+             priority 999: SMS_RECEIVED is an ordered broadcast and the stock Messages app
+             listens at the default priority. The highest priority sees the text first, so an
+             alert is verified before any other app has handled it. It cannot abort the
+             broadcast (only the default SMS app's SMS_DELIVER can, see T14), so the inbox
+             copy still appears; it only decides who runs first. -->
         <receiver
             android:name=".core.services.ImpartSmsReceiver"
             android:exported="true"
@@ -108,7 +127,19 @@
                 android:name="androidx.work.WorkManagerInitializer"
                 android:value="androidx.startup"
                 tools:node="remove" />
+            <!-- EmojiCompat would ask a font provider for downloadable emoji fonts. Impart
+                 bundles its fonts and shows no emoji, so the initializer goes. -->
+            <meta-data
+                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
         </provider>
+
+        <!-- Compose tooling registers an exported activity in debug builds so Android Studio
+             can run previews. Nothing on a phone should be able to launch it. -->
+        <activity
+            android:name="androidx.compose.ui.tooling.PreviewActivity"
+            tools:node="remove" />
 
     </application>
 
