@@ -7,7 +7,9 @@
 set -uo pipefail
 
 fail=0
-ALLOWED_EXPORTED="com.uncoalesced.impart.MainActivity com.uncoalesced.impart.MainActivityAlias"
+# ComposeSmsActivity: the default SMS role requires a SENDTO handler any app can open. It only
+# forwards the number to MainActivity, behind the lock, and finishes (T14).
+ALLOWED_EXPORTED="com.uncoalesced.impart.MainActivity com.uncoalesced.impart.MainActivityAlias com.uncoalesced.impart.presentation.messages.ComposeSmsActivity"
 
 manifests=("$@")
 if [ ${#manifests[@]} -eq 0 ]; then

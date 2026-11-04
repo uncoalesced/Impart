@@ -20,12 +20,14 @@ import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.data.remote.RelayManagerImpl
 import com.uncoalesced.impart.data.repository.ContactRepositoryImpl
 import com.uncoalesced.impart.data.repository.SeenAlertStoreImpl
+import com.uncoalesced.impart.data.sms.TelephonyProviderSmsStore
 import com.uncoalesced.impart.data.repository.SystemMonotonicClock
 import com.uncoalesced.impart.data.repository.SystemWallClock
 import com.uncoalesced.impart.domain.repository.ContactRepository
 import com.uncoalesced.impart.domain.repository.MonotonicClock
 import com.uncoalesced.impart.domain.repository.RelayManager
 import com.uncoalesced.impart.domain.repository.SeenAlertStore
+import com.uncoalesced.impart.domain.repository.SmsStore
 import com.uncoalesced.impart.domain.repository.WallClock
 import dagger.Binds
 import dagger.Module
@@ -70,6 +72,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindMonotonicClock(impl: SystemMonotonicClock): MonotonicClock
+
+    @Binds
+    abstract fun bindSmsStore(impl: TelephonyProviderSmsStore): SmsStore
 
     @Binds
     abstract fun bindSeenAlertStore(impl: SeenAlertStoreImpl): SeenAlertStore
