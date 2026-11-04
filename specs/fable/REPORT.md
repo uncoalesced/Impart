@@ -58,6 +58,8 @@ Note on Google Play (T14): with the optional default-SMS-app mode in place, Impa
 
 Every job, what it checks, and its latest run.
 
+CodeQL upload limit (T09): the first CodeQL runs on the PR (for example https://github.com/uncoalesced/Impart/actions/runs/41899056589) analysed the code and then failed with "Code scanning is not enabled for this repository". The upload is now a separate, tolerated step and the SARIF is kept as a workflow artifact (`codeql-sarif`). Joel: enable code scanning under Settings, Code security and analysis; from the next run the results appear in the Security tab with no workflow change. The analysis step itself still fails the job on an analysis error.
+
 ## 8. Known limits and residual risks
 
 Copy the out-of-reach rows from spec 03 so they are in front of Joel.

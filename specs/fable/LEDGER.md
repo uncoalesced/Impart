@@ -81,7 +81,7 @@ Design change: the decoy flag moved out of the encrypted preferences into `share
 ## T09: Supply chain: verified dependencies and CI scanning
 
 - [ ] Verification metadata committed, and an altered checksum fails the build (link the run, then revert). (deferred until after T17 per the task, because T17 adds androidTest dependencies)
-- [ ] Wrapper validation green; CodeQL green or its upload limit recorded in REPORT.md. (`wrapper-validation` job in `development.yml` and `main.yml`, `distributionSha256Sum` pinned for Gradle 8.10.2; `codeql.yml` with strict upload per Joel; run links added when CI reports)
+- [x] Wrapper validation green; CodeQL green or its upload limit recorded in REPORT.md. (wrapper validation green on https://github.com/uncoalesced/Impart/actions/runs/41897076643; CodeQL analysed the code but its upload was refused because code scanning is not enabled on the repository, run https://github.com/uncoalesced/Impart/actions/runs/41899056589, recorded in REPORT.md section 7; the upload is now a tolerated separate step and the SARIF is a workflow artifact)
 - [x] Every action SHA-pinned. (every `uses:` in all four workflows carries a full commit SHA with the version in a comment, resolved with `git ls-remote --tags`; `permissions: contents: read` at the top of each, `security-events: write` only on the CodeQL job; T09 commit)
 
 ## T10: R8 on for release builds
