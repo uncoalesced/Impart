@@ -41,7 +41,9 @@ Every alert is a text message, usually split into three or four parts, and your 
 - The duress PIN permanently deletes your contacts, your keys and your settings, and leaves a fake error screen behind. There is no undo and no backup to restore from.
 - The disguise option renames the app to Calculator on your home screen. Opening it still opens Impart.
 - If you turn on location sharing, each panic you send carries your coordinates to the people you page.
-- The app lock asks for your PIN every time Impart starts and whenever it has been in the background for more than 30 seconds. After repeated wrong PINs it makes you wait before trying again, up to 15 minutes.
+- The app lock asks for your PIN every time Impart starts, whenever the screen turns off, and whenever it has been in the background for more than 30 seconds. After repeated wrong PINs it makes you wait before trying again, up to 15 minutes. If you turn on "Wipe after 20 wrong PINs" in Settings, the twentieth wrong PIN in a row deletes everything exactly like the duress PIN.
+- "Rotate my keys" in Settings replaces your keys and cannot be undone. Every trusted contact must scan your new QR code in person before alerts work again in either direction.
+- SMS app mode is optional. If you make Impart your SMS app, it becomes a basic text messaging app for ordinary SMS: it stores and shows your texts and lets you reply, it does not download picture messages (MMS), and it has none of the features of a full messaging app. Ordinary texts you send from it cost what your plan charges for SMS. You can hand the role to another app at any time in the system settings.
 
 ## Security has limits
 

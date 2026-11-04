@@ -50,6 +50,8 @@ One line per attack table row that changed status, with the commit.
 
 ## 5. Decisions Joel made, and questions still open
 
+Note on Google Play (T14): with the optional default-SMS-app mode in place, Impart is a candidate for Play's "default SMS handler" exception for the SMS permissions. Submission, the policy declaration and whether to apply at all remain Joel's decision; nothing on this branch touches a store.
+
 ## 6. New and changed classes, and the tests that cover them (T18)
 
 ## 7. CI jobs

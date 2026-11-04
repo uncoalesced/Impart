@@ -145,6 +145,10 @@ Expected: no message at all. The whole app becomes a grey "NODE CORRUPTED / SYST
 
 2. Reinstall to recover. The other phones still list the old identity. Revoke it and pair again. On the other phones, scanning the reinstalled phone's new QR shows "KEYS CHANGED" with an old and a new fingerprint. Accept only after comparing the new fingerprint with the reinstalled phone's screen.
 
+## Phase 8c: SMS app mode (T14)
+
+On B: Settings, "Make Impart your SMS app", accept the system prompt. Expected: the switch turns on, a Texts tab appears, and the readiness card is unchanged. Page B from A. Expected: the red screen as in phase 4, and afterwards no new text in B's old Messages app and nothing on the Texts tab: the alert was never written anywhere. Send an ordinary text to B from any phone. Expected: a "New text message" notification showing only the number, and the text on the Texts tab after the PIN. Reply from the Texts tab. Expected: the reply arrives and shows in the thread. Send B a picture message. Expected: a notice "MMS received" with the sender and time, nothing downloaded. Open the dialer during an incoming call and pick a quick text reply. Expected: it goes out from Impart. Finally, in Android's default apps settings, give the SMS role to the stock app. Expected: the switch turns off, the Texts tab disappears, and the next alert appears as a 612-character text in the stock app again.
+
 ## Phase 8b: key rotation (T13)
 
 On A: Settings, "Rotate my keys", standard PIN, ROTATE. Expected: a toast saying how many contacts must re-pair; the My QR tab shows a new fingerprint; the Contacts tab marks B and C "RE-PAIR NEEDED"; holding B's panic button shows the refusal reason under it and sends nothing. On B: nothing changes yet. Page A from B: expected on A, "ALERT FAILED VERIFICATION" (B still holds A's old signing key) and no alarm. Then B scans A's new QR: expected the KEYS CHANGED dialog with the old and new fingerprints; accept after comparing with A's screen. A scans B's QR: expected "Re-paired". Page in both directions: expected the red screen both ways.

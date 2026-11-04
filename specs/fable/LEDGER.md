@@ -110,11 +110,11 @@ Design change: the decoy flag moved out of the encrypted preferences into `share
 
 ## T14: Optional default SMS app mode
 
-- [ ] Role request branch selection unit-tested for API 26 to 35.
-- [ ] An alert received while default never reaches the Telephony provider (test through a provider wrapper).
-- [ ] Ordinary SMS stored and shown.
-- [ ] Only the three listed permissions added.
-- [ ] Legal documents and specs updated.
+- [x] Role request branch selection unit-tested for API 26 to 35. (`RoleRequestStrategy.forApi`; `DefaultSmsModeTest.role request strategy per api level`; T14 commit)
+- [x] An alert received while default never reaches the Telephony provider (test through a provider wrapper). (`SmsDeliverDispatcher` over the `SmsStore` interface; `DefaultSmsModeTest.an alert received while default never reaches the provider`; the relay is asserted never to reference the provider; T14 commit)
+- [x] Ordinary SMS stored and shown. (`TelephonyProviderSmsStore`, `MessagesScreen` on the Texts tab behind the lock; `DefaultSmsModeTest.an ordinary text is stored`; device test spec 08 phase 8c; T14 commit)
+- [x] Only the three listed permissions added. (`READ_SMS`, `RECEIVE_MMS`, `RECEIVE_WAP_PUSH`; `manifest-check.sh` output; T14 commit)
+- [x] Legal documents and specs updated. (PRIVACY.md, TERMS.md, spec 02, spec 03 rows A4-1 and A5-7 and section 6.1, spec 08 phase 8c; the legal version bump happens once in T19; T14 commit)
 
 ## T15: Re-skin to the uncoalesced design language
 

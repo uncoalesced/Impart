@@ -37,13 +37,14 @@ When you send a panic, an acknowledgement, or the dead man's switch fires, Impar
 
 Your mobile carrier, and any network the SMS passes through, can see that your number texted theirs and when. Every Impart message is the same length (four SMS parts) and starts with a short code that is the same for every message between the two of you but does not name Impart. They cannot read what is inside, or tell a panic from an acknowledgement.
 
-A copy of every alert you send and receive also appears in your normal Messages app, because Android saves texts from apps that are not your default messaging app. Anyone who can open your Messages app can see who you exchanged alerts with, though not what they said. Impart cannot delete these copies. You can delete them yourself.
+Unless Impart is your SMS app, a copy of every alert you send and receive also appears in your normal Messages app, because Android saves texts from apps that are not your default messaging app. Anyone who can open your Messages app can see that you exchanged encrypted messages with those numbers, though not what they said, and not that the app was Impart. Impart cannot delete these copies. You can delete them yourself, or turn on SMS app mode so that no copy is made on your phone in the first place.
 
 Impart sends nothing to us, to Google, or to anyone else.
 
 ## What Impart reads
 
 - Text messages: Impart looks at every incoming SMS, but only to check whether it has the exact shape of an Impart alert (a fixed length and a short code that matches one of your trusted contacts). Any other message is ignored straight away. Impart never stores it, logs it or reads further into it.
+- Text messages in SMS app mode: if you choose "Make Impart your SMS app" in Settings, Android delivers every incoming text to Impart first. An Impart alert is checked and never written to the phone's message store, so no copy of it exists in any inbox. Every other text is saved in the phone's normal message store, where any SMS app you later switch to can read it, and shown on the Texts tab behind your PIN. Texts you send from that tab are saved there too. A picture message is not downloaded; Impart only records that one arrived, from whom and when. Nothing of this leaves your phone. The notification for a new text shows the sender's number and not the message. Switching back to another SMS app in the system settings ends this mode; from then on copies of alerts appear in that app's inbox again.
 - Camera: used only on the Scan QR tab. Images are analysed on your phone to find a QR code and are never saved.
 - Location: used only if you turn on location sharing, and only at the moment you send a panic. Impart asks Google Play services for one location fix. Google Play services is part of your phone and has its own privacy policy from Google.
 
@@ -59,6 +60,8 @@ Impart writes short diagnostic lines to Android's system log, such as "alert ver
 - Notifications and full-screen alerts: to wake your screen and sound the alarm when a panic arrives.
 - Wake lock and vibrate: to keep the phone awake while an alert is processed, and to vibrate during the alarm.
 - Ignore battery optimizations: so your phone's battery saver does not stop Impart from receiving alerts. You are asked before this is granted.
+- Read SMS, receive MMS and receive WAP push: Android grants the SMS app role only to an app that declares these. They are used only in SMS app mode, to show your ordinary texts and to notice a picture message. Impart never reads the message store for alerts.
+- Hide overlay windows: on Android 12 and later, other apps' overlays are hidden while Impart is on screen, so nothing can be drawn over the PIN pad or the panic button.
 
 ## How long data is kept, and how to delete it
 
