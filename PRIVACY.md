@@ -15,7 +15,7 @@ An encrypted settings file, locked with a key held in your phone's Android Keyst
 
 - A random ID for your phone, created on first launch. It is not based on your number or your device.
 - Your own phone number, as you typed it on the My QR screen.
-- Your standard PIN and duress PIN, and a count of recent wrong PIN attempts.
+- A random salt and a keyed hash for each of your two PINs, plus a count of recent wrong PIN attempts. The PINs themselves are not stored. The key for the hash lives in the Android Keystore and cannot be copied out, so a copy of the settings file cannot be used to guess your PINs on another computer.
 - Your dead man's switch interval and last check-in time.
 - Whether location sharing is on.
 - Which version of these documents you accepted.

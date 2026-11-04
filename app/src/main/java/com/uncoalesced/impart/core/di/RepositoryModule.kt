@@ -1,13 +1,22 @@
 // Engineered by uncoalesced
 package com.uncoalesced.impart.core.di
 
+import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.security.KeysetSource
 import com.uncoalesced.impart.core.security.KeystoreHelper
+import com.uncoalesced.impart.core.security.KeystorePinHasher
+import com.uncoalesced.impart.core.security.LockoutStore
+import com.uncoalesced.impart.core.security.PinAuthority
+import com.uncoalesced.impart.core.security.PinHasher
+import com.uncoalesced.impart.core.security.PinStore
+import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.data.remote.RelayManagerImpl
 import com.uncoalesced.impart.data.repository.ContactRepositoryImpl
 import com.uncoalesced.impart.data.repository.SeenAlertStoreImpl
+import com.uncoalesced.impart.data.repository.SystemMonotonicClock
 import com.uncoalesced.impart.data.repository.SystemWallClock
 import com.uncoalesced.impart.domain.repository.ContactRepository
+import com.uncoalesced.impart.domain.repository.MonotonicClock
 import com.uncoalesced.impart.domain.repository.RelayManager
 import com.uncoalesced.impart.domain.repository.SeenAlertStore
 import com.uncoalesced.impart.domain.repository.WallClock
@@ -27,6 +36,21 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindKeysetSource(impl: KeystoreHelper): KeysetSource
+
+    @Binds
+    abstract fun bindPinHasher(impl: KeystorePinHasher): PinHasher
+
+    @Binds
+    abstract fun bindPinStore(impl: SecurePrefsManager): PinStore
+
+    @Binds
+    abstract fun bindPinAuthority(impl: DuressManager): PinAuthority
+
+    @Binds
+    abstract fun bindLockoutStore(impl: SecurePrefsManager): LockoutStore
+
+    @Binds
+    abstract fun bindMonotonicClock(impl: SystemMonotonicClock): MonotonicClock
 
     @Binds
     abstract fun bindSeenAlertStore(impl: SeenAlertStoreImpl): SeenAlertStore
