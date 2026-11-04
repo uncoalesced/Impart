@@ -1,6 +1,7 @@
 // Engineered by uncoalesced
 package com.uncoalesced.impart.core.security
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import com.google.crypto.tink.KeyTemplates
@@ -46,6 +47,7 @@ class KeystoreHelper @Inject constructor(
             .keysetHandle
 
     // Both keysets live in the same prefs file, so one clear() removes both.
+    @SuppressLint("ApplySharedPref")
     fun purgeKeys() {
         synchronized(this) {
             hybrid = null

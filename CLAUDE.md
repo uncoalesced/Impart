@@ -52,7 +52,7 @@ Single Gradle module. Clean-architecture layering under `app/src/main/java/com/u
   - `rules/PhoneNumbers`: E.164 validation.
   - `usecase/`: `AddContactUseCase` (returns `Added`, `Refreshed` or `KeyChanged`), `RenameContactUseCase` and `RevokeContactUseCase`.
 - `data/`:
-  - `local/db/`: Room `ImpartDatabase` v4, with `ContactDao`, `SeenAlertDao` and their entities.
+  - `local/db/`: Room `ImpartDatabase` v4, SQLCipher-encrypted with a key held in `SecurePrefsManager`, with `ContactDao`, `SeenAlertDao` and their entities.
   - `local/prefs/SecurePrefsManager`: the single `EncryptedSharedPreferences`.
   - `local/assets/LegalDocumentLoader`.
   - `remote/RelayManagerImpl`: the SMS dispatcher.
@@ -111,7 +111,7 @@ Details, and the attack table from the September 2026 review, are in `specs/03_S
   - A known UUID with different keys returns `KeyChanged` and writes nothing until the user confirms in the fingerprint dialog.
   - `HandshakeViewModel` rejects keys Tink cannot parse as the right type.
 - **Own phone number.** It is user-entered on My QR, validated as E.164, and persisted in `SecurePrefsManager`.
-- **No backups.** `allowBackup` is false: Keystore-wrapped data restored onto another device would crash on first read.
+- **No backups.** `allowBackup` is false and `res/xml/data_extraction_rules.xml` excludes everything from Android 12+ cloud backup and device transfer: Keystore-wrapped data restored onto another device would crash on first read.
 - **Logs** go through `Redact`: numbers become `***67`, contacts become UUID prefixes. Never log a display name, a phone number or a payload.
 
 ### Duress and covert features
@@ -161,7 +161,6 @@ Full rules are in `specs/05_CODING_STANDARDS.md`. Non-negotiable:
 
 ## Open items
 
-- Room is not encrypted at rest; SQLCipher is on the roadmap.
 - Copies of alerts in the stock Messages app are outside Impart's control.
 - R8 is off for release builds.
 - Google Play restricts the SMS permissions to default SMS apps.

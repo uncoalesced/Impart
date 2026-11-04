@@ -28,10 +28,14 @@
 
     <!-- allowBackup is off on purpose. The Tink keyset and the encrypted preferences are
          wrapped by keys that live only in this device's Keystore; restoring them onto
-         another device produces an app that crashes on its first preferences read. -->
+         another device produces an app that crashes on its first preferences read.
+         Android 12+ ignores allowBackup for device-to-device transfer, hence the rules. -->
     <application
         android:name=".ImpartApplication"
         android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:targetApi="31"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
@@ -69,7 +73,8 @@
             android:launchMode="singleTop"
             android:excludeFromRecents="true"
             android:showWhenLocked="true"
-            android:turnScreenOn="true" />
+            android:turnScreenOn="true"
+            tools:targetApi="27" />
 
         <!-- BROADCAST_SMS is held only by the telephony stack, so no other app can deliver a
              forged SMS_RECEIVED broadcast to this receiver. -->

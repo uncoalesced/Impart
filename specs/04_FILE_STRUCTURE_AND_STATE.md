@@ -23,10 +23,11 @@ Impart/
     ├── build.gradle.kts                   SDK levels, env-driven release signing, and the
     │                                      CopyLegalDocuments task feeding assets/legal/
     └── src/
-        ├── main/AndroidManifest.xml       permissions, allowBackup=false, launcher and Calculator
+        ├── main/AndroidManifest.xml       permissions, no backups or transfer, launcher and Calculator
         │                                  alias, IntrusionActivity, the SMS receiver (requires
         │                                  BROADCAST_SMS), the sent-intent receiver
-        ├── main/res/                      black window theme, palette mirror, placeholder icons
+        ├── main/res/                      black window theme, palette mirror, placeholder icons,
+        │                                  data extraction rules excluding everything
         │
         ├── main/java/com/uncoalesced/impart/
         │   ├── ImpartApplication.kt           Hilt entry point, WorkManager config, notification channels
@@ -34,7 +35,7 @@ Impart/
         │   │                                  tabs, key-change dialog, FLAG_SECURE, lock lifecycle
         │   │
         │   ├── core/
-        │   │   ├── di/DatabaseModule.kt       Room database, ContactDao, SeenAlertDao
+        │   │   ├── di/DatabaseModule.kt       SQLCipher Room database, ContactDao, SeenAlertDao
         │   │   ├── di/RepositoryModule.kt     binds repositories, relay, KeysetSource, SeenAlertStore,
         │   │   │                              WallClock
         │   │   ├── security/
@@ -106,7 +107,7 @@ Impart/
                                                RenameContactUseCaseTest, FakeContactRepository
 ```
 
-`[TODO]`: `androidTest/` with Compose UI tests for the handshake and dashboard flows (`05_CODING_STANDARDS.md` section 8), and a SQLCipher factory in `DatabaseModule`.
+`[TODO]`: `androidTest/` with Compose UI tests for the handshake and dashboard flows (`05_CODING_STANDARDS.md` section 8).
 
 ## 3. Layer responsibilities
 
