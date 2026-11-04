@@ -141,6 +141,7 @@ Permissions in the merged manifest:
 | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION` | Impart | Optional coordinates in a panic |
 | `SEND_SMS`, `RECEIVE_SMS` | Impart | The transport |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Impart | The readiness card's exemption prompt |
+| `HIDE_OVERLAY_WINDOWS` | Impart | Hides other apps' overlays while an Impart window is in front (API 31+) |
 | `RECEIVE_BOOT_COMPLETED` | WorkManager | The dead man's switch survives a reboot |
 | `FOREGROUND_SERVICE` | WorkManager | Declared by the library; Impart runs no foreground service |
 | `${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | androidx.core | Signature permission that guards the library's own runtime receivers |

@@ -214,7 +214,7 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 | ID | Attack | Status | Defense | Test | Owner |
 |---|---|---|---|---|---|
 | A5-1 | A malicious keyboard records the PIN | mitigated | Every PIN is typed on the in-app `PinPad`; no IME is ever opened for a PIN. Optional shuffled layout in Settings. Digits live in a `PinEntry` CharArray and are zeroed after use | `WindowHardeningSourceTest.no PIN entry uses a text field`, `PinEntryTest` | T04 (done) |
-| A5-2 | An overlay or tapjacking window drives the panic button, the acknowledge button or the PIN pad | mitigated | `Modifier.rejectObscuredTouches` refuses a touch whose `MotionEvent` carries `FLAG_WINDOW_IS_OBSCURED` or `FLAG_WINDOW_IS_PARTIALLY_OBSCURED`, and says so, on the PIN pad, both panic buttons, acknowledge, accept-new-keys and revoke. `setHideOverlayWindows(true)` (API 31+) needs the `HIDE_OVERLAY_WINDOWS` permission; added only if Joel approves the permission (pending) | `ObscuredTouchPolicyTest`; device test in spec 08 phase 2 step 9 | T04 (done, permission pending) |
+| A5-2 | An overlay or tapjacking window drives the panic button, the acknowledge button or the PIN pad | mitigated | `Modifier.rejectObscuredTouches` refuses a touch whose `MotionEvent` carries `FLAG_WINDOW_IS_OBSCURED` or `FLAG_WINDOW_IS_PARTIALLY_OBSCURED`, and says so, on the PIN pad, both panic buttons, acknowledge, accept-new-keys and revoke. On API 31+ every Impart window also calls `setHideOverlayWindows(true)` (permission `HIDE_OVERLAY_WINDOWS`, approved by Joel 2026-11-04), so overlays are hidden outright | `ObscuredTouchPolicyTest`; device test in spec 08 phase 2 step 9 | T04 (done) |
 | A5-3 | An accessibility service reads the screen | out of reach, partly | A granted accessibility service can read any window the user can; `FLAG_SECURE` does not stop it. The PIN pad describes only the count ("PIN, 3 digits entered"); the keys are labelled, the value is never in the tree | `PinPad` semantics | T04 (done), T19 |
 | A5-4 | Read the clipboard after the user copies something | mitigated | Only the UUID and the own phone number can be copied, through `SensitiveClipboard`: flagged `EXTRA_IS_SENSITIVE` (no preview on Android 13+) and cleared after 60 s. Keys, PINs and fingerprints have no copy action. Names and numbers in text fields use keyboard classes that do not learn (`Password` class with visible text, `Phone` class) and `autoCorrect = false` | spec 08 phase 2 step 11 | T04 (done) |
 | A5-5 | Send an intent to an exported component | mitigated | `MainActivity` and its alias are the only exported components without a permission, and they are the launcher. `ImpartSmsReceiver` requires `BROADCAST_SMS`; the library components that are exported require `BIND_JOB_SERVICE` or `DUMP` (spec 04 section 4.1). `PreviewActivity` (exported, debug) removed. `IntrusionActivity` and `SmsSentReceiver` are not exported | `manifest-check.sh` in both workflows | T05 (done) |
@@ -258,7 +258,27 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 
 ### 6.1 Metadata
 
-Written by T07. Measurements of alert sizes and the padding and prefix options, with a recommendation for Joel.
+What the carrier, the stock Messages app and anyone reading either can learn from an alert without decrypting it (A4-1, A4-2). Measured by `AlertSizeTest` on the v2 wire format, with a 153-character part size:
+
+| Alert | Characters | SMS parts |
+|---|---|---|
+| Panic without location | 413 | 3 |
+| Panic with location (4 decimal places) | 453 | 3 |
+| Panic, worst case (full-precision coordinates) | 481 | 4 |
+| Acknowledgement | 457 | 3 |
+
+So today: the body starts with `IMPART_ALERT:`, which names the app; a panic and an ACK are usually both 3 parts and within 50 characters of each other, so the part count rarely tells them apart, but the exact length does (a watcher who sees 413 then 457 can guess "panic without location, then ACK"); and the timing (a reply within a minute) says which was which anyway.
+
+Options, each with what it hides and what it costs:
+
+1. **Pad every alert to a fixed length (4 parts, 612 characters).** Hides the kind and whether location was attached. Costs: one extra SMS part for most alerts (about 25 percent more SMS charges and airtime), a wire format change (random base64 padding after the ciphertext, stripped before decryption, or inside the plaintext before signing), so every phone must update. Pairing keys are unaffected, so no re-pairing. Does not hide timing or the prefix.
+2. **Replace `IMPART_ALERT:` with a per-pair tag.** For example the first 8 base64 characters of `HMAC-SHA256(shared, "impart-tag")` where `shared` is derived from the two public keys at pairing. The body no longer names the app and the tag differs per pair, so an inbox full of alerts does not say "Impart" and two pairs cannot be linked by the prefix. Costs: a wire format change, a new field in the contact row, every phone re-pairs or at least re-scans; a tag can still be matched to a pair by anyone who holds both public keys (a former contact); and the receiver must compute the tag for every active contact per incoming text (cheap: a few HMACs). The text still looks like 450 characters of base64, which is itself a signature of "some encrypted app".
+3. **Recognise alerts by trial decryption, no prefix at all.** Hides the most. Costs: every incoming SMS on the phone (two-factor codes, chats) is base64-decoded and run through HPKE decryption inside the receiver's 30 s wake lock; on a busy phone that is a measurable battery cost and a wider attack surface (every text reaches the decryptor); false starts on long base64 texts are harmless but logged. Requires a wire format change only to drop the prefix.
+4. **Default SMS app mode (T14).** As the default SMS app Impart receives `SMS_DELIVER` first and never writes alerts to the Telephony provider, so there is no inbox copy at all on that phone. This removes A4-1 completely on phones that opt in, without any wire change. It does nothing for the carrier's view, for the sender's sent box on a phone that is not default, or for a watcher of the other phone.
+
+Recommendation: ship T14 (option 4) first, because it removes the inbox copy without touching the frozen wire format. Then, in one wire format bump (v3), do options 1 and 2 together: pad to 4 parts and use a per-pair tag, so a single re-pair buys both. Option 3 is not recommended: the battery and surface cost lands on the most important code path for a small gain over option 2. Nothing hides the carrier metadata (A4-3).
+
+Decision: pending Joel (asked in chat during T07). The wire format stays v2 until he answers.
 
 ## 7. Key rotation and revocation
 

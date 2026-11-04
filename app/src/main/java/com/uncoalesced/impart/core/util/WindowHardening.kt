@@ -13,6 +13,11 @@ object WindowHardening {
     // accessibility screenshot API. Does not stop an accessibility service reading the tree.
     fun harden(window: Window) {
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Needs HIDE_OVERLAY_WINDOWS (manifest). Other apps' overlays are hidden while this
+            // window is in front, so there is nothing to tap through on Android 12+.
+            window.setHideOverlayWindows(true)
+        }
     }
 
     fun harden(activity: Activity) {

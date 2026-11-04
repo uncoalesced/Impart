@@ -49,12 +49,12 @@ Disagreements found during orientation, each owned by a later task:
 - [x] Every Activity and Dialog sets FLAG_SECURE, asserted by a test. (`WindowHardening`, `SecureDialog`, `SecureAlertDialog`; `WindowHardeningSourceTest`; T04 commit)
 - [x] Recents snapshot disabled on supported API levels. (`WindowHardening.harden(Activity)`: `setRecentsScreenshotEnabled(false)` on API 33+; T04 commit)
 
-Pending Joel: `setHideOverlayWindows(true)` (T04 step 3) needs the normal permission `android.permission.HIDE_OVERLAY_WINDOWS`, which the brief lists as a stop-and-ask. Not added until he answers. Everything else in T04 is in place without it.
+`setHideOverlayWindows(true)` (T04 step 3) and its permission `android.permission.HIDE_OVERLAY_WINDOWS` were added after Joel approved the permission (Decisions, 2026-11-04).
 
 ## T05: Manifest and component audit, plus the no-INTERNET CI job
 
 - [x] `manifest-check.sh` runs in CI on both workflows. (`manifest` job in `development.yml` and `main.yml`; T05 commit)
-- [ ] A deliberate test commit adding INTERNET made the job fail (link the failed run, then revert).
+- [x] A deliberate test commit adding INTERNET made the job fail (link the failed run, then revert). (b4b5226 let the library INTERNET permission through; the manifest job failed: https://github.com/uncoalesced/Impart/actions/runs/41891997330/job/126791540861; reverted by the next commit)
 - [x] Component list documented in spec 04. (spec 04 section 4.1; T05 commit)
 
 Finding: before T05 the merged manifest of every variant carried `android.permission.INTERNET` (from `com.google.android.datatransport:transport-backend-cct`, ML Kit's telemetry backend) and `ACCESS_NETWORK_STATE` (WorkManager). Both are now removed at merge time. Pending Joel: replace ML Kit barcode scanning with the bundled ZXing decoder and fused location with `LocationManager`, which would remove every Google component from the APK.
@@ -66,7 +66,7 @@ Finding: before T05 the merged manifest of every variant carried `android.permis
 
 ## T07: Wire metadata proposal (no code change without Joel)
 
-- [ ] Metadata subsection written, with measurements and a recommendation.
+- [x] Metadata subsection written, with measurements and a recommendation. (spec 03 section 6.1, `AlertSizeTest`; T07 commit)
 - [ ] Joel's decision recorded in the ledger.
 - [ ] If approved: implemented, tested, spec 08 updated.
 
@@ -167,4 +167,7 @@ Record each question asked and Joel's answer, with the date.
 - 2026-11-04, PR target: PR #7 was already merged into `development`. Joel: push to `fable/finish-impart` and open a new draft PR from it into `development`. Draft PR #8: https://github.com/uncoalesced/Impart/pull/8.
 - 2026-11-04, T03 hard cap: Joel: yes, wipe after 20 consecutive wrong PINs, behind a Settings toggle that defaults off.
 - 2026-11-04, T08 cloak: Joel: leave the launcher cloak state untouched during the duress wipe.
+- 2026-11-04, T07 wire format: measurements in spec 03 section 6.1 (panic 413 to 481 chars, ACK 457, 3 parts, worst case 4). Joel: bump to v3, pad every alert to 4 parts and replace the `IMPART_ALERT:` prefix with a per-pair tag. Every phone updates and re-pairs; spec 08 says so.
+- 2026-11-04, T04 overlay permission: Joel: add `android.permission.HIDE_OVERLAY_WINDOWS` and call `setHideOverlayWindows(true)` on API 31+.
+- 2026-11-04, Google components: Joel: replace ML Kit barcode scanning with ZXing and Play Services fused location with `LocationManager`, as task T21 after T09, so the APK carries no Google code.
 - 2026-11-04, T09 CodeQL: Joel will enable GitHub code scanning on the repository, so the upload step is strict. If the first run still refuses the upload, make it tolerant and tell him.
