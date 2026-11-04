@@ -5,7 +5,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
+import android.os.PowerManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -50,9 +49,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uncoalesced.impart.core.security.AppLockManager
 import com.uncoalesced.impart.core.security.DuressManager
+import com.uncoalesced.impart.core.util.WindowHardening
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.domain.model.LegalDocument
 import com.uncoalesced.impart.domain.model.displayName
+import com.uncoalesced.impart.presentation.components.SecureAlertDialog
+import com.uncoalesced.impart.presentation.components.rejectObscuredTouches
+import com.uncoalesced.impart.presentation.components.rememberObscuredTouchNotifier
 import com.uncoalesced.impart.presentation.contacts.ContactMatrixScreen
 import com.uncoalesced.impart.presentation.dashboard.DashboardScreen
 import com.uncoalesced.impart.presentation.decoy.NodeCorruptedScreen
@@ -94,7 +97,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Keeps the QR, contacts and fingerprints out of screenshots, screen recorders and
         // the recent-apps preview.
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        WindowHardening.harden(this)
 
         setContent {
             ImpartTheme {
@@ -102,6 +105,7 @@ class MainActivity : ComponentActivity() {
                 val acceptedLegal by securePrefsManager.acceptedLegalVersion.collectAsStateWithLifecycle()
                 val pinsChosen by securePrefsManager.hasCustomPins.collectAsStateWithLifecycle()
                 val unlocked by appLockManager.isUnlocked.collectAsStateWithLifecycle()
+                val shufflePad by securePrefsManager.shufflePinPad.collectAsStateWithLifecycle()
 
                 // Order matters. The decoy wins over everything once the duress PIN has fired.
                 // Then the terms (first run, or after they change), then choosing PINs, then
@@ -114,6 +118,7 @@ class MainActivity : ComponentActivity() {
                     )
                     !pinsChosen -> Box(modifier = Modifier.fillMaxSize().background(ImpartGround)) {
                         PinSetupDialog(
+                            shufflePad = shufflePad,
                             required = true,
                             onDismiss = {},
                             onSave = { standard, duress ->
@@ -121,7 +126,7 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     }
-                    !unlocked -> AppLockScreen(onSubmit = appLockManager::submitPin)
+                    !unlocked -> AppLockScreen(shufflePad = shufflePad, onSubmit = appLockManager::submitPin)
                     else -> {
                         LaunchedEffect(Unit) { requestMissingPermissions() }
                         MainAppScreen()
@@ -136,8 +141,14 @@ class MainActivity : ComponentActivity() {
         appLockManager.onForegrounded()
     }
 
+    // Screen off locks at once. Anything else (a Settings page, a permission prompt) gets the
+    // 30 s grace period before the lock comes back.
     override fun onStop() {
-        appLockManager.onBackgrounded()
+        if (getSystemService(PowerManager::class.java)?.isInteractive == false) {
+            appLockManager.lock()
+        } else {
+            appLockManager.onBackgrounded()
+        }
         super.onStop()
     }
 
@@ -286,7 +297,8 @@ private fun KeyChangeDialog(
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
-    AlertDialog(
+    val rejectNotifier = rememberObscuredTouchNotifier()
+    SecureAlertDialog(
         onDismissRequest = onReject,
         containerColor = ImpartBackground,
         titleContentColor = ImpartTextPrimary,
@@ -304,7 +316,7 @@ private fun KeyChangeDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onAccept) {
+            TextButton(onClick = onAccept, modifier = Modifier.rejectObscuredTouches(rejectNotifier)) {
                 Text("ACCEPT NEW KEYS", color = ImpartAmber, fontWeight = FontWeight.Bold)
             }
         },

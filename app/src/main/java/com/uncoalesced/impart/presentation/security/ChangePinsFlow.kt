@@ -14,8 +14,9 @@ import com.uncoalesced.impart.core.security.UnlockResult
 // A duress PIN entered here wipes the node like anywhere else, and nothing announces it.
 @Composable
 fun ChangePinsFlow(
-    onVerify: (String) -> UnlockResult,
-    onSave: (standardPin: String, duressPin: String) -> Result<Unit>,
+    shufflePad: Boolean,
+    onVerify: (CharArray) -> UnlockResult,
+    onSave: (standardPin: CharArray, duressPin: CharArray) -> Result<Unit>,
     onFinished: () -> Unit
 ) {
     val context = LocalContext.current
@@ -23,6 +24,7 @@ fun ChangePinsFlow(
 
     if (!verified) {
         SecurityAuthDialog(
+            shufflePad = shufflePad,
             onDismiss = onFinished,
             onPinSubmit = { pin ->
                 when (val result = onVerify(pin)) {
@@ -32,7 +34,7 @@ fun ChangePinsFlow(
                         onFinished()
                     }
                     is UnlockResult.LockedOut -> {
-                        val seconds = ((result.lockedUntil - System.currentTimeMillis()) / 1000).coerceAtLeast(1L)
+                        val seconds = ((result.remainingLockoutMs + 999L) / 1000L).coerceAtLeast(1L)
                         Toast.makeText(context, "Too many wrong attempts. Try again in ${seconds}s.", Toast.LENGTH_SHORT).show()
                         onFinished()
                     }
@@ -42,6 +44,7 @@ fun ChangePinsFlow(
         )
     } else {
         PinSetupDialog(
+            shufflePad = shufflePad,
             onDismiss = onFinished,
             onSave = { standard, duress ->
                 onSave(standard, duress).onSuccess {

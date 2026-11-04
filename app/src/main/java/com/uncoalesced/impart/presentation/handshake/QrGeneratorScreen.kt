@@ -78,7 +78,8 @@ fun QrGeneratorScreen(
             label = { Text("MY PHONE NUMBER (WITH COUNTRY CODE)") },
             placeholder = { Text("+15551234567", color = ImpartSecondary) },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            // Phone keyboard class: no text suggestions, no learning. No autocorrect either.
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, autoCorrect = false),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = ImpartTextPrimary,
                 unfocusedTextColor = ImpartTextPrimary,

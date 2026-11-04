@@ -20,6 +20,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.uncoalesced.impart.presentation.components.rejectObscuredTouches
+import com.uncoalesced.impart.presentation.components.rememberObscuredTouchNotifier
 import com.uncoalesced.impart.presentation.theme.ImpartBackground
 import com.uncoalesced.impart.presentation.theme.ImpartPanicRed
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
@@ -34,6 +36,7 @@ fun IntrusionScreen(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val rejectNotifier = rememberObscuredTouchNotifier()
 
     Column(
         modifier = Modifier
@@ -133,7 +136,7 @@ fun IntrusionScreen(
                 containerColor = ImpartBackground,
                 contentColor = ImpartTextPrimary
             ),
-            modifier = Modifier.fillMaxWidth().height(60.dp)
+            modifier = Modifier.fillMaxWidth().height(60.dp).rejectObscuredTouches(rejectNotifier)
         ) {
             Text("ACKNOWLEDGE & DISMISS", style = MaterialTheme.typography.titleMedium)
         }

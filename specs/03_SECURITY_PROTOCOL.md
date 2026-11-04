@@ -20,6 +20,30 @@ A node also holds two Tink keysets, both generated on first launch:
 
 Both keysets are stored in app-private preferences, encrypted by an AES key that lives in the Android Keystore (in secure hardware where the phone has it). The keysets are decrypted into app memory when used. The public halves travel in the QR code. The private halves never leave the phone.
 
+### 2.1 The lock
+
+The app lock asks for a PIN on every process start and after 30 seconds in the background. Two PINs exist: the standard PIN opens the app, the duress PIN wipes it (section 6, A6). Neither is stored.
+
+- `KeystorePinHasher` holds a non-exportable HMAC-SHA256 key under the alias `impart_pin_mac`. StrongBox is requested first and the TEE is the fallback. The key can sign and nothing else; it cannot be read out, so an attacker with a copy of the preferences file and the master key still has to ask this phone's hardware for every guess.
+- For each PIN `PinVerifier` stores a random 16-byte salt and `HMAC(key, salt || pin)` in the encrypted preferences (`SecurePrefsManager` implements `PinStore`). The same PIN gives different records on different phones and after every change.
+- A candidate is checked against both records on every call with `MessageDigest.isEqual`, so the comparison takes the same time whether the first digit was right or not.
+- The published defaults 1234 and 9999 are only a refusal list at setup. No read path falls back to them. Until the user has chosen PINs, nothing unlocks and nothing wipes.
+- Builds before November 2026 stored the PINs as strings. On first run of the new code the plaintext values are hashed and removed in the same preferences commit.
+- The duress wipe deletes the HMAC key, so even an intact record can never be verified again.
+
+PIN digits travel through the app as character arrays that are zeroed after use (T06). The JVM may still copy them; that is a reduction of exposure, not a guarantee.
+
+### 2.2 Lockouts
+
+Four wrong PINs are free. From the fifth, the lock refuses PINs for 30 seconds, doubling each time up to 15 minutes. The counters are built to survive the obvious ways of resetting them:
+
+- The failed count and the remaining wait are written with a synchronous commit before the lock screen hears the answer, so force-stopping the app right after a wrong guess still counts it.
+- The wait is measured on `SystemClock.elapsedRealtime()`, which keeps counting through deep sleep and cannot be set by the user. The wall clock is recorded but never used to shorten a wait, so setting the date back or forward changes nothing.
+- The boot count (`Settings.Global.BOOT_COUNT`) is stored with the wait. On a different boot the elapsed clock has restarted, so the lock resumes the full remaining wait and re-anchors it on the new boot. A reboot can only lengthen a lockout.
+- Only a correct standard PIN or the first PIN setup clears the counter. Nothing else in the app touches it; wiping the app's data is the only other way.
+- The duress PIN is checked before the lockout, so it works at any time.
+- Optional hard cap (Joel, 2026-11-04): Settings has "Wipe after 20 wrong PINs", off by default and changed only behind the standard PIN. When on, the twentieth consecutive failure runs the duress wipe. With the lockouts in front of it, reaching twenty takes more than two hours of holding the phone.
+
 ## 3. The handshake
 
 Trust is established one way only: scanning a QR code in person.
@@ -130,11 +154,11 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 
 | ID | Attack | Status | Defense | Test | Owner |
 |---|---|---|---|---|---|
-| A1-1 | Open the app on an unlocked phone and read the contacts | mitigated | `AppLockManager` starts every process locked and relocks after 30 s in the background; `MainActivity` composes nothing behind the lock until the PIN passes | gate order in T17; `AppLockManagerTest` | T04 adds lock on screen off |
-| A1-2 | Guess the PIN with the phone in hand | partly | Four free attempts, then a 30 s lockout doubling to 15 min (`LockoutPolicy`) | `LockoutPolicyTest` | T03 (hard cap: wipe after 20 consecutive failures, Joel approved, setting off by default) |
-| A1-3 | Skip the lockout by changing the clock, rebooting or force-stopping the app | open | Today the deadline is a wall-clock instant read from prefs and compared with `WallClock.now()`; a clock set backwards shortens it | none yet | T03 |
-| A1-4 | Read the PINs out of the app's storage with the phone's own privileges (ADB backup, `run-as` on a debug build, a file manager on a rooted phone) | open | PINs are stored as plaintext strings inside EncryptedSharedPreferences; anything running as the app UID reads them back with one call | none yet | T02 |
-| A1-5 | Look at the recent-apps preview to see the last screen | mitigated | `FLAG_SECURE` blanks the preview on both activities | assert in T04 test | T04 (recents snapshot disabled explicitly on API 33+) |
+| A1-1 | Open the app on an unlocked phone and read the contacts | mitigated | `AppLockManager` starts every process locked, locks the moment the screen turns off (`MainActivity.onStop` with the screen not interactive) and relocks after 30 s in the background; `MainActivity` composes nothing behind the lock until the PIN passes | gate order in T17; `AppLockManagerTest` | T04 (done) |
+| A1-2 | Guess the PIN with the phone in hand | mitigated | Four free attempts, then a 30 s lockout doubling to 15 min (`LockoutPolicy`), measured on the monotonic clock. Optional hard cap: 20 consecutive failures wipe the node (Settings, off by default; Joel, 2026-11-04) | `LockoutPolicyTest`, `AppLockManagerTest` | T03 (done) |
+| A1-3 | Skip the lockout by changing the clock, rebooting or force-stopping the app | mitigated | The count and the remaining wait are committed before the answer is shown; the wait counts down on `elapsedRealtime` only; a changed boot count resumes the full remaining wait (section 2.1) | `AppLockManagerTest`: clock back, clock forward, reboot, force-stop, duress mid-lockout | T03 (done) |
+| A1-4 | Read the PINs out of the app's storage with the phone's own privileges (ADB backup, `run-as` on a debug build, a file manager on a rooted phone) | mitigated | No PIN is stored. The preferences hold a salt and an HMAC under a non-exportable Keystore key (section 2.1) | `PinVerifierTest` | T02 (done) |
+| A1-5 | Look at the recent-apps preview to see the last screen | mitigated | `WindowHardening.harden`: `FLAG_SECURE` on both activities and every dialog window, `setRecentsScreenshotEnabled(false)` on API 33+ | `WindowHardeningSourceTest` | T04 (done) |
 | A1-6 | Send a fake panic from the stolen unlocked phone | partly | The thief holds the private keys, so the panic is genuine as far as the receivers know. The lock limits the window; the dead man's switch and the duress wipe do not help once the app is open | n/a | T13 lets the owner rotate keys; contacts should revoke a stolen node |
 | A1-7 | Install an "update" over a debug build to inherit its data | open, documented | The debug keystore is public. The readiness card flags debug builds | `NodeReadinessChecker` row | T11 |
 
@@ -144,7 +168,7 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 |---|---|---|---|---|---|
 | A2-1 | Extract the contact database from a seized phone | mitigated | Room is SQLCipher-encrypted with a 256-bit random key held in EncryptedSharedPreferences under the Keystore master key (`DatabaseModule`, `SecurePrefsManager.databasePassphrase`) | manual (flight check) | T08 (inventory), T19 |
 | A2-2 | Extract the Tink keysets | mitigated | Both keysets are wrapped by `android-keystore://impart_master_key`; the unwrapped keys exist only in app memory | `CryptoManagerTest` (JVM) | T06 |
-| A2-3 | Brute-force the PINs offline from an extracted prefs file | open | Plaintext PINs under one Keystore key: once the prefs are decrypted, a 4 to 8 digit PIN needs no brute force at all | none yet | T02 (keyed HMAC in a non-exportable Keystore key, salted) |
+| A2-3 | Brute-force the PINs offline from an extracted prefs file | mitigated | The HMAC key never leaves the Keystore, so every guess has to run on this phone, through the app, under the lockout (section 2.1). On the phone itself the lockout and the T03 hard cap apply | `PinVerifierTest`, `LockoutPolicyTest` | T02 (done) |
 | A2-4 | Recover data the duress wipe missed | open | The wipe clears the encrypted prefs, cancels work, deletes `impart_database` and purges the Tink prefs and master key. It leaves the WorkManager database, the MasterKey prefs file of `androidx.security`, `files/`, `cache/`, `code_cache/`, `no_backup/` and the SQLCipher `-wal`/`-shm` sidecars to the OS | none yet | T08 |
 | A2-5 | Read decrypted payloads or PINs from a memory dump | partly | Payloads are decrypted into a `String` and kept until the verdict is handled; PINs are `String`s in Compose state | none yet | T06 (CharArray/ByteArray buffers zeroed after use; JVM copying documented as a limit) |
 | A2-6 | Read symbols and strings from the release APK to map the code | partly | R8 is off, so every class name and string is in the clear. Nothing secret is in the APK; it only makes targeted exploitation easier | none | T10 |
@@ -174,7 +198,7 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 | A4-1 | Read the stock Messages inbox and see `IMPART_ALERT:` texts between two numbers | open | Android stores a copy for every app that is not the default SMS app. The copies cannot be decrypted or replayed, but they name the app and the pair | n/a | T14 (optional default SMS mode keeps alerts out of the provider); T07 (prefix proposal) |
 | A4-2 | Tell a panic from an ACK by the message length or part count | open | Nothing pads the ciphertext | measurements in section 6.1 | T07 (proposal, Joel decides) |
 | A4-3 | Carrier records show that number A texted number B at a time, in N parts | out of reach | SMS has no metadata privacy. Stated in section 5, the README and the privacy policy | n/a | T19 |
-| A4-4 | A screenshot or screen recording of the app | mitigated | `FLAG_SECURE` on both activities; T04 extends it to every dialog window | T04 | T04 |
+| A4-4 | A screenshot or screen recording of the app | mitigated | `FLAG_SECURE` on both activities and, through `SecureDialog`/`SecureAlertDialog`, on every dialog window | `WindowHardeningSourceTest` | T04 (done) |
 | A4-5 | Learn that the phone runs Impart from the launcher | partly | The Calculator cloak (`CloakManager`) renames the launcher entry; the package name still says `com.uncoalesced.impart` to anything that lists packages | manual | documented |
 | A4-6 | Learn the user's location from an alert | mitigated | Coordinates are opt-in, inside the ciphertext, and present only when location sharing is on. The fix is asked from Play Services' fused provider in Google's own process; that process, not Impart, has network access | `PanicPayloadCodecTest` | T19 documents the Play Services point |
 | A4-7 | Logcat over ADB | mitigated | Numbers become `***67`, contacts become UUID prefixes (`Redact`); names, payloads and keys are never logged | `RedactTest`; T19 grep of the final diff | done |
@@ -183,10 +207,10 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 
 | ID | Attack | Status | Defense | Test | Owner |
 |---|---|---|---|---|---|
-| A5-1 | A malicious keyboard records the PIN | open | Every PIN entry is an `OutlinedTextField`, so the IME sees each digit | none yet | T04 (in-app numeric pad; the IME never sees a PIN) |
-| A5-2 | An overlay or tapjacking window drives the panic button, the acknowledge button or the PIN pad | open | Nothing rejects obscured touches | none yet | T04 (`FLAG_WINDOW_IS_OBSCURED` rejection, `setHideOverlayWindows` on API 31+) |
-| A5-3 | An accessibility service reads the screen | out of reach, partly | A granted accessibility service can read any window the user can; `FLAG_SECURE` does not stop it. T04 makes PIN controls describe state, not value | T04 | T04, T19 |
-| A5-4 | Read the clipboard after the user copies something | open | The dashboard copies the UUID and the phone number to the clipboard without the sensitive flag or a timeout | none yet | T04 (sensitive clip, cleared after 60 s, or no copy at all) |
+| A5-1 | A malicious keyboard records the PIN | mitigated | Every PIN is typed on the in-app `PinPad`; no IME is ever opened for a PIN. Optional shuffled layout in Settings. Digits live in a `PinEntry` CharArray and are zeroed after use | `WindowHardeningSourceTest.no PIN entry uses a text field`, `PinEntryTest` | T04 (done) |
+| A5-2 | An overlay or tapjacking window drives the panic button, the acknowledge button or the PIN pad | mitigated | `Modifier.rejectObscuredTouches` refuses a touch whose `MotionEvent` carries `FLAG_WINDOW_IS_OBSCURED` or `FLAG_WINDOW_IS_PARTIALLY_OBSCURED`, and says so, on the PIN pad, both panic buttons, acknowledge, accept-new-keys and revoke. `setHideOverlayWindows(true)` (API 31+) needs the `HIDE_OVERLAY_WINDOWS` permission; added only if Joel approves the permission (pending) | `ObscuredTouchPolicyTest`; device test in spec 08 phase 2 step 9 | T04 (done, permission pending) |
+| A5-3 | An accessibility service reads the screen | out of reach, partly | A granted accessibility service can read any window the user can; `FLAG_SECURE` does not stop it. The PIN pad describes only the count ("PIN, 3 digits entered"); the keys are labelled, the value is never in the tree | `PinPad` semantics | T04 (done), T19 |
+| A5-4 | Read the clipboard after the user copies something | mitigated | Only the UUID and the own phone number can be copied, through `SensitiveClipboard`: flagged `EXTRA_IS_SENSITIVE` (no preview on Android 13+) and cleared after 60 s. Keys, PINs and fingerprints have no copy action. Names and numbers in text fields use keyboard classes that do not learn (`Password` class with visible text, `Phone` class) and `autoCorrect = false` | spec 08 phase 2 step 11 | T04 (done) |
 | A5-5 | Send an intent to an exported component | mitigated | `MainActivity` and its alias are the only exported components without a permission, and they are the launcher. `ImpartSmsReceiver` requires `BROADCAST_SMS`. `IntrusionActivity` and `SmsSentReceiver` are not exported. WorkManager's startup initializer is removed | `manifest-check.sh` in T05 | T05 (audit of library-added components) |
 | A5-6 | Screen-record the intrusion screen or the QR | mitigated | `FLAG_SECURE` | T04 | done |
 | A5-7 | Read the SMS itself from the inbox (`READ_SMS` apps) | partly | The body is ciphertext; the metadata is A4-1 | n/a | T14 |
@@ -197,7 +221,7 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 | ID | Attack | Status | Defense | Test | Owner |
 |---|---|---|---|---|---|
 | A6-1 | Force the owner to unlock the app | mitigated | The duress PIN wipes contacts, keys, seen IDs, work and preferences, then shows the decoy, with no toast, sound or delay | `DuressManagerTest` (T08), flight check phase 8 | T08 completes the inventory |
-| A6-2 | Fail on purpose to lock the app so the duress PIN cannot be entered | mitigated | The duress PIN wins even during a lockout (`AppLockManager.submitPin` checks the verdict before the lockout) | `AppLockManagerTest` (T03) | T03 |
+| A6-2 | Fail on purpose to lock the app so the duress PIN cannot be entered | mitigated | The duress PIN wins even during a lockout (`AppLockManager.submitPin` checks the verdict before the lockout) | `AppLockManagerTest.duress pin works in the middle of a lockout` | T03 (done) |
 | A6-3 | Watch the icon change or a message appear during the wipe | mitigated | Nothing announces the wipe; the launcher cloak state is left untouched (Joel, 2026-11-04) | T08 | T08 |
 | A6-4 | Recover what the wipe left behind | open | See A2-4 | T08 | T08 |
 | A6-5 | Force the owner to hand over both PINs | out of reach | Stated in the brief and `PRIVACY.md` | n/a | T19 |

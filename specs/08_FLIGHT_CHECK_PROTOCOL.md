@@ -45,6 +45,12 @@ Expected: every row green except Build and Trusted contacts.
 3. Enter a wrong PIN five times. Expected: "Try again in 30s", and the countdown runs.
 4. Swipe Impart away from Recents and reopen it. Expected: locked, and the lockout still counts down.
 5. Try to screenshot any Impart screen. Expected: the phone refuses, or saves a black image.
+6. Turn the screen off with the power button while Impart is open, turn it back on and unlock the phone. Expected: IMPART LOCKED at once, without waiting 30 seconds.
+7. Set the phone's date a day back in Settings during a lockout and return to Impart. Expected: the countdown is unchanged. Reboot the phone during a lockout. Expected: after the reboot the lockout still shows at least the time that was left.
+8. PIN pad: the system keyboard never appears on any PIN screen (lock, PIN setup, change PINs, the wipe-after-20 toggle). With "Shuffle the PIN pad" on in Settings, the digits are in a different order each time a pad appears.
+9. Overlay rejection: install a test overlay (for example a screen filter app that draws over other apps), enable it, and try the PIN pad, the panic button and, during a test alert, ACKNOWLEDGE. Expected: a message "Touch blocked: another app is drawing over Impart" and nothing happens. Disable the overlay and repeat. Expected: the controls work.
+10. Open the Recents screen with Impart in the background. Expected: Impart's card is blank or black, never the last screen.
+11. Copy the UUID from the dashboard, then paste it anywhere after a minute. Expected: the clipboard is empty (Android 13 and later also shows no clipboard preview with the value).
 
 ## Phase 3: pairing
 

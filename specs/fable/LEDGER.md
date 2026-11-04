@@ -31,23 +31,25 @@ Disagreements found during orientation, each owned by a later task:
 
 ## T02: PINs are verified, never stored
 
-- [ ] No code path returns or stores a plaintext PIN; `standardPin()` and `duressPin()` are gone.
-- [ ] Tests: correct PIN accepted, wrong PIN refused, duress PIN detected, defaults refused, migration removes the plaintext keys, constant-time compare used.
-- [ ] A test proves the same PIN gives different stored values under different salts.
-- [ ] Spec 03 and PRIVACY.md updated.
+- [x] No code path returns or stores a plaintext PIN; `standardPin()` and `duressPin()` are gone. (T02 commit: `SecurePrefsManager` implements `PinStore` with salt and HMAC only; `grep -rn "standardPin()\|duressPin()\|DEFAULT_STANDARD_PIN" app/src/main` is empty)
+- [x] Tests: correct PIN accepted, wrong PIN refused, duress PIN detected, defaults refused, migration removes the plaintext keys, constant-time compare used. (`PinVerifierTest`, T02 commit)
+- [x] A test proves the same PIN gives different stored values under different salts. (`PinVerifierTest.the same pin gives different stored values under different salts`)
+- [x] Spec 03 and PRIVACY.md updated. (spec 03 section 2.1, PRIVACY "What Impart stores"; T02 commit)
 
 ## T03: Lockout counters resist tampering
 
-- [ ] Tests: a wall clock moved back does not shorten a lockout; a simulated reboot keeps the remaining time; a force-stop after a wrong guess still counts it; duress works mid-lockout.
-- [ ] The attempt counter cannot be reset without wiping app data.
-- [ ] Joel's answer on the hard cap recorded in the ledger.
+- [x] Tests: a wall clock moved back does not shorten a lockout; a simulated reboot keeps the remaining time; a force-stop after a wrong guess still counts it; duress works mid-lockout. (`AppLockManagerTest`, T03 commit)
+- [x] The attempt counter cannot be reset without wiping app data. (`LockoutStore.clearLockout` is called only from a correct standard PIN and `unlockAfterSetup`; `AppLockManagerTest.nothing but a correct pin resets the counter`; T03 commit)
+- [x] Joel's answer on the hard cap recorded in the ledger. (Decisions from Joel, 2026-11-04: yes, 20 attempts, setting default off; shipped as `LockoutPolicy.HARD_CAP_ATTEMPTS` behind `wipe_after_failed_attempts`)
 
 ## T04: UI hardening against hostile apps on the device
 
-- [ ] No PIN entry uses a `TextField`.
-- [ ] Obscured-touch rejection unit-tested where possible and listed in the flight check for device testing.
-- [ ] Every Activity and Dialog sets FLAG_SECURE, asserted by a test.
-- [ ] Recents snapshot disabled on supported API levels.
+- [x] No PIN entry uses a `TextField`. (`PinPad` in `AppLockScreen`, `PinSetupDialog`, `SecurityAuthDialog`; `WindowHardeningSourceTest.no PIN entry uses a text field`; T04 commit)
+- [x] Obscured-touch rejection unit-tested where possible and listed in the flight check for device testing. (`ObscuredTouchPolicyTest`; spec 08 phase 2 step 9; T04 commit)
+- [x] Every Activity and Dialog sets FLAG_SECURE, asserted by a test. (`WindowHardening`, `SecureDialog`, `SecureAlertDialog`; `WindowHardeningSourceTest`; T04 commit)
+- [x] Recents snapshot disabled on supported API levels. (`WindowHardening.harden(Activity)`: `setRecentsScreenshotEnabled(false)` on API 33+; T04 commit)
+
+Pending Joel: `setHideOverlayWindows(true)` (T04 step 3) needs the normal permission `android.permission.HIDE_OVERLAY_WINDOWS`, which the brief lists as a stop-and-ask. Not added until he answers. Everything else in T04 is in place without it.
 
 ## T05: Manifest and component audit, plus the no-INTERNET CI job
 
@@ -140,6 +142,7 @@ Disagreements found during orientation, each owned by a later task:
 - [ ] LegalDocumentParserTest green.
 - [ ] CURRENT_VERSION bumped once.
 - [ ] Search terms used for unbacked claims listed in the ledger, none left.
+- [ ] `SECURITY.md` present at the repository root (asked by Joel in chat, 2026-11-04).
 
 ## T20: Hand back to Joel
 

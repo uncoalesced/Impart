@@ -12,14 +12,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.VisualTransformation
+import com.uncoalesced.impart.presentation.components.SecureAlertDialog
+import com.uncoalesced.impart.presentation.components.rejectObscuredTouches
+import com.uncoalesced.impart.presentation.components.rememberObscuredTouchNotifier
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,8 +68,9 @@ fun ContactMatrixScreen(
         viewModel.messages.collect { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
     }
 
+    val rejectNotifier = rememberObscuredTouchNotifier()
     pendingRevoke?.let { target ->
-        AlertDialog(
+        SecureAlertDialog(
             onDismissRequest = { pendingRevoke = null },
             containerColor = ImpartBackground,
             titleContentColor = ImpartTextPrimary,
@@ -74,10 +80,13 @@ fun ContactMatrixScreen(
                 Text("This contact will no longer receive your panic signals, and theirs will no longer raise your alarm. Re-pairing requires a new physical QR handshake.")
             },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.revokeContact(target.uuid)
-                    pendingRevoke = null
-                }) {
+                TextButton(
+                    onClick = {
+                        viewModel.revokeContact(target.uuid)
+                        pendingRevoke = null
+                    },
+                    modifier = Modifier.rejectObscuredTouches(rejectNotifier)
+                ) {
                     Text("REVOKE", color = ImpartPanicRed, fontWeight = FontWeight.Bold)
                 }
             },
@@ -232,7 +241,7 @@ fun ContactRow(contact: Contact, onRename: (Contact) -> Unit, onRevoke: (Contact
 @Composable
 private fun RenameContactDialog(contact: Contact, onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var nickname by remember(contact.uuid) { mutableStateOf(contact.nickname.orEmpty()) }
-    AlertDialog(
+    SecureAlertDialog(
         onDismissRequest = onDismiss,
         containerColor = ImpartBackground,
         titleContentColor = ImpartTextPrimary,
@@ -247,6 +256,10 @@ private fun RenameContactDialog(contact: Contact, onDismiss: () -> Unit, onSave:
                     onValueChange = { nickname = it },
                     label = { Text("NICKNAME") },
                     singleLine = true,
+                    // Password keyboard class with the text left visible: no suggestions, no
+                    // autocorrect, and the IME's personalised learning is off for this field.
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrect = false),
+                    visualTransformation = VisualTransformation.None,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = ImpartTextPrimary,
                         unfocusedTextColor = ImpartTextPrimary,

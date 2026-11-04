@@ -29,9 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +44,7 @@ import com.uncoalesced.impart.core.util.formatCountdown
 import com.uncoalesced.impart.domain.model.Contact
 import com.uncoalesced.impart.domain.model.displayName
 import com.uncoalesced.impart.presentation.components.HoldToFireButton
+import com.uncoalesced.impart.core.util.SensitiveClipboard
 import com.uncoalesced.impart.presentation.security.ChangePinsFlow
 import com.uncoalesced.impart.presentation.theme.*
 import kotlinx.coroutines.delay
@@ -72,7 +71,7 @@ fun DashboardScreen(
     val readiness by viewModel.readiness.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
-    val clipboardManager = LocalClipboardManager.current
+    val shufflePad by viewModel.shufflePinPad.collectAsStateWithLifecycle()
     var showChangePins by remember { mutableStateOf(false) }
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
@@ -113,6 +112,7 @@ fun DashboardScreen(
 
     if (showChangePins) {
         ChangePinsFlow(
+            shufflePad = shufflePad,
             onVerify = viewModel::verifySecurityPin,
             onSave = viewModel::updatePins,
             onFinished = { showChangePins = false }
@@ -155,19 +155,19 @@ fun DashboardScreen(
             when (val identity = nodeIdentity) {
                 is NodeIdentityState.Ready -> {
                     IdentityRow(label = "UUID", value = identity.uuid) {
-                        clipboardManager.setText(AnnotatedString(identity.uuid))
-                        Toast.makeText(context, "UUID copied", Toast.LENGTH_SHORT).show()
+                        SensitiveClipboard.copy(context, identity.uuid)
+                        Toast.makeText(context, "UUID copied, cleared in 60 s", Toast.LENGTH_SHORT).show()
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     IdentityRow(label = "PHONE NUMBER", value = identity.phoneNumber) {
-                        clipboardManager.setText(AnnotatedString(identity.phoneNumber))
-                        Toast.makeText(context, "Phone number copied", Toast.LENGTH_SHORT).show()
+                        SensitiveClipboard.copy(context, identity.phoneNumber)
+                        Toast.makeText(context, "Phone number copied, cleared in 60 s", Toast.LENGTH_SHORT).show()
                     }
                 }
                 is NodeIdentityState.Unavailable -> {
                     IdentityRow(label = "UUID", value = identity.uuid) {
-                        clipboardManager.setText(AnnotatedString(identity.uuid))
-                        Toast.makeText(context, "UUID copied", Toast.LENGTH_SHORT).show()
+                        SensitiveClipboard.copy(context, identity.uuid)
+                        Toast.makeText(context, "UUID copied, cleared in 60 s", Toast.LENGTH_SHORT).show()
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(

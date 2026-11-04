@@ -18,6 +18,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -33,11 +35,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uncoalesced.impart.BuildConfig
+import com.uncoalesced.impart.core.security.LockoutPolicy
+import com.uncoalesced.impart.core.security.UnlockResult
 import com.uncoalesced.impart.domain.model.LegalDocument
 import com.uncoalesced.impart.presentation.legal.LegalDocumentScreen
 import com.uncoalesced.impart.presentation.legal.LegalDocumentState
 import com.uncoalesced.impart.presentation.legal.LegalViewModel
 import com.uncoalesced.impart.presentation.security.ChangePinsFlow
+import com.uncoalesced.impart.presentation.security.SecurityAuthDialog
 import com.uncoalesced.impart.presentation.theme.*
 
 @Composable
@@ -46,6 +51,9 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
     val fingerprint by settingsViewModel.ownFingerprint.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showChangePins by remember { mutableStateOf(false) }
+    val wipeAfterFailures by settingsViewModel.wipeAfterFailedAttempts.collectAsStateWithLifecycle()
+    val shufflePad by settingsViewModel.shufflePinPad.collectAsStateWithLifecycle()
+    var pendingWipeToggle by remember { mutableStateOf<Boolean?>(null) }
 
     if (documentState != LegalDocumentState.Closed) {
         LegalDocumentScreen(state = documentState, onBack = legalViewModel::close, onRetry = legalViewModel::open)
@@ -54,9 +62,26 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
 
     if (showChangePins) {
         ChangePinsFlow(
+            shufflePad = shufflePad,
             onVerify = settingsViewModel::verifyPin,
             onSave = settingsViewModel::updatePins,
             onFinished = { showChangePins = false }
+        )
+    }
+
+    pendingWipeToggle?.let { wanted ->
+        SecurityAuthDialog(
+            shufflePad = shufflePad,
+            onDismiss = { pendingWipeToggle = null },
+            onPinSubmit = { pin ->
+                when (settingsViewModel.verifyPin(pin)) {
+                    UnlockResult.Unlocked -> settingsViewModel.setWipeAfterFailedAttempts(wanted)
+                    is UnlockResult.Invalid -> Toast.makeText(context, "Invalid PIN", Toast.LENGTH_SHORT).show()
+                    is UnlockResult.LockedOut -> Toast.makeText(context, "Too many wrong attempts. Try again later.", Toast.LENGTH_SHORT).show()
+                    UnlockResult.Wiped -> Unit
+                }
+                pendingWipeToggle = null
+            }
         )
     }
 
@@ -84,6 +109,20 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
 
         Section("SECURITY") {
             NavRow(title = "Change PINs") { showChangePins = true }
+            Divider()
+            SwitchRow(
+                title = "Shuffle the PIN pad",
+                subtitle = "A different key layout every time the pad appears, so smudges and shoulder surfers learn less.",
+                checked = shufflePad,
+                onCheckedChange = settingsViewModel::setShufflePinPad
+            )
+            Divider()
+            SwitchRow(
+                title = "Wipe after ${LockoutPolicy.HARD_CAP_ATTEMPTS} wrong PINs",
+                subtitle = "Off by default. When on, ${LockoutPolicy.HARD_CAP_ATTEMPTS} wrong PINs in a row wipe this node exactly like the duress PIN. Lockouts still apply between attempts.",
+                checked = wipeAfterFailures,
+                onCheckedChange = { pendingWipeToggle = it }
+            )
             Divider()
             InfoRow(
                 title = "My key fingerprint",
@@ -154,6 +193,24 @@ private fun NavRow(title: String, subtitle: String? = null, onClick: () -> Unit)
             if (subtitle != null) Text(text = subtitle, color = ImpartSecondary, fontSize = 11.sp)
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = ImpartSecondary)
+    }
+}
+
+@Composable
+private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, color = ImpartTextPrimary, fontSize = 15.sp)
+            Text(text = subtitle, color = ImpartSecondary, fontSize = 11.sp)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(checkedThumbColor = ImpartTextPrimary, checkedTrackColor = ImpartPanicRed)
+        )
     }
 }
 

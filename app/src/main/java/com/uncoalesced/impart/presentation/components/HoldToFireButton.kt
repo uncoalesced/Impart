@@ -52,6 +52,7 @@ fun HoldToFireButton(
 ) {
     var isHeld by remember { mutableStateOf(false) }
     val progress = remember { Animatable(0f) }
+    val rejectNotifier = rememberObscuredTouchNotifier()
 
     LaunchedEffect(isHeld) {
         if (!isHeld) {
@@ -68,6 +69,7 @@ fun HoldToFireButton(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .background(containerColor)
+            .rejectObscuredTouches(rejectNotifier)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {

@@ -60,6 +60,7 @@ class DashboardViewModel @Inject constructor(
     val dmsIntervalHours: StateFlow<Int> = deadManSwitchManager.intervalHours
     val dmsLastCheckin: StateFlow<Long> = deadManSwitchManager.lastCheckin
     val locationSharingEnabled: StateFlow<Boolean> = securePrefsManager.locationSharingEnabled
+    val shufflePinPad: StateFlow<Boolean> = securePrefsManager.shufflePinPad
 
     val activeContacts: StateFlow<List<Contact>> = contactRepository.getActiveContacts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -117,9 +118,9 @@ class DashboardViewModel @Inject constructor(
     fun setLocationSharingEnabled(enabled: Boolean) = securePrefsManager.setLocationSharingEnabled(enabled)
 
     // Same counters and lockout as the lock screen, and the duress PIN wipes here too.
-    fun verifySecurityPin(pin: String): UnlockResult = appLockManager.submitPin(pin)
+    fun verifySecurityPin(pin: CharArray): UnlockResult = appLockManager.submitPin(pin)
 
-    fun updatePins(standardPin: String, duressPin: String): Result<Unit> =
+    fun updatePins(standardPin: CharArray, duressPin: CharArray): Result<Unit> =
         duressManager.updatePins(standardPin, duressPin)
 
     fun toggleCloakMode(enabled: Boolean) = cloakManager.setCloakEnabled(enabled)
