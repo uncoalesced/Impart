@@ -14,6 +14,7 @@ import android.telephony.SubscriptionManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.uncoalesced.impart.BuildConfig
+import com.uncoalesced.impart.core.security.SigningIdentity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -61,12 +62,20 @@ class NodeReadinessChecker @Inject constructor(
 
     // A debug build is signed with the public key in the repository, so anyone can build an
     // "update" that installs over it and inherits its data. Fine for testing, not for real use.
-    private fun buildType(): ReadinessItem = ReadinessItem(
-        label = "Build",
-        ok = !BuildConfig.DEBUG,
-        detail = if (BuildConfig.DEBUG) "Debug build, for testing only. Install a release build you signed for real use." else "Release build",
-        fix = null
-    )
+    // The certificate is checked, not only BuildConfig.DEBUG: a release variant signed with
+    // the debug key is still a debug build as far as an attacker is concerned.
+    private fun buildType(): ReadinessItem {
+        val certificates = InstalledSignature.certificates(context)
+        val debugSigned = certificates.isEmpty() || certificates.any(SigningIdentity::isDebugCertificate)
+        val ok = !BuildConfig.DEBUG && !debugSigned
+        val detail = when {
+            BuildConfig.DEBUG -> "Debug build, for testing only. Install a release build you signed for real use."
+            certificates.isEmpty() -> "Signing certificate unreadable. Treat as a test build."
+            debugSigned -> "Release build signed with the public debug key. Anyone can replace it. Sign with your own key."
+            else -> "Release build, certificate ${SigningIdentity.shortFingerprint(certificates.last())}"
+        }
+        return ReadinessItem(label = "Build", ok = ok, detail = detail, fix = null)
+    }
 
     private fun smsPermissions(): ReadinessItem {
         val missing = SMS_PERMISSIONS.filterNot { granted(it) }

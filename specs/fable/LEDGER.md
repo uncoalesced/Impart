@@ -92,9 +92,9 @@ Design change: the decoy flag moved out of the encrypted preferences into `share
 
 ## T11: Release signing that cannot be confused with debug
 
-- [ ] Deployment job fails without signing secrets and fails on a debug-signed output.
-- [ ] Readiness card checks the certificate.
-- [ ] Key custody notes in REPORT.md.
+- [x] Deployment job fails without signing secrets and fails on a debug-signed output. (`require-release-secrets.sh` checks all four; `verify-release-signature.sh` runs `apksigner verify --print-certs` (v2 and v3 required) or `keytool -printcert -jarfile` for the AAB and compares with the debug certificate from `debug.keystore`; T11 commit. The deployment workflow itself only runs on the `deployment` branch, so its first real run is Joel's)
+- [x] Readiness card checks the certificate. (`NodeReadinessChecker.buildType` reads the installed signing certificates through `InstalledSignature` and compares with `SigningIdentity.DEBUG_CERT_SHA256`; `SigningIdentityTest` recomputes the constant from `debug.keystore`; T11 commit)
+- [x] Key custody notes in REPORT.md. (section 9; T11 commit)
 
 ## T12: OEM autostart and background settings
 

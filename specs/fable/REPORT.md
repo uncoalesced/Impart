@@ -62,6 +62,22 @@ Copy the out-of-reach rows from spec 03 so they are in front of Joel.
 
 ## 9. Release key custody (T11)
 
+The release key is the only thing that stops anyone from shipping an "update" over a real install (A8-4). The debug key in `debug.keystore` is public and the readiness card, the deployment workflow and spec 08 phase 9 all treat a debug-signed build as a test build.
+
+Generate the key offline, once, on a machine that is not the CI runner:
+
+```bash
+keytool -genkeypair -v -keystore impart-release.keystore -alias impart -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Then:
+
+- Back up `impart-release.keystore` and both passwords to two offline places (an encrypted USB stick and a password manager entry). Losing the key means every user must uninstall and re-pair under a new signature.
+- Never commit the keystore, a base64 of it, or the passwords. `standards-check.sh` scans for private key blocks; the keystore is binary, so the scan does not catch it: keep it out of the working tree entirely.
+- Set the four repository secrets: `RELEASE_KEYSTORE_BASE64` (`base64 -w0 impart-release.keystore`), `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`. The deployment workflow fails outright if any is missing and fails if the output's certificate is the debug one.
+- If a secret is ever exposed (a leaked runner log, a shared screen), rotate: generate a new key, replace the four secrets, and tell every user to reinstall. The v3 signing scheme supports key rotation with a lineage, which is the smoother path; it needs the old key to sign the lineage, so do it before the old key is destroyed.
+- Record the release certificate's SHA-256 here once it exists, so a phone's About screen (short fingerprint) can be compared with it.
+
 ## 10. Notes
 
 ### T00 pipeline call map

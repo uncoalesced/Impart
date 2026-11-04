@@ -39,6 +39,11 @@ android {
                 keyAlias = System.getenv("RELEASE_KEY_ALIAS")
                 keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
             }
+            // minSdk 26 verifies v2; v3 adds key rotation. v1 (JAR signing) is weaker and
+            // unnecessary, so it is off (T11).
+            enableV1Signing = false
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
