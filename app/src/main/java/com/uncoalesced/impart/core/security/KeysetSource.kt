@@ -11,4 +11,7 @@ interface KeysetSource {
 
     // Ed25519 keyset: every outgoing alert is signed with it.
     fun signingKeysetHandle(): KeysetHandle
+
+    // Drops any cached handles. Called by the duress wipe before the files and the master key go.
+    fun forgetKeys() {}
 }

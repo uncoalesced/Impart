@@ -1,14 +1,21 @@
 // Engineered by uncoalesced
 package com.uncoalesced.impart.core.di
 
+import com.uncoalesced.impart.core.security.DecoyFlagStore
 import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.security.KeysetSource
 import com.uncoalesced.impart.core.security.KeystoreHelper
 import com.uncoalesced.impart.core.security.KeystorePinHasher
 import com.uncoalesced.impart.core.security.LockoutStore
+import com.uncoalesced.impart.core.security.NodeStateStore
 import com.uncoalesced.impart.core.security.PinAuthority
 import com.uncoalesced.impart.core.security.PinHasher
 import com.uncoalesced.impart.core.security.PinStore
+import com.uncoalesced.impart.core.security.WipeSideEffects
+import com.uncoalesced.impart.core.security.WipeTargets
+import com.uncoalesced.impart.data.local.AndroidWipeSideEffects
+import com.uncoalesced.impart.data.local.AndroidWipeTargets
+import com.uncoalesced.impart.data.local.prefs.PlainDecoyFlagStore
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.data.remote.RelayManagerImpl
 import com.uncoalesced.impart.data.repository.ContactRepositoryImpl
@@ -45,6 +52,18 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindPinAuthority(impl: DuressManager): PinAuthority
+
+    @Binds
+    abstract fun bindDecoyFlagStore(impl: PlainDecoyFlagStore): DecoyFlagStore
+
+    @Binds
+    abstract fun bindWipeTargets(impl: AndroidWipeTargets): WipeTargets
+
+    @Binds
+    abstract fun bindWipeSideEffects(impl: AndroidWipeSideEffects): WipeSideEffects
+
+    @Binds
+    abstract fun bindNodeStateStore(impl: SecurePrefsManager): NodeStateStore
 
     @Binds
     abstract fun bindLockoutStore(impl: SecurePrefsManager): LockoutStore

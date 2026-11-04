@@ -10,6 +10,7 @@ import androidx.security.crypto.MasterKey
 import com.uncoalesced.impart.core.security.LegacyPins
 import com.uncoalesced.impart.core.security.LockoutState
 import com.uncoalesced.impart.core.security.LockoutStore
+import com.uncoalesced.impart.core.security.NodeStateStore
 import com.uncoalesced.impart.core.security.PinRecord
 import com.uncoalesced.impart.core.security.PinRecords
 import com.uncoalesced.impart.core.security.PinStore
@@ -30,7 +31,7 @@ import javax.inject.Singleton
 @Singleton
 class SecurePrefsManager @Inject constructor(
     @ApplicationContext context: Context
-) : PinStore, LockoutStore {
+) : PinStore, LockoutStore, NodeStateStore {
     private val prefs: SharedPreferences = EncryptedSharedPreferences.create(
         context,
         PREFS_NAME,
@@ -52,7 +53,7 @@ class SecurePrefsManager @Inject constructor(
 
     // False until the user has chosen their own PINs. The app refuses to go past the PIN
     // setup screen until then, so the public defaults never guard anything.
-    val hasCustomPins: StateFlow<Boolean> = _hasCustomPins.asStateFlow()
+    override val hasCustomPins: StateFlow<Boolean> = _hasCustomPins.asStateFlow()
 
     private val _acceptedLegalVersion = MutableStateFlow(prefs.getInt(KEY_LEGAL_VERSION, 0))
     val acceptedLegalVersion: StateFlow<Int> = _acceptedLegalVersion.asStateFlow()
@@ -216,13 +217,13 @@ class SecurePrefsManager @Inject constructor(
         _acceptedLegalVersion.value = version
     }
 
-    fun isNodeCorrupted(): Boolean = prefs.getBoolean(KEY_NODE_CORRUPTED, false)
+    override fun isNodeCorrupted(): Boolean = prefs.getBoolean(KEY_NODE_CORRUPTED, false)
 
-    // Duress wipe: every stored value goes, the decoy flag is set, in one synchronous commit,
-    // so a crash straight after still leaves the node in decoy mode.
+    // Duress wipe: every stored value goes in one synchronous commit. The decoy flag that
+    // survives is PlainDecoyFlagStore's; this file is deleted straight after by DuressWiper.
     @SuppressLint("ApplySharedPref")
-    fun wipeForDuress() {
-        prefs.edit().clear().putBoolean(KEY_NODE_CORRUPTED, true).commit()
+    override fun wipeForDuress() {
+        prefs.edit().clear().commit()
         _localPhoneNumber.value = null
         _locationSharingEnabled.value = false
         _hasCustomPins.value = false
@@ -235,7 +236,7 @@ class SecurePrefsManager @Inject constructor(
         prefs.getString(KEY_LOCAL_PHONE, null)?.trim()?.takeIf { it.isNotBlank() }
 
     companion object {
-        private const val PREFS_NAME = "impart_node_secure_prefs"
+        private const val PREFS_NAME = com.uncoalesced.impart.core.security.WipeInventory.SECURE_PREFS
         private const val KEY_LOCATION_SHARING = "location_sharing_enabled"
         private const val KEY_LOCAL_UUID = "local_node_uuid"
         private const val KEY_LOCAL_PHONE = "local_node_phone_number"

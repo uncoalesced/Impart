@@ -179,10 +179,10 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 
 | ID | Attack | Status | Defense | Test | Owner |
 |---|---|---|---|---|---|
-| A2-1 | Extract the contact database from a seized phone | mitigated | Room is SQLCipher-encrypted with a 256-bit random key held in EncryptedSharedPreferences under the Keystore master key (`DatabaseModule`, `SecurePrefsManager.databasePassphrase`) | manual (flight check) | T08 (inventory), T19 |
+| A2-1 | Extract the contact database from a seized phone | mitigated | Room is SQLCipher-encrypted with a 256-bit random key held in EncryptedSharedPreferences under the Keystore master key (`DatabaseModule`, `SecurePrefsManager.databasePassphrase`); the wipe removes the file, the key and the master key (section 6.2) | manual (flight check); `DuressWiperTest` | done |
 | A2-2 | Extract the Tink keysets | mitigated | Both keysets are wrapped by `android-keystore://impart_master_key`; the unwrapped keys exist only in app memory | `CryptoManagerTest` (JVM) | T06 |
 | A2-3 | Brute-force the PINs offline from an extracted prefs file | mitigated | The HMAC key never leaves the Keystore, so every guess has to run on this phone, through the app, under the lockout (section 2.1). On the phone itself the lockout and the T03 hard cap apply | `PinVerifierTest`, `LockoutPolicyTest` | T02 (done) |
-| A2-4 | Recover data the duress wipe missed | open | The wipe clears the encrypted prefs, cancels work, deletes `impart_database` and purges the Tink prefs and master key. It leaves the WorkManager database, the MasterKey prefs file of `androidx.security`, `files/`, `cache/`, `code_cache/`, `no_backup/` and the SQLCipher `-wal`/`-shm` sidecars to the OS | none yet | T08 |
+| A2-4 | Recover data the duress wipe missed | mitigated | Section 6.2: every preferences file, database and sidecar, directory and Keystore alias in `WipeInventory` is removed; only the plain decoy flag survives. Surviving flash blocks hold ciphertext whose keys are gone | `DuressWiperTest`, `DuressManagerTest` | T08 (done) |
 | A2-5 | Read decrypted payloads or PINs from a memory dump | partly | Plaintext and payload bytes are zeroed after every verdict; PIN digits are CharArrays zeroed after use (section 4.4). The parser's `String` and the on-screen details cannot be zeroed | `ZeroingTest`, `PinEntryTest` | T06 (done); the rest is A2-8 |
 | A2-6 | Read symbols and strings from the release APK to map the code | partly | R8 is off, so every class name and string is in the clear. Nothing secret is in the APK; it only makes targeted exploitation easier | none | T10 |
 | A2-7 | Restore a cloud or device-to-device backup onto an examiner's phone | mitigated | `allowBackup="false"`, `backup_rules.xml` and `data_extraction_rules.xml` exclude every domain; Keystore-wrapped data cannot be read elsewhere anyway | manifest check in T05 | T05 |
@@ -233,10 +233,10 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 
 | ID | Attack | Status | Defense | Test | Owner |
 |---|---|---|---|---|---|
-| A6-1 | Force the owner to unlock the app | mitigated | The duress PIN wipes contacts, keys, seen IDs, work and preferences, then shows the decoy, with no toast, sound or delay | `DuressManagerTest` (T08), flight check phase 8 | T08 completes the inventory |
+| A6-1 | Force the owner to unlock the app | mitigated | The duress PIN wipes everything in section 6.2, then shows the decoy, with no toast, sound, log line or delay | `DuressManagerTest`, flight check phase 8 | T08 (done) |
 | A6-2 | Fail on purpose to lock the app so the duress PIN cannot be entered | mitigated | The duress PIN wins even during a lockout (`AppLockManager.submitPin` checks the verdict before the lockout) | `AppLockManagerTest.duress pin works in the middle of a lockout` | T03 (done) |
-| A6-3 | Watch the icon change or a message appear during the wipe | mitigated | Nothing announces the wipe; the launcher cloak state is left untouched (Joel, 2026-11-04) | T08 | T08 |
-| A6-4 | Recover what the wipe left behind | open | See A2-4 | T08 | T08 |
+| A6-3 | Watch the icon change or a message appear during the wipe | mitigated | Nothing announces the wipe; the launcher cloak state is left untouched (Joel, 2026-11-04); the wipe does not log | `DuressManagerTest.the decoy flag is committed before anything is deleted` | T08 (done) |
+| A6-4 | Recover what the wipe left behind | mitigated | See A2-4 and section 6.2 | `DuressWiperTest` | T08 (done) |
 | A6-5 | Force the owner to hand over both PINs | out of reach | Stated in the brief and `PRIVACY.md` | n/a | T19 |
 | A6-6 | Stop an outgoing alert by taking the phone | partly | The SMS leaves the radio in seconds; the dead man's switch fires if the owner is prevented from checking in | flight check | done |
 
@@ -286,6 +286,30 @@ Options, each with what it hides and what it costs:
 Recommendation: ship T14 (option 4) first, because it removes the inbox copy without touching the frozen wire format. Then, in one wire format bump (v3), do options 1 and 2 together: pad to 4 parts and use a per-pair tag, so a single re-pair buys both. Option 3 is not recommended: the battery and surface cost lands on the most important code path for a small gain over option 2. Nothing hides the carrier metadata (A4-3).
 
 Decision (Joel, 2026-11-04): options 1 and 2 together, now, as wire format v3. Implemented: `PanicPayloadCodec.VERSION = 3`, the `p` padding field, `AlertWire` (612 characters, syntactic filter), `PairTag`, `AlertRecognizer`, and the `TagMismatch` verdict. Every phone must update and re-pair (spec 08). Option 4 remains T14. The measurement after the change: every alert kind is 612 characters, 4 parts (`AlertSizeTest`).
+
+### 6.2 What the duress wipe removes
+
+The inventory (`WipeInventory`, asserted by `DuressWiperTest` and `DuressManagerTest` against a fake data directory laid out like Android's):
+
+| Location | What | Why it exists |
+|---|---|---|
+| `shared_prefs/impart_decoy.xml` | one boolean | The only survivor. Written first, synchronously, so a crash at any later step still leaves the decoy |
+| `shared_prefs/impart_node_secure_prefs.xml` | encrypted preferences | Identity, PIN hashes, lockout, settings, the SQLCipher key. Cleared, then deleted |
+| `shared_prefs/__androidx_security_crypto_encrypted_prefs__.xml` | the two Tink keysets EncryptedSharedPreferences uses | Deleted |
+| `shared_prefs/impart_key_prefs.xml` | the hybrid and signing keysets | Deleted |
+| `shared_prefs/androidx.work.util.preferences.xml`, `androidx.work.util.id.xml` | WorkManager bookkeeping | Deleted |
+| `databases/impart_database` and `-wal`, `-shm`, `-journal` | Room, SQLCipher-encrypted | Closed, then deleted with every sidecar |
+| `databases/androidx.work.workdb*`, `no_backup/androidx.work.workdb*` | WorkManager's queue (the dead man's switch) | Work cancelled first, then deleted |
+| `databases/com.google.android.datatransport.events*` | ML Kit's telemetry queue | Deleted (gone for good with T21) |
+| `files/`, `cache/`, `code_cache/`, `no_backup/` | everything inside | Deleted recursively |
+| Keystore `_androidx_security_master_key_` | wraps the encrypted preferences' keysets | Deleted |
+| Keystore `impart_master_key` | wraps the Tink keysets | Deleted |
+| Keystore `impart_pin_mac` | the PIN HMAC key | Deleted |
+| Notifications | every posted notification | `cancelAll()` last |
+
+Order: decoy flag, clear the encrypted preferences, drop the in-memory keysets, cancel all work, close the database, delete the databases and sidecars, delete the preference files, empty the directories, delete the Keystore aliases, cancel notifications. Each step is best-effort and silent: a failure does not stop the next step and nothing is logged, because a logcat line is a trace. The launcher cloak state is not touched (Joel, 2026-11-04), so the home screen does not change at the moment of the wipe.
+
+What this does not do: Impart makes no claim of secure overwrite. Flash storage is wear-levelled, so a deleted file can physically survive until the block is reused. What makes a surviving database or preferences file unreadable is that the Keystore keys that wrapped them are gone: the file is ciphertext with no key anywhere. The copies of alerts in the stock Messages app are outside Impart's reach (A4-1, T14).
 
 ## 7. Key rotation and revocation
 

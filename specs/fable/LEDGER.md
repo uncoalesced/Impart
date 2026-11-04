@@ -72,9 +72,11 @@ Finding: before T05 the merged manifest of every variant carried `android.permis
 
 ## T08: The duress wipe leaves nothing behind
 
-- [ ] Inventory written into spec 03.
-- [ ] Tests assert every storage location is gone after the wipe (a fake context, or Robolectric if you justify adding it).
-- [ ] Notifications cancelled on wipe.
+- [x] Inventory written into spec 03. (section 6.2, mirrored in `WipeInventory`; T08 commit)
+- [x] Tests assert every storage location is gone after the wipe (a fake context, or Robolectric if you justify adding it). (`DuressWiperTest` and `DuressManagerTest` over `FakeWipeWorld`, a temp directory laid out like an Android data dir; no Robolectric needed; T08 commit)
+- [x] Notifications cancelled on wipe. (`WipeSideEffects.cancelAllNotifications`, last step; asserted in `DuressWiperTest`; T08 commit)
+
+Design change: the decoy flag moved out of the encrypted preferences into `shared_prefs/impart_decoy.xml` (one boolean), because the encrypted preferences, their keysets and their master key are now wiped too. Joel's cloak decision applied: the wipe never touches `PackageManager`.
 
 ## T09: Supply chain: verified dependencies and CI scanning
 
