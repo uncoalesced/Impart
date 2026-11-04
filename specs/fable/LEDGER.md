@@ -7,9 +7,21 @@ Format: `- [x] gate text (abc1234)` or `- [x] gate text (CI run URL)`.
 
 ## T00: Orientation and a green baseline
 
-- [ ] CI green on the unchanged branch head, run linked in the ledger.
-- [ ] Pipeline call map written in REPORT.md.
-- [ ] Spec-versus-code disagreements listed.
+- [x] CI green on the unchanged branch head, run linked in the ledger. (dd2c273, https://github.com/uncoalesced/Impart/actions/runs/41830268761)
+- [x] Pipeline call map written in REPORT.md. (T00 commit)
+- [x] Spec-versus-code disagreements listed. (T00 commit, below)
+
+Disagreements found during orientation, each owned by a later task:
+
+- Spec 03 section 2 describes the Tink keysets but not the SQLCipher key or the PINs, which `SecurePrefsManager` stores as plaintext strings inside EncryptedSharedPreferences. Owner: T02 (PINs), T08 (inventory), T19.
+- Spec 05 section 4 and the CLAUDE.md color bullets describe the navy palette; spec 09 supersedes them (brief rule 8). Owner: T15.
+- Spec 03 section 6 says `FLAG_SECURE` is set "on both activities"; Compose `Dialog` windows (PIN setup, auth, key change) are separate windows without it. Owner: T04.
+- `AppLockScreen` and `ChangePinsFlow` read `System.currentTimeMillis()` directly instead of the injected `WallClock`, and the lockout deadline is a wall-clock instant that a clock change shortens. Owner: T03.
+- Spec 03 section 6 lists R8, key rotation, OEM links and instrumented tests as open roadmap items in spec 06. Owner: T10, T13, T12, T17, T19.
+- `app/build.gradle.kts` references `proguard-rules.pro`, which does not exist. Harmless while minify is off. Owner: T10.
+- `deployment.yml` and the main workflow describe Play Services and ML Kit as present. True (location, barcode); keep the F-Droid note honest. Owner: T19.
+- PRIVACY.md says alert copies land in the stock Messages app and nothing else reads SMS; T14 changes both. Owner: T14, T19.
+- Draft PR #7 was merged into `development` before this session started, so the brief's instruction to use it cannot be followed. Replacement draft PR recorded below. Owner: T00.
 
 ## T01: Adversarial audit and the attack table
 
@@ -147,4 +159,7 @@ Format: `- [x] gate text (abc1234)` or `- [x] gate text (CI run URL)`.
 
 Record each question asked and Joel's answer, with the date.
 
-- (none yet)
+- 2026-11-04, PR target: PR #7 was already merged into `development`. Joel: push to `fable/finish-impart` and open a new draft PR from it into `development`. Number recorded in REPORT.md section 1.
+- 2026-11-04, T03 hard cap: Joel: yes, wipe after 20 consecutive wrong PINs, behind a Settings toggle that defaults off.
+- 2026-11-04, T08 cloak: Joel: leave the launcher cloak state untouched during the duress wipe.
+- 2026-11-04, T09 CodeQL: Joel will enable GitHub code scanning on the repository, so the upload step is strict. If the first run still refuses the upload, make it tolerant and tell him.
