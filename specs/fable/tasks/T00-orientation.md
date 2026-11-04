@@ -20,7 +20,7 @@ Understand the code and the specs before changing anything, and prove the branch
 1. Read the brief, CLAUDE.md and specs 02, 03, 05 and 09 in full. Skim the rest.
 2. Trace the intrusion pipeline in code: `RelayManagerImpl` to `AlertEnvelope.seal`, then `ImpartSmsReceiver` to `AlertVerifier` to `IntrusionActivity`. Write a short call map in `specs/fable/REPORT.md` under Notes.
 3. Trace the gate in `MainActivity` (decoy, legal, PIN setup, lock, app).
-4. Confirm the draft PR from `fable/finish-impart` into `development` exists and CI is green on its head. If CI is red before you change anything, fix that first and record why.
+4. Make sure your working branch starts from `origin/fable/finish-impart` (brief section 5) and has a draft PR into `development`: PR #7 if you push to `fable/finish-impart`, otherwise your own. Confirm CI is green on its head. If CI is red before you change anything, fix that first and record why.
 5. List anything in the specs that disagrees with the code. Each disagreement becomes a ledger line under T01 or T19.
 
 ## Gates

@@ -140,7 +140,7 @@ Full rules are in `specs/05_CODING_STANDARDS.md`. Non-negotiable:
 - Signature rule: every `.kt` and `.kts` file starts with `// Engineered by uncoalesced`.
 - No emojis anywhere: code, UI text, logs, markdown.
 - No XML layouts, Fragments, DataBinding, ViewBinding or `findViewById`. Compose and Material 3 only. Vector drawables and adaptive icons in `res/` are fine; they are not layouts.
-- Colors come from `presentation/theme/Color.kt`.
+- Colors come from `presentation/theme/Color.kt`. The palette is being moved to `specs/09_DESIGN_LANGUAGE.md` (Watermelon accent); until that task lands, spec 09 wins where the bullets below disagree.
   - Screen backgrounds are `ImpartGround` (true black, AMOLED).
   - `ImpartBackground` (navy) is for surfaces: cards, the nav bar, dialogs.
   - `IntrusionScreen` is always `ImpartPanicRed`. Never reuse that red for a non-emergency state; warnings use `ImpartAmber`.

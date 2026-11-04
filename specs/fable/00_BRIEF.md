@@ -26,9 +26,10 @@ Breaking any of these is a defect, whatever a task file says.
 5. **Silent duress.** The duress PIN wipes without a toast, sound, vibration, notification or visible delay, and wins even during a lockout.
 6. **No backups.** `allowBackup` stays false and the extraction rules stay exclude-all.
 7. **The wire format is frozen** unless Joel approves a change in chat. Any change forces every phone to re-pair.
-8. **Coding standards** from `CLAUDE.md` and `specs/05`: the signature line on every `.kt` and `.kts` file, no emojis anywhere, Compose and Material 3 only, colors only from `Color.kt`, state hoisting, constructor injection, `Result` or sealed results.
-9. **Dependencies** are declared only in `gradle/libs.versions.toml`, at pinned versions, and every new one is justified in the commit body. Prefer none. Nothing from Google Play Services, Firebase or ML Kit.
-10. **Honesty.** Never write that Impart is "unbreakable", "military grade" or "untraceable". Write what it resists and what it does not.
+8. **Colors:** until T15 rewrites them, the color rules in `specs/09_DESIGN_LANGUAGE.md` override the color bullets in `CLAUDE.md` and `specs/05` section 4. Watermelon is Impart's brand accent as well as its emergency color.
+9. **Coding standards** from `CLAUDE.md` and `specs/05`: the signature line on every `.kt` and `.kts` file, no emojis anywhere, Compose and Material 3 only, colors only from `Color.kt`, state hoisting, constructor injection, `Result` or sealed results.
+10. **Dependencies** are declared only in `gradle/libs.versions.toml`, at pinned versions, and every new one is justified in the commit body. Prefer none. Nothing from Google Play Services, Firebase or ML Kit.
+11. **Honesty.** Never write that Impart is "unbreakable", "military grade" or "untraceable". Write what it resists and what it does not.
 
 ## 4. Adversaries
 
@@ -56,8 +57,9 @@ Write these in `specs/03`, `PRIVACY.md` and the README. Do not hide them.
 
 ## 5. Where you work
 
-- **Branch:** `fable/finish-impart`. It already holds this brief, the design assets and the fonts. Commit and push only to this branch. If your session forces a `claude/...` branch, create it from `fable/finish-impart` and say so in `REPORT.md`.
-- **Pull request:** a draft PR from `fable/finish-impart` into `development` already exists. CI (`development.yml`) runs on every push. Never merge it, never mark it ready, never push to `main`, `development` or `deployment`.
+- **Start point:** the repo's default branch is `main`, which does not contain this brief or the design assets. Before anything else, run `git fetch origin fable/finish-impart` and start from `origin/fable/finish-impart`.
+- **Branch:** if you can push to `fable/finish-impart`, work on it directly. If your session gives you its own branch (for example `claude/...`), create that branch from `origin/fable/finish-impart`, never from `main`.
+- **Pull request:** CI (`development.yml`) only runs for pull requests into `development`. Draft PR #7 (`fable/finish-impart` into `development`) already exists. If you push to `fable/finish-impart`, use PR #7. If you work on your own branch, open your own draft PR from it into `development` in your first push, and record its number in `REPORT.md` and the ledger. A branch without a PR gets no CI. Never merge a PR, never mark one ready, and never push to `main`, `development` or `deployment`.
 - **Verification:** you probably have no Android SDK in the cloud. CI is your build. Push after every task, read the CI result, and fix it before starting the next task. If CI is red, the task is not done.
 - **Commits:** one or more per task, Conventional Commits (`feat:`, `fix:`, `security:`, `test:`, `ci:`, `docs:`, `refactor:`, `build:`), the task ID in the subject, for example `security(T02): hash PINs with a Keystore HMAC`.
 

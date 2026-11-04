@@ -63,7 +63,7 @@ Format: `- [x] gate text (abc1234)` or `- [x] gate text (CI run URL)`.
 ## T09: Supply chain: verified dependencies and CI scanning
 
 - [ ] Verification metadata committed, and an altered checksum fails the build (link the run, then revert).
-- [ ] Wrapper validation and CodeQL jobs green.
+- [ ] Wrapper validation green; CodeQL green or its upload limit recorded in REPORT.md.
 - [ ] Every action SHA-pinned.
 
 ## T10: R8 on for release builds
