@@ -7,9 +7,9 @@
          and WorkManager declare network permissions in their own manifests; the merger
          removes them here, so the merged manifest of every variant has no network path.
          .github/scripts/manifest-check.sh fails CI if one ever comes back. -->
-    <!-- T05 gate test: deliberately let the library's INTERNET permission through. Reverted
-         in the next commit. -->
-    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission
+        android:name="android.permission.INTERNET"
+        tools:node="remove" />
     <uses-permission
         android:name="android.permission.ACCESS_NETWORK_STATE"
         tools:node="remove" />
@@ -29,6 +29,9 @@
     <!-- Lets the readiness card ask for a battery-optimization exemption directly. OEM
          battery savers are the documented number-one reason the receiver never runs. -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Lets every Impart window hide other apps' overlays on Android 12+ (tapjacking, A5-2).
+         Normal permission, no prompt, no data. Approved by Joel on 2026-11-04. -->
+    <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
 
     <!-- Hardware is optional: a node without a camera can still receive panics (it just
          cannot scan a handshake QR). Telephony is what the transport rides on, but marking
