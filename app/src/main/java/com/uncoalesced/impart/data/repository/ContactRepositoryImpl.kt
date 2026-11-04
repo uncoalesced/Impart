@@ -34,4 +34,6 @@ class ContactRepositoryImpl @Inject constructor(
     override suspend fun revokeContact(uuid: String) {
         contactDao.revokeContact(uuid)
     }
+
+    override suspend fun markAllNeedRepair(): Int = contactDao.markAllNeedRepair()
 }

@@ -4,6 +4,7 @@ package com.uncoalesced.impart.presentation.handshake
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.uncoalesced.impart.core.security.CryptoManager
+import com.uncoalesced.impart.core.security.KeyGeneration
 import com.uncoalesced.impart.core.security.KeyFingerprint
 import com.uncoalesced.impart.core.security.QrPayloadCodec
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -49,7 +51,8 @@ sealed interface ScanResult {
 class HandshakeViewModel @Inject constructor(
     private val cryptoManager: CryptoManager,
     private val addContactUseCase: AddContactUseCase,
-    private val securePrefsManager: SecurePrefsManager
+    private val securePrefsManager: SecurePrefsManager,
+    private val keyGeneration: KeyGeneration
 ) : ViewModel() {
 
     // What the user is typing. Only a valid international number is ever persisted or put
@@ -57,7 +60,7 @@ class HandshakeViewModel @Inject constructor(
     private val phoneInput = MutableStateFlow(securePrefsManager.localPhoneNumber.value.orEmpty())
     val localPhoneNumber: StateFlow<String> = phoneInput.asStateFlow()
 
-    val qrState: StateFlow<QrState> = phoneInput
+    val qrState: StateFlow<QrState> = combine(phoneInput, keyGeneration.value) { phone, _ -> phone }
         .map { buildQr(PhoneNumbers.normalize(it)) }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.Eagerly, QrState.Generating)

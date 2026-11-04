@@ -19,6 +19,7 @@ import com.uncoalesced.impart.domain.model.PanicPayload
 import com.uncoalesced.impart.domain.model.displayName
 import com.uncoalesced.impart.domain.repository.RelayManager
 import com.uncoalesced.impart.domain.repository.WallClock
+import com.uncoalesced.impart.domain.rules.PanicEligibility
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -76,6 +77,7 @@ class RelayManagerImpl @Inject constructor(
         }.onFailure { Log.e(TAG, "Ack to node ${Redact.uuid(contact.uuid)} failed", it) }
 
     private fun sendSigned(contact: Contact, payload: PanicPayload) {
+        PanicEligibility.check(contact).getOrThrow()
         send(contact, AlertEnvelope.body(cryptoManager, payload, contact.publicKeyBase64))
     }
 

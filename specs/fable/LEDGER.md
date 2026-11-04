@@ -104,9 +104,9 @@ Design change: the decoy flag moved out of the encrypted preferences into `share
 
 ## T13: Rotate my keys
 
-- [ ] Tests: old keys gone, new keys in the next QR, contacts flagged, a panic to a flagged contact refused with a visible reason.
-- [ ] Room migration tested.
-- [ ] Spec 03 updated.
+- [x] Tests: old keys gone, new keys in the next QR, contacts flagged, a panic to a flagged contact refused with a visible reason. (`RotateKeysUseCaseTest`, plus the round trip where Bob rejects Alice until he confirms her new keys; T13 commit)
+- [x] Room migration tested. (`ContactMigrationsTest` pins version 5, the 4-to-5 statement and the entity default on the JVM; the real migration runs on SQLite in the T17 instrumented suite)
+- [x] Spec 03 updated. (section 7 rewritten; rows A1-6 and A7-6; T13 commit)
 
 ## T14: Optional default SMS app mode
 
@@ -153,6 +153,10 @@ Design change: the decoy flag moved out of the encrypted preferences into `share
 - [ ] REPORT.md complete.
 - [ ] Ledger complete.
 - [ ] PR still draft, summary comment posted.
+
+## CI evidence
+
+- First full green `development CI` run with the security code of T02 to T10 on the branch: bb97923, https://github.com/uncoalesced/Impart/actions/runs/41897076643 (coding standards, gradle wrapper validation, android debug build + test + lint, merged manifest check, android release build with R8). Earlier heads were cancelled by the next push under the workflow's `cancel-in-progress` rule, which is why only the latest head of a series carries a completed run.
 
 ## Definition of done (brief section 8)
 

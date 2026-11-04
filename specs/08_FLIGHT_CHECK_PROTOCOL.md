@@ -145,6 +145,10 @@ Expected: no message at all. The whole app becomes a grey "NODE CORRUPTED / SYST
 
 2. Reinstall to recover. The other phones still list the old identity. Revoke it and pair again. On the other phones, scanning the reinstalled phone's new QR shows "KEYS CHANGED" with an old and a new fingerprint. Accept only after comparing the new fingerprint with the reinstalled phone's screen.
 
+## Phase 8b: key rotation (T13)
+
+On A: Settings, "Rotate my keys", standard PIN, ROTATE. Expected: a toast saying how many contacts must re-pair; the My QR tab shows a new fingerprint; the Contacts tab marks B and C "RE-PAIR NEEDED"; holding B's panic button shows the refusal reason under it and sends nothing. On B: nothing changes yet. Page A from B: expected on A, "ALERT FAILED VERIFICATION" (B still holds A's old signing key) and no alarm. Then B scans A's new QR: expected the KEYS CHANGED dialog with the old and new fingerprints; accept after comparing with A's screen. A scans B's QR: expected "Re-paired". Page in both directions: expected the red screen both ways.
+
 ## Phase 8a: vendor background settings (T12)
 
 On a Xiaomi, OPPO, realme, vivo, Huawei, HONOR, OnePlus or Samsung phone the readiness card shows one more row, "<vendor> background settings", amber until confirmed. Tap it: the vendor's own autostart or battery screen opens (or the app details page if that model has no such screen). Do what the row says, come back, and answer YES, ALLOWED. Expected: the row turns green and stays green across restarts. Then repeat phase 7 (deep sleep) on that phone. On a Pixel, Fairphone or LineageOS phone the row does not exist.

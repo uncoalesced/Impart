@@ -22,6 +22,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +44,8 @@ import com.uncoalesced.impart.presentation.legal.LegalDocumentState
 import com.uncoalesced.impart.presentation.legal.LegalViewModel
 import com.uncoalesced.impart.presentation.security.ChangePinsFlow
 import com.uncoalesced.impart.presentation.security.SecurityAuthDialog
+import com.uncoalesced.impart.presentation.components.SecureAlertDialog
+import androidx.compose.material3.TextButton
 import com.uncoalesced.impart.presentation.theme.*
 
 @Composable
@@ -54,6 +57,53 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
     val wipeAfterFailures by settingsViewModel.wipeAfterFailedAttempts.collectAsStateWithLifecycle()
     val shufflePad by settingsViewModel.shufflePinPad.collectAsStateWithLifecycle()
     var pendingWipeToggle by remember { mutableStateOf<Boolean?>(null) }
+    var rotateStep by remember { mutableStateOf(RotateStep.IDLE) }
+
+    LaunchedEffect(settingsViewModel) {
+        settingsViewModel.messages.collect { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+    }
+
+    when (rotateStep) {
+        RotateStep.IDLE -> Unit
+        RotateStep.AUTHENTICATE -> SecurityAuthDialog(
+            shufflePad = shufflePad,
+            onDismiss = { rotateStep = RotateStep.IDLE },
+            onPinSubmit = { pin ->
+                rotateStep = when (settingsViewModel.verifyPin(pin)) {
+                    UnlockResult.Unlocked -> RotateStep.CONFIRM
+                    else -> {
+                        Toast.makeText(context, "Invalid PIN", Toast.LENGTH_SHORT).show()
+                        RotateStep.IDLE
+                    }
+                }
+            }
+        )
+        RotateStep.CONFIRM -> SecureAlertDialog(
+            onDismissRequest = { rotateStep = RotateStep.IDLE },
+            containerColor = ImpartBackground,
+            titleContentColor = ImpartTextPrimary,
+            textContentColor = ImpartSecondary,
+            title = { Text("ROTATE MY KEYS?") },
+            text = {
+                Text(
+                    "Both of this node's keys are replaced and the old ones destroyed. Every contact is marked as needing a new handshake: you cannot page them, and their alerts to you will fail, until they scan your new QR in person and you scan theirs. Do this if you think your keys were copied."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    rotateStep = RotateStep.IDLE
+                    settingsViewModel.rotateKeys()
+                }) {
+                    Text("ROTATE", color = ImpartAmber, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { rotateStep = RotateStep.IDLE }) {
+                    Text("CANCEL", color = ImpartSecondary)
+                }
+            }
+        )
+    }
 
     if (documentState != LegalDocumentState.Closed) {
         LegalDocumentScreen(state = documentState, onBack = legalViewModel::close, onRetry = legalViewModel::open)
@@ -123,6 +173,8 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
                 checked = wipeAfterFailures,
                 onCheckedChange = { pendingWipeToggle = it }
             )
+            Divider()
+            NavRow(title = "Rotate my keys", subtitle = "Replace both keys. Every contact must re-pair.") { rotateStep = RotateStep.AUTHENTICATE }
             Divider()
             InfoRow(
                 title = "My key fingerprint",
@@ -195,6 +247,8 @@ private fun NavRow(title: String, subtitle: String? = null, onClick: () -> Unit)
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = ImpartSecondary)
     }
 }
+
+private enum class RotateStep { IDLE, AUTHENTICATE, CONFIRM }
 
 @Composable
 private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {

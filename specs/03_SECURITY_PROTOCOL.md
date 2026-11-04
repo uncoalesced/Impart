@@ -172,7 +172,7 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 | A1-3 | Skip the lockout by changing the clock, rebooting or force-stopping the app | mitigated | The count and the remaining wait are committed before the answer is shown; the wait counts down on `elapsedRealtime` only; a changed boot count resumes the full remaining wait (section 2.1) | `AppLockManagerTest`: clock back, clock forward, reboot, force-stop, duress mid-lockout | T03 (done) |
 | A1-4 | Read the PINs out of the app's storage with the phone's own privileges (ADB backup, `run-as` on a debug build, a file manager on a rooted phone) | mitigated | No PIN is stored. The preferences hold a salt and an HMAC under a non-exportable Keystore key (section 2.1) | `PinVerifierTest` | T02 (done) |
 | A1-5 | Look at the recent-apps preview to see the last screen | mitigated | `WindowHardening.harden`: `FLAG_SECURE` on both activities and every dialog window, `setRecentsScreenshotEnabled(false)` on API 33+ | `WindowHardeningSourceTest` | T04 (done) |
-| A1-6 | Send a fake panic from the stolen unlocked phone | partly | The thief holds the private keys, so the panic is genuine as far as the receivers know. The lock limits the window; the dead man's switch and the duress wipe do not help once the app is open | n/a | T13 lets the owner rotate keys; contacts should revoke a stolen node |
+| A1-6 | Send a fake panic from the stolen unlocked phone | partly | The thief holds the private keys, so the panic is genuine as far as the receivers know. The lock limits the window; the dead man's switch and the duress wipe do not help once the app is open. Contacts revoke a stolen node; the owner rotates on a new phone | n/a | T13 (done); documented |
 | A1-7 | Install an "update" over a debug build to inherit its data | mitigated for release builds | The debug keystore is public, so a debug build stays a test build. The readiness card checks the installed certificate against the debug fingerprint, not only `BuildConfig.DEBUG`; release builds use the v2 and v3 schemes only and the deployment workflow refuses a debug-signed output | `SigningIdentityTest`; `verify-release-signature.sh` | T11 (done) |
 
 ### A2: forensic examiner
@@ -249,7 +249,7 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 | A7-3 | Show a crafted QR that reuses a contact's UUID with the attacker's keys | mitigated | `AddContactUseCase` returns `KeyChanged`; nothing is written until the user compares both fingerprints in the dialog | `AddContactUseCaseTest` | done |
 | A7-4 | Show a crafted QR with the attacker's number under a contact's identity | mitigated | Same as A7-3: a known UUID with the same keys updates the number only in a re-pair, which requires the same private keys to be useful; different keys trigger the dialog | `AddContactUseCaseTest` | done |
 | A7-5 | Pair with the victim by being shown their QR on a photo instead of in person | partly | The fingerprint is read aloud at pairing (spec 08 phase 3). Someone who pairs with the victim's public QR can send alerts only if the victim also scans theirs | spec 08 | documented |
-| A7-6 | A contact's phone is compromised after pairing | partly | Revoke stops both directions. Rotation of the owner's keys after a suspected compromise is a manual reinstall today | `alert from a revoked contact is rejected` | T13 |
+| A7-6 | A contact's phone is compromised after pairing | mitigated | Revoke stops both directions. "Rotate my keys" replaces this node's keysets in one action and flags every contact for a new handshake (section 7) | `alert from a revoked contact is rejected`; `RotateKeysUseCaseTest` | T13 (done) |
 
 ### A8: supply chain
 
@@ -313,4 +313,15 @@ What this does not do: Impart makes no claim of secure overwrite. Flash storage 
 
 ## 7. Key rotation and revocation
 
-There is no central authority, so rotating keys is a manual, mutual re-handshake. Reinstalling Impart generates new keys, and each counterpart sees the key-change dialog when they scan the new QR. Revoking a contact stops both directions at once: your panics no longer go to them, and theirs fail step 4 on your phone.
+There is no central authority, so a rotation is a mutual re-handshake. Since T13 it is one action rather than a reinstall:
+
+1. Settings, "Rotate my keys", behind the standard PIN and a confirmation that spells out the cost.
+2. `RotateKeysUseCase` calls `KeysetSource.rotateKeys()`: `KeystoreHelper` removes both stored keysets in one commit and generates new ones at once. There is no state where one keyset is new and the other old on disk, and nothing encrypted to or signed by the old keys can be decrypted or produced again, by this phone or by anyone who copied them.
+3. Every active contact is marked `needsRepair`. Until they scan the new QR, `PanicEligibility` refuses to page them with a visible reason, the dashboard and the contact list say so, and their alerts to this node fail step 5 on their side (they hold the old signing key for this node) and step 1 here.
+4. The QR and the fingerprint rebuild (`KeyGeneration`). The contact scans the new QR and sees the key-change dialog; confirming it in person replaces the keys. Scanning their QR here is a plain re-pair that clears the flag.
+
+A rotation does not help against a thief who still holds the unlocked phone (A1-6): they rotate with you. It helps after a suspected copy of the keys (A2-2, A7-6).
+
+Reinstalling Impart still works as a rotation too, at the cost of every contact and setting.
+
+Revoking a contact stops both directions at once: your panics no longer go to them, and theirs fail step 4 on your phone.

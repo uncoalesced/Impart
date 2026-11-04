@@ -36,6 +36,7 @@ class DuressManagerTest {
         override fun keysetHandle() = throw UnsupportedOperationException()
         override fun signingKeysetHandle() = throw UnsupportedOperationException()
         override fun forgetKeys() { log += "forgetKeys" }
+        override fun rotateKeys() = throw UnsupportedOperationException()
     }
 
     private val log = mutableListOf<String>()

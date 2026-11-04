@@ -398,13 +398,24 @@ fun DashboardScreen(
 
 @Composable
 fun PanicButton(contact: Contact, onPanic: (Contact) -> Unit) {
-    HoldToFireButton(
-        label = "INITIATE PANIC: ${contact.displayName}",
-        containerColor = ImpartPanicRed,
-        onFire = { onPanic(contact) },
-        modifier = Modifier.fillMaxWidth().height(80.dp),
-        fontSize = 20.sp
-    )
+    Column {
+        HoldToFireButton(
+            label = "INITIATE PANIC: ${contact.displayName}",
+            containerColor = ImpartPanicRed,
+            onFire = { onPanic(contact) },
+            modifier = Modifier.fillMaxWidth().height(80.dp),
+            fontSize = 20.sp
+        )
+        if (contact.needsRepair) {
+            Text(
+                text = "Cannot page ${contact.displayName} until you re-pair: your keys were rotated.",
+                color = ImpartAmber,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+    }
 }
 
 @Composable

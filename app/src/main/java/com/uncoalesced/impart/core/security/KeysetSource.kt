@@ -14,4 +14,7 @@ interface KeysetSource {
 
     // Drops any cached handles. Called by the duress wipe before the files and the master key go.
     fun forgetKeys() {}
+
+    // Replaces both keysets with new ones and purges the old (T13). Throws on failure.
+    fun rotateKeys()
 }

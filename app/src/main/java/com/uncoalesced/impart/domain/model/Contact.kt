@@ -8,7 +8,9 @@ data class Contact(
     val nickname: String? = null,
     val phoneNumber: String? = null,
     val addedAt: Long = System.currentTimeMillis(),
-    val revoked: Boolean = false
+    val revoked: Boolean = false,
+    // Set on every contact when this node rotates its keys; cleared by the next handshake.
+    val needsRepair: Boolean = false
 )
 
 // Nickname first, then the number the contact is paged at, then a UUID stub. A row that

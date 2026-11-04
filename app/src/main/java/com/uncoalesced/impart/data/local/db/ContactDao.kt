@@ -27,4 +27,7 @@ interface ContactDao {
 
     @Query("UPDATE contacts SET revoked = 1 WHERE uuid = :uuid")
     suspend fun revokeContact(uuid: String)
+
+    @Query("UPDATE contacts SET needsRepair = 1 WHERE revoked = 0")
+    suspend fun markAllNeedRepair(): Int
 }

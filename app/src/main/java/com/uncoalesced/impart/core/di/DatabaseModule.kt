@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.Log
 import androidx.room.Room
 import com.uncoalesced.impart.data.local.db.ContactDao
+import com.uncoalesced.impart.data.local.db.ContactMigrations
 import com.uncoalesced.impart.data.local.db.ImpartDatabase
 import com.uncoalesced.impart.data.local.db.SeenAlertDao
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
@@ -41,6 +42,7 @@ object DatabaseModule {
         }
         return Room.databaseBuilder(context, ImpartDatabase::class.java, ImpartDatabase.NAME)
             .openHelperFactory(SupportOpenHelperFactory(securePrefsManager.databasePassphrase()))
+            .addMigrations(ContactMigrations.MIGRATION_4_5)
             .fallbackToDestructiveMigration()
             .build()
     }

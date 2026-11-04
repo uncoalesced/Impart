@@ -221,6 +221,14 @@ fun ContactRow(contact: Contact, onRename: (Contact) -> Unit, onRevoke: (Contact
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 VerificationBadge(addedAt = contact.addedAt)
+                if (contact.needsRepair) {
+                    Text(
+                        text = "RE-PAIR NEEDED: YOUR KEYS WERE ROTATED. SCAN EACH OTHER'S QR AGAIN.",
+                        color = ImpartAmber,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 Text(text = "Tap to rename", color = ImpartSecondary.copy(alpha = 0.7f), fontSize = 9.sp)
             }
             Spacer(modifier = Modifier.width(12.dp))

@@ -1,6 +1,7 @@
 // Engineered by uncoalesced
 package com.uncoalesced.impart.core.security
 
+import android.annotation.SuppressLint
 import android.content.Context
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
@@ -49,6 +50,25 @@ class KeystoreHelper @Inject constructor(
         synchronized(this) {
             hybrid = null
             signing = null
+        }
+    }
+
+    // Both stored keysets are removed in one commit, then regenerated at once. There is no
+    // moment where one keyset is new and the other old on disk; a crash between the commit
+    // and the regeneration leaves no keysets, and the next load generates fresh ones.
+    @SuppressLint("ApplySharedPref")
+    override fun rotateKeys() {
+        synchronized(this) {
+            hybrid = null
+            signing = null
+            val committed = context.getSharedPreferences(PREF_FILE_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .remove(HYBRID_KEYSET_NAME)
+                .remove(SIGNING_KEYSET_NAME)
+                .commit()
+            if (!committed) throw IllegalStateException("Could not remove the old keysets.")
+            hybrid = load(HYBRID_KEYSET_NAME, HYBRID_KEY_TEMPLATE)
+            signing = load(SIGNING_KEYSET_NAME, SIGNING_KEY_TEMPLATE)
         }
     }
 
