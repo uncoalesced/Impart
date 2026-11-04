@@ -31,22 +31,36 @@ class AlertVerifier @Inject constructor(
     private val seenAlerts: SeenAlertStore,
     private val clock: WallClock
 ) {
+    // Test seam: sees the plaintext buffer before it is zeroed, so a test can hold the
+    // reference and check it afterwards.
+    internal var plaintextObserver: ((ByteArray) -> Unit)? = null
+
     suspend fun verify(ciphertextBase64: String, localUuid: String): AlertVerdict {
         val plaintext = try {
-            crypto.decrypt(ciphertextBase64)
+            crypto.decryptBytes(ciphertextBase64)
         } catch (e: Exception) {
             return AlertVerdict.Unreadable
         }
+        plaintextObserver?.invoke(plaintext)
+        var payloadBytes: ByteArray? = null
+        try {
+            val signed = PanicPayloadCodec.unsealBytes(plaintext).getOrElse { return classify(it) }
+            payloadBytes = signed.payloadBytes
+            plaintextObserver?.invoke(signed.payloadBytes)
+            return verifySigned(signed, localUuid)
+        } finally {
+            // The decrypted bytes live only for this call. The String the JSON parser needs
+            // is a JVM object that cannot be zeroed; spec 03 section 4.4 says so.
+            plaintext.fill(0)
+            payloadBytes?.fill(0)
+        }
+    }
 
-        val signed = PanicPayloadCodec.unseal(plaintext).getOrElse { return classify(it) }
-        val payload = PanicPayloadCodec.decode(signed.payloadJson).getOrElse { return classify(it) }
+    private suspend fun verifySigned(signed: SignedAlertBytes, localUuid: String): AlertVerdict {
+        val payload = PanicPayloadCodec.decode(String(signed.payloadBytes, Charsets.UTF_8)).getOrElse { return classify(it) }
 
         val sender = contacts.findActiveByUuid(payload.from) ?: return AlertVerdict.UnknownSender
-        val authentic = crypto.verify(
-            signed.signatureBase64,
-            signed.payloadJson.toByteArray(Charsets.UTF_8),
-            sender.signingKeyBase64
-        )
+        val authentic = crypto.verify(signed.signatureBase64, signed.payloadBytes, sender.signingKeyBase64)
         if (!authentic) return AlertVerdict.BadSignature(sender)
 
         if (payload.to != localUuid) return AlertVerdict.NotForThisNode(sender)

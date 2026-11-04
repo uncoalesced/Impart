@@ -61,8 +61,8 @@ Finding: before T05 the merged manifest of every variant carried `android.permis
 
 ## T06: Plaintext lives as briefly as possible
 
-- [ ] Zeroing covered by unit tests that inspect the buffer after use.
-- [ ] Spec 03 records the limitation.
+- [x] Zeroing covered by unit tests that inspect the buffer after use. (`ZeroingTest`: plaintext and payload bytes after accepted, rejected and outdated alerts; PIN bytes after enrol and verify; `PinEntry.clear`; T06 commit)
+- [x] Spec 03 records the limitation. (spec 03 section 4.4 Memory; T06 commit)
 
 ## T07: Wire metadata proposal (no code change without Joel)
 

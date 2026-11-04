@@ -124,7 +124,13 @@ Every verdict other than acceptance posts a visible status notification. Nothing
 
 The acknowledgement goes back to the contact's stored phone number, encrypted to the contact's stored key. Nothing in the incoming alert decides where it goes.
 
-### 4.4 Why these primitives
+### 4.4 Memory
+
+Decrypted bytes live as briefly as the code can arrange. `AlertVerifier` decrypts into a `ByteArray`, splits the signature from the payload bytes, verifies the signature over those exact bytes, and zeroes both arrays in a `finally` block whatever the verdict. PIN digits travel as `CharArray`s (`PinEntry`, `PinVerifier`) that are zeroed after each use, and the bytes handed to the HMAC are zeroed too. `ZeroingTest` holds references to these buffers and checks them after the call.
+
+The limit is the JVM: the JSON parser needs a `String`, strings are immutable objects the garbage collector copies and keeps until it collects them, and Compose state and intents hold the sender's name and coordinates for as long as the intrusion screen shows them. Zeroing shortens the exposure window; it does not close it. Code running as Impart's own UID can still read what is on screen (A2-5, A2-8).
+
+### 4.5 Why these primitives
 
 HPKE gives every message a fresh ephemeral key, so a QR only carries public keys and watching the scan does not let anyone decrypt anything. The pre-shared-secret alternative was rejected for exactly that reason. HPKE alone does not authenticate the sender, because anyone with the recipient's public key can encrypt to it. That is why every alert is also signed with Ed25519, and why the verifier checks the signature against the key stored at pairing, never a key named inside the message.
 
@@ -170,7 +176,7 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 | A2-2 | Extract the Tink keysets | mitigated | Both keysets are wrapped by `android-keystore://impart_master_key`; the unwrapped keys exist only in app memory | `CryptoManagerTest` (JVM) | T06 |
 | A2-3 | Brute-force the PINs offline from an extracted prefs file | mitigated | The HMAC key never leaves the Keystore, so every guess has to run on this phone, through the app, under the lockout (section 2.1). On the phone itself the lockout and the T03 hard cap apply | `PinVerifierTest`, `LockoutPolicyTest` | T02 (done) |
 | A2-4 | Recover data the duress wipe missed | open | The wipe clears the encrypted prefs, cancels work, deletes `impart_database` and purges the Tink prefs and master key. It leaves the WorkManager database, the MasterKey prefs file of `androidx.security`, `files/`, `cache/`, `code_cache/`, `no_backup/` and the SQLCipher `-wal`/`-shm` sidecars to the OS | none yet | T08 |
-| A2-5 | Read decrypted payloads or PINs from a memory dump | partly | Payloads are decrypted into a `String` and kept until the verdict is handled; PINs are `String`s in Compose state | none yet | T06 (CharArray/ByteArray buffers zeroed after use; JVM copying documented as a limit) |
+| A2-5 | Read decrypted payloads or PINs from a memory dump | partly | Plaintext and payload bytes are zeroed after every verdict; PIN digits are CharArrays zeroed after use (section 4.4). The parser's `String` and the on-screen details cannot be zeroed | `ZeroingTest`, `PinEntryTest` | T06 (done); the rest is A2-8 |
 | A2-6 | Read symbols and strings from the release APK to map the code | partly | R8 is off, so every class name and string is in the clear. Nothing secret is in the APK; it only makes targeted exploitation easier | none | T10 |
 | A2-7 | Restore a cloud or device-to-device backup onto an examiner's phone | mitigated | `allowBackup="false"`, `backup_rules.xml` and `data_extraction_rules.xml` exclude every domain; Keystore-wrapped data cannot be read elsewhere anyway | manifest check in T05 | T05 |
 | A2-8 | Code running as the app's UID on a rooted or exploited phone while the app is unlocked | out of reach | It can read everything the app can. Documented in `PRIVACY.md` and the README | n/a | T19 |

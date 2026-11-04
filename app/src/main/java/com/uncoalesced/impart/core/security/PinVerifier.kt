@@ -69,8 +69,12 @@ class PinVerifier @Inject constructor(
 
     private fun matches(record: PinRecord, pin: CharArray): Boolean = compare(record.mac, mac(record.salt, pin))
 
+    // Test seam: sees the PIN bytes before they are zeroed.
+    internal var pinBytesObserver: ((ByteArray) -> Unit)? = null
+
     private fun mac(salt: ByteArray, pin: CharArray): ByteArray {
         val bytes = ByteArray(pin.size) { pin[it].code.toByte() }
+        pinBytesObserver?.invoke(bytes)
         try {
             return hasher.mac(salt, bytes)
         } finally {

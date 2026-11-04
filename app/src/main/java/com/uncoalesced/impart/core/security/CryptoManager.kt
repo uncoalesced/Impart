@@ -28,8 +28,18 @@ class CryptoManager @Inject constructor(
     }
 
     fun decrypt(ciphertextBase64: String): String {
+        val bytes = decryptBytes(ciphertextBase64)
+        try {
+            return String(bytes, Charsets.UTF_8)
+        } finally {
+            bytes.fill(0)
+        }
+    }
+
+    // The receive path uses this form so the plaintext can be zeroed once it has been parsed.
+    fun decryptBytes(ciphertextBase64: String): ByteArray {
         val hybridDecrypt = keys.keysetHandle().getPrimitive(HybridDecrypt::class.java)
-        return String(hybridDecrypt.decrypt(decode(ciphertextBase64), EMPTY_CONTEXT), Charsets.UTF_8)
+        return hybridDecrypt.decrypt(decode(ciphertextBase64), EMPTY_CONTEXT)
     }
 
     fun sign(data: ByteArray): String =

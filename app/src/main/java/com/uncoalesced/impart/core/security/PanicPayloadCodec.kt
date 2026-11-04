@@ -17,6 +17,9 @@ class OutdatedAlertException : IllegalArgumentException("Alert uses the unsigned
 // so the receiver verifies the same bytes the sender signed; nothing is re-serialized.
 data class SignedAlert(val signatureBase64: String, val payloadJson: String)
 
+// The receive-side form: the payload stays a byte array so it can be zeroed after parsing.
+class SignedAlertBytes(val signatureBase64: String, val payloadBytes: ByteArray)
+
 // Wire format v2. Short keys keep a worst-case panic inside four SMS parts.
 object PanicPayloadCodec {
     const val VERSION = 2
@@ -104,5 +107,19 @@ object PanicPayloadCodec {
             return Result.failure(IllegalArgumentException("Alert is not a signed envelope."))
         }
         return Result.success(SignedAlert(plaintext.substring(0, cut), plaintext.substring(cut + 1)))
+    }
+
+    // Same rule over bytes. The signature is ASCII base64, so it is safe to turn into a
+    // String; the payload is copied into its own array that the caller zeroes.
+    fun unsealBytes(plaintext: ByteArray): Result<SignedAlertBytes> {
+        var first = 0
+        while (first < plaintext.size && plaintext[first].toInt().toChar().isWhitespace()) first++
+        if (first < plaintext.size && plaintext[first] == '{'.code.toByte()) return Result.failure(OutdatedAlertException())
+        val cut = plaintext.indexOf(SEPARATOR.code.toByte())
+        if (cut <= 0 || cut == plaintext.lastIndex) {
+            return Result.failure(IllegalArgumentException("Alert is not a signed envelope."))
+        }
+        val signature = String(plaintext, 0, cut, Charsets.US_ASCII)
+        return Result.success(SignedAlertBytes(signature, plaintext.copyOfRange(cut + 1, plaintext.size)))
     }
 }
