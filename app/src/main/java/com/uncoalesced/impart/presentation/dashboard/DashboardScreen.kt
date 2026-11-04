@@ -39,6 +39,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uncoalesced.impart.core.util.ReadinessFix
+import com.uncoalesced.impart.presentation.components.SecureAlertDialog
 import com.uncoalesced.impart.core.util.ReadinessItem
 import com.uncoalesced.impart.core.util.formatCountdown
 import com.uncoalesced.impart.domain.model.Contact
@@ -73,6 +74,7 @@ fun DashboardScreen(
     val context = LocalContext.current
     val shufflePad by viewModel.shufflePinPad.collectAsStateWithLifecycle()
     var showChangePins by remember { mutableStateOf(false) }
+    var pendingVendorConfirm by remember { mutableStateOf<ReadinessFix.ConfirmVendorSettings?>(null) }
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     val readinessPermissionLauncher = rememberLauncherForActivityResult(
@@ -108,6 +110,33 @@ fun DashboardScreen(
             delay(3000)
             viewModel.resetState()
         }
+    }
+
+    pendingVendorConfirm?.let { fix ->
+        SecureAlertDialog(
+            onDismissRequest = { pendingVendorConfirm = null },
+            containerColor = ImpartBackground,
+            titleContentColor = ImpartTextPrimary,
+            textContentColor = ImpartSecondary,
+            title = { Text("DID YOU ALLOW IT?") },
+            text = { Text("${fix.instruction} Impart cannot read these settings back, so the row stays amber until you confirm.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.confirmVendorSettings(true)
+                    pendingVendorConfirm = null
+                }) {
+                    Text("YES, ALLOWED", color = ImpartVerified, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.confirmVendorSettings(false)
+                    pendingVendorConfirm = null
+                }) {
+                    Text("NOT YET", color = ImpartSecondary)
+                }
+            }
+        )
     }
 
     if (showChangePins) {
@@ -201,6 +230,14 @@ fun DashboardScreen(
                         }
                         ReadinessFix.EnterPhoneNumber -> onOpenMyQr()
                         ReadinessFix.PairContact -> onOpenScanner()
+                        is ReadinessFix.ConfirmVendorSettings -> {
+                            try {
+                                context.startActivity(fix.intent)
+                            } catch (e: ActivityNotFoundException) {
+                                Toast.makeText(context, "This device has no settings page for that.", Toast.LENGTH_LONG).show()
+                            }
+                            pendingVendorConfirm = fix
+                        }
                         null -> Unit
                     }
                 }

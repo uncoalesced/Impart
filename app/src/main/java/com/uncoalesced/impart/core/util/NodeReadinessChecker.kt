@@ -24,6 +24,8 @@ sealed interface ReadinessFix {
     data class OpenSettings(val intent: Intent) : ReadinessFix
     data object EnterPhoneNumber : ReadinessFix
     data object PairContact : ReadinessFix
+    // Opens a vendor settings screen that cannot be read back; the user confirms afterwards.
+    data class ConfirmVendorSettings(val intent: Intent, val instruction: String) : ReadinessFix
 }
 
 data class ReadinessItem(
@@ -37,14 +39,16 @@ data class ReadinessItem(
 // failing row knows how to open the exact Settings page that fixes it.
 @Singleton
 class NodeReadinessChecker @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val oemSettings: OemSettingsResolver
 ) {
-    fun evaluate(phoneNumberSet: Boolean, contactCount: Int): List<ReadinessItem> = listOf(
+    fun evaluate(phoneNumberSet: Boolean, contactCount: Int, vendorSettingsConfirmed: Boolean = false): List<ReadinessItem> = listOfNotNull(
         buildType(),
         smsPermissions(),
         notifications(),
         fullScreenIntent(),
         batteryOptimization(),
+        vendorBackgroundSettings(vendorSettingsConfirmed),
         simForSms(),
         ReadinessItem(
             label = "Own phone number",
@@ -132,6 +136,19 @@ class NodeReadinessChecker @Inject constructor(
             fix = if (ignoring) null else ReadinessFix.OpenSettings(
                 Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, packageUri())
             )
+        )
+    }
+
+    // Xiaomi, OPPO, realme, vivo, Huawei, HONOR, OnePlus and Samsung have a second layer of
+    // background restrictions with their own screens. They cannot be read back, so the row
+    // turns green only when the user says they have done it (T12). Absent on other vendors.
+    private fun vendorBackgroundSettings(confirmed: Boolean): ReadinessItem? {
+        val vendor = oemSettings.vendor ?: return null
+        return ReadinessItem(
+            label = "${vendor.label} background settings",
+            ok = confirmed,
+            detail = if (confirmed) "Confirmed by you. Re-check after a system update." else OemSettingsTable.instruction(vendor),
+            fix = ReadinessFix.ConfirmVendorSettings(oemSettings.intentFor(vendor), OemSettingsTable.instruction(vendor))
         )
     }
 

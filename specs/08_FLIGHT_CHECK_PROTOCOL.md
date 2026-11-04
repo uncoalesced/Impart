@@ -145,6 +145,10 @@ Expected: no message at all. The whole app becomes a grey "NODE CORRUPTED / SYST
 
 2. Reinstall to recover. The other phones still list the old identity. Revoke it and pair again. On the other phones, scanning the reinstalled phone's new QR shows "KEYS CHANGED" with an old and a new fingerprint. Accept only after comparing the new fingerprint with the reinstalled phone's screen.
 
+## Phase 8a: vendor background settings (T12)
+
+On a Xiaomi, OPPO, realme, vivo, Huawei, HONOR, OnePlus or Samsung phone the readiness card shows one more row, "<vendor> background settings", amber until confirmed. Tap it: the vendor's own autostart or battery screen opens (or the app details page if that model has no such screen). Do what the row says, come back, and answer YES, ALLOWED. Expected: the row turns green and stays green across restarts. Then repeat phase 7 (deep sleep) on that phone. On a Pixel, Fairphone or LineageOS phone the row does not exist.
+
 ## Phase 9: the release APK
 
 The release build is minified by R8 (T10) and must be signed with Joel's private key (T11); the debug keystore is public. Do the whole protocol once more with the release APK from the deployment workflow's `release-apk` artifact, because a missing keep rule only shows at runtime:

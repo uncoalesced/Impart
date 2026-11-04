@@ -98,9 +98,9 @@ Design change: the decoy flag moved out of the encrypted preferences into `share
 
 ## T12: OEM autostart and background settings
 
-- [ ] Unit tests for the vendor table and the fallback order.
-- [ ] A row shows only when an intent resolves or a fallback exists.
-- [ ] No new permissions.
+- [x] Unit tests for the vendor table and the fallback order. (`OemSettingsTest`; T12 commit)
+- [x] A row shows only when an intent resolves or a fallback exists. (`NodeReadinessChecker.vendorBackgroundSettings` returns no row on an unknown vendor; on a known one `OemSettingsResolver.intentFor` returns the first candidate that resolves or the app details page, which every Android resolves; T12 commit)
+- [x] No new permissions. (`manifest-check.sh` output unchanged; T12 commit)
 
 ## T13: Rotate my keys
 

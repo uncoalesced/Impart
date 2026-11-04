@@ -193,6 +193,14 @@ class SecurePrefsManager @Inject constructor(
             .commit()
     }
 
+    private val _vendorSettingsConfirmed = MutableStateFlow(prefs.getBoolean(KEY_VENDOR_SETTINGS_CONFIRMED, false))
+    val vendorSettingsConfirmed: StateFlow<Boolean> = _vendorSettingsConfirmed.asStateFlow()
+
+    fun setVendorSettingsConfirmed(confirmed: Boolean) {
+        prefs.edit().putBoolean(KEY_VENDOR_SETTINGS_CONFIRMED, confirmed).apply()
+        _vendorSettingsConfirmed.value = confirmed
+    }
+
     private val _shufflePinPad = MutableStateFlow(prefs.getBoolean(KEY_SHUFFLE_PIN_PAD, false))
     val shufflePinPad: StateFlow<Boolean> = _shufflePinPad.asStateFlow()
 
@@ -230,6 +238,7 @@ class SecurePrefsManager @Inject constructor(
         _acceptedLegalVersion.value = 0
         _wipeAfterFailedAttempts.value = false
         _shufflePinPad.value = false
+        _vendorSettingsConfirmed.value = false
     }
 
     private fun readPhoneNumber(): String? =
@@ -257,6 +266,7 @@ class SecurePrefsManager @Inject constructor(
         private const val KEY_LOCKOUT_BOOT_COUNT = "lockout_boot_count"
         private const val KEY_WIPE_AFTER_FAILURES = "wipe_after_failed_attempts"
         private const val KEY_SHUFFLE_PIN_PAD = "shuffle_pin_pad"
+        private const val KEY_VENDOR_SETTINGS_CONFIRMED = "vendor_settings_confirmed"
         private const val KEY_LEGAL_VERSION = "accepted_legal_version"
         private const val KEY_NODE_CORRUPTED = "is_node_corrupted"
         private const val KEY_DB_PASSPHRASE = "database_passphrase"

@@ -73,10 +73,17 @@ class DashboardViewModel @Inject constructor(
 
     // Re-evaluated when the user returns from Settings, pairs a contact, or sets a number.
     val readiness: StateFlow<List<ReadinessItem>> = combine(
-        readinessTick, activeContacts, securePrefsManager.localPhoneNumber
-    ) { _, contacts, phone ->
-        readinessChecker.evaluate(phoneNumberSet = !phone.isNullOrBlank(), contactCount = contacts.size)
+        readinessTick, activeContacts, securePrefsManager.localPhoneNumber, securePrefsManager.vendorSettingsConfirmed
+    ) { _, contacts, phone, vendorConfirmed ->
+        readinessChecker.evaluate(
+            phoneNumberSet = !phone.isNullOrBlank(),
+            contactCount = contacts.size,
+            vendorSettingsConfirmed = vendorConfirmed
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // The vendor screens cannot be read back; the user's word is the only signal.
+    fun confirmVendorSettings(confirmed: Boolean) = securePrefsManager.setVendorSettingsConfirmed(confirmed)
 
     fun refreshReadiness() {
         readinessTick.value += 1
