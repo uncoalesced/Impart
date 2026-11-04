@@ -86,9 +86,9 @@ Design change: the decoy flag moved out of the encrypted preferences into `share
 
 ## T10: R8 on for release builds
 
-- [ ] Release build with R8 runs in CI on every PR.
-- [ ] Mapping uploaded.
-- [ ] Release APK phone checks listed in REPORT.md and spec 08.
+- [x] Release build with R8 runs in CI on every PR. (`release-r8` job in `development.yml`; `isMinifyEnabled`/`isShrinkResources` true; T10 commit)
+- [x] Mapping uploaded. (`release-mapping` artifact in `development.yml`, `main.yml` and `deployment.yml`; T10 commit)
+- [x] Release APK phone checks listed in REPORT.md and spec 08. (spec 08 phase 9; REPORT section 2 and 3; T10 commit)
 
 ## T11: Release signing that cannot be confused with debug
 

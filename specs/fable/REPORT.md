@@ -24,9 +24,25 @@ Write the exact commands. Start from: pull `fable/finish-impart`, uninstall any 
 
 Add the release APK steps from T10 and T11.
 
+Release build (R8 on, T10). Unsigned, for a local check that the variant builds:
+
+```bash
+./gradlew assembleRelease
+# app/build/outputs/apk/release/app-release-unsigned.apk
+# app/build/outputs/mapping/release/mapping.txt (keep it with the build)
+```
+
+A signed release APK comes only from the deployment workflow (T11), with the four `RELEASE_*` secrets set on the repository; locally the same four as environment variables make `assembleRelease` sign:
+
+```bash
+RELEASE_KEYSTORE_PATH=/path/to/release.keystore RELEASE_KEYSTORE_PASSWORD=... RELEASE_KEY_ALIAS=... RELEASE_KEY_PASSWORD=... ./gradlew assembleRelease
+```
+
 ## 3. What Joel must test on phones
 
 Point to the phases of `specs/08_FLIGHT_CHECK_PROTOCOL.md`, new phases first. Include the release APK checks from T10.
+
+Release APK (spec 08 phase 9, T10): handshake both ways, panic and ACK, the lock and the PIN pad, the duress wipe and decoy, and the dead man's switch worker (set one hour, let it fire). These exercise Tink, Room with SQLCipher, Hilt workers and WorkManager, the four places a missing R8 keep rule would show. Read any crash with the `release-mapping` artifact.
 
 ## 4. Security changes, by adversary
 

@@ -90,6 +90,12 @@ jobs:
           name: release-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+      # Keep the mapping with the signed build it belongs to.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
       # NOTE: F-Droid's main repo builds from source and rejects the Google Play
       # Services / ML Kit deps this app still uses. This APK suits IzzyOnDroid or
       # direct install; true F-Droid inclusion needs those deps removed first.

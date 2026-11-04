@@ -145,6 +145,20 @@ Expected: no message at all. The whole app becomes a grey "NODE CORRUPTED / SYST
 
 2. Reinstall to recover. The other phones still list the old identity. Revoke it and pair again. On the other phones, scanning the reinstalled phone's new QR shows "KEYS CHANGED" with an old and a new fingerprint. Accept only after comparing the new fingerprint with the reinstalled phone's screen.
 
+## Phase 9: the release APK
+
+The release build is minified by R8 (T10) and must be signed with Joel's private key (T11); the debug keystore is public. Do the whole protocol once more with the release APK from the deployment workflow's `release-apk` artifact, because a missing keep rule only shows at runtime:
+
+1. Install the release APK on every phone (uninstall the debug build first; the signatures differ, so an in-place update is refused).
+2. Phase 1 and 2: first launch, PIN setup, lock, lockout, PIN pad.
+3. Phase 3: pairing in both directions, fingerprints shown and equal.
+4. Phase 4 and 7: a panic in the foreground and one after 15 minutes of deep sleep, the red screen, the alarm, the ACK back.
+5. Phase 8: the duress PIN and the decoy.
+6. Settings: set the dead man's switch to one hour, do not check in, and confirm the warning notification arrives after the hour has passed and the panic goes out: this is the WorkManager path, the one most exposed to a missing keep rule.
+7. The readiness card's Build row says "Release build" and shows no debug warning.
+
+If any step crashes, pull the stack trace (`adb logcat -s AndroidRuntime`) and read it with the `release-mapping` artifact of the same run: `retrace mapping.txt trace.txt`.
+
 ## When it fails
 
 - B gets the notification but the screen stays dark. Android 14 has not allowed the full-screen alert: check the readiness row. On older Android, check the lock screen is not set to hide notification content.

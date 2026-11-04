@@ -138,12 +138,6 @@
                 tools:node="remove" />
         </provider>
 
-        <!-- Compose tooling registers an exported activity in debug builds so Android Studio
-             can run previews. Nothing on a phone should be able to launch it. -->
-        <activity
-            android:name="androidx.compose.ui.tooling.PreviewActivity"
-            tools:node="remove" />
-
     </application>
 
 </manifest>

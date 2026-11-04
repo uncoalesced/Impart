@@ -47,7 +47,11 @@ android {
             signingConfig = signingConfigs.getByName("debugConfig")
         }
         release {
-            isMinifyEnabled = false
+            // R8 on (T10): smaller APK, fewer symbols for an examiner to map (A2-6). The
+            // keep rules live in proguard-rules.pro; CI builds this variant on every PR and
+            // keeps mapping.txt as an artifact.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
