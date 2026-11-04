@@ -35,7 +35,7 @@ Your QR code shows your random ID, your phone number and your two public keys. A
 
 When you send a panic, an acknowledgement, or the dead man's switch fires, Impart sends an SMS to each chosen contact. The text inside is encrypted so that only that contact's phone can read it, and it is signed so their phone can check it came from you. Inside the encryption it carries your random ID, their random ID, a random message ID, the time it was sent and, only if you turned on location sharing, your coordinates.
 
-Your mobile carrier, and any network the SMS passes through, can see that your number texted theirs, when, how long the message was, and that it starts with IMPART_ALERT. They cannot read what is inside.
+Your mobile carrier, and any network the SMS passes through, can see that your number texted theirs and when. Every Impart message is the same length (four SMS parts) and starts with a short code that is the same for every message between the two of you but does not name Impart. They cannot read what is inside, or tell a panic from an acknowledgement.
 
 A copy of every alert you send and receive also appears in your normal Messages app, because Android saves texts from apps that are not your default messaging app. Anyone who can open your Messages app can see who you exchanged alerts with, though not what they said. Impart cannot delete these copies. You can delete them yourself.
 
@@ -43,7 +43,7 @@ Impart sends nothing to us, to Google, or to anyone else.
 
 ## What Impart reads
 
-- Text messages: Impart looks at every incoming SMS, but only to check whether it starts with IMPART_ALERT. Any other message is ignored straight away. Impart never stores it, logs it or reads further into it.
+- Text messages: Impart looks at every incoming SMS, but only to check whether it has the exact shape of an Impart alert (a fixed length and a short code that matches one of your trusted contacts). Any other message is ignored straight away. Impart never stores it, logs it or reads further into it.
 - Camera: used only on the Scan QR tab. Images are analysed on your phone to find a QR code and are never saved.
 - Location: used only if you turn on location sharing, and only at the moment you send a panic. Impart asks Google Play services for one location fix. Google Play services is part of your phone and has its own privacy policy from Google.
 

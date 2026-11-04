@@ -15,6 +15,8 @@ sealed interface AlertVerdict {
     data object UnknownSender : AlertVerdict
     data class BadSignature(val claimedSender: Contact) : AlertVerdict
     data class NotForThisNode(val sender: Contact) : AlertVerdict
+    // The body carried one pair's tag but the signed payload names another contact.
+    data class TagMismatch(val sender: Contact) : AlertVerdict
     data class FromFuture(val sender: Contact, val sentAt: Long) : AlertVerdict
     data class Stale(val sender: Contact, val payload: PanicPayload) : AlertVerdict
     data class Replayed(val sender: Contact) : AlertVerdict
@@ -35,7 +37,7 @@ class AlertVerifier @Inject constructor(
     // reference and check it afterwards.
     internal var plaintextObserver: ((ByteArray) -> Unit)? = null
 
-    suspend fun verify(ciphertextBase64: String, localUuid: String): AlertVerdict {
+    suspend fun verify(ciphertextBase64: String, localUuid: String, tag: String? = null): AlertVerdict {
         val plaintext = try {
             crypto.decryptBytes(ciphertextBase64)
         } catch (e: Exception) {
@@ -47,7 +49,7 @@ class AlertVerifier @Inject constructor(
             val signed = PanicPayloadCodec.unsealBytes(plaintext).getOrElse { return classify(it) }
             payloadBytes = signed.payloadBytes
             plaintextObserver?.invoke(signed.payloadBytes)
-            return verifySigned(signed, localUuid)
+            return verifySigned(signed, localUuid, tag)
         } finally {
             // The decrypted bytes live only for this call. The String the JSON parser needs
             // is a JVM object that cannot be zeroed; spec 03 section 4.4 says so.
@@ -56,12 +58,16 @@ class AlertVerifier @Inject constructor(
         }
     }
 
-    private suspend fun verifySigned(signed: SignedAlertBytes, localUuid: String): AlertVerdict {
+    private suspend fun verifySigned(signed: SignedAlertBytes, localUuid: String, tag: String?): AlertVerdict {
         val payload = PanicPayloadCodec.decode(String(signed.payloadBytes, Charsets.UTF_8)).getOrElse { return classify(it) }
 
         val sender = contacts.findActiveByUuid(payload.from) ?: return AlertVerdict.UnknownSender
         val authentic = crypto.verify(signed.signatureBase64, signed.payloadBytes, sender.signingKeyBase64)
         if (!authentic) return AlertVerdict.BadSignature(sender)
+
+        if (tag != null && tag != PairTag.of(crypto.getPublicKey(), sender.publicKeyBase64)) {
+            return AlertVerdict.TagMismatch(sender)
+        }
 
         if (payload.to != localUuid) return AlertVerdict.NotForThisNode(sender)
 

@@ -55,7 +55,7 @@ Send path:
 1. `DashboardViewModel.initiatePanic` / `broadcastPanic` (or `DeadMansSwitchWorker.doWork`) -> `RelayManagerImpl.dispatchPanic` / `broadcastPanic`.
 2. `RelayManagerImpl` builds `PanicPayload.Panic(from = localUuid, to = contact.uuid, id = PanicPayloadCodec.newMessageId(), sentAt = clock.now(), lat, lng)` and calls `sendSigned`.
 3. `AlertEnvelope.seal`: `PanicPayloadCodec.encode` (JSON once) -> `CryptoManager.sign` (Ed25519 over the UTF-8 bytes) -> `PanicPayloadCodec.seal` (`<sig>.<json>`) -> `CryptoManager.encrypt` (HPKE to the contact's stored hybrid key) -> base64.
-4. `RelayManagerImpl.send`: `IMPART_ALERT:` prefix, `SubscriptionManager.getDefaultSmsSubscriptionId`, `SmsManager.divideMessage`, one `SmsSentReceiver.pendingIntent` per part, `sendMultipartTextMessage`. `SmsSentReceiver` turns a refused part into a notification.
+4. `RelayManagerImpl.send`: pair tag prefix (`AlertEnvelope.body`), `SubscriptionManager.getDefaultSmsSubscriptionId`, `SmsManager.divideMessage`, one `SmsSentReceiver.pendingIntent` per part, `sendMultipartTextMessage`. `SmsSentReceiver` turns a refused part into a notification.
 
 Receive path:
 

@@ -9,7 +9,6 @@ import android.telephony.SubscriptionManager
 import android.util.Log
 import com.uncoalesced.impart.core.security.AlertEnvelope
 import com.uncoalesced.impart.core.security.CryptoManager
-import com.uncoalesced.impart.core.security.IMPART_ALERT_PREFIX
 import com.uncoalesced.impart.core.security.PanicPayloadCodec
 import com.uncoalesced.impart.core.services.SmsSentReceiver
 import com.uncoalesced.impart.core.util.Redact
@@ -77,7 +76,7 @@ class RelayManagerImpl @Inject constructor(
         }.onFailure { Log.e(TAG, "Ack to node ${Redact.uuid(contact.uuid)} failed", it) }
 
     private fun sendSigned(contact: Contact, payload: PanicPayload) {
-        send(contact, IMPART_ALERT_PREFIX + AlertEnvelope.seal(cryptoManager, payload, contact.publicKeyBase64))
+        send(contact, AlertEnvelope.body(cryptoManager, payload, contact.publicKeyBase64))
     }
 
     private fun send(contact: Contact, body: String) {

@@ -85,42 +85,49 @@ Pairing is two-way: both phones scan each other.
 The plaintext of every alert, panic or acknowledgement, is a small JSON object with short keys to fit the SMS budget:
 
 ```json
-{"v":2,"t":"P","from":"<sender uuid>","to":"<recipient uuid>","id":"<128-bit random, base64url>","ts":1790253160570,"lat":51.5,"lng":-0.12}
+{"v":3,"t":"P","from":"<sender uuid>","to":"<recipient uuid>","id":"<128-bit random, base64url>","ts":1790253160570,"lat":51.5,"lng":-0.12,"p":"<random padding>"}
 ```
 
 - `t` is `P` for a panic or `A` for an acknowledgement. An acknowledgement carries `ack`, the ID of the panic it answers.
 - `lat` and `lng` are present only when the sender turned on location sharing.
+- `p` is random padding, sized so that `<signature>.<payload>` is always exactly 397 bytes. The receiver ignores it. It is inside the signature and the encryption, so nothing outside the ciphertext says how long the real payload was (section 6.1).
 - There is no phone number or public key in the payload. The receiver uses what it stored at pairing.
+- `v` is 3 since November 2026. A phone on v2 or earlier must update and re-pair: a v2 body is reported as outdated and never decrypted.
 
 ### 4.2 Sign, then encrypt
 
 Send path:
 
-1. Serialize the payload once. That string is the payload from here on.
+1. Serialize the payload once, padded to the fixed length. That string is the payload from here on.
 2. Sign its UTF-8 bytes with the sender's Ed25519 key.
 3. Join as `<base64 signature>.<payload>`.
 4. Encrypt that to the recipient's hybrid public key with Tink HPKE.
-5. Base64, prefix `IMPART_ALERT:`, and send as a multipart SMS from the default SMS SIM, with a sent-intent per part.
+5. Base64, prefix the pair tag, and send as a multipart SMS from the default SMS SIM, with a sent-intent per part.
 
-A worst-case panic, with coordinates at full precision, fits in four SMS parts. A unit test enforces this.
+The pair tag (`PairTag`) is the first 12 base64url characters of `SHA-256("impart/v3/pair-tag" || 0 || min(pkA, pkB) || 0 || max(pkA, pkB))` over the two hybrid public keys the pair exchanged at the handshake. Both ends compute the same tag, no field is stored for it, and nothing in the body names the app. The tag is recognition only; the signature inside is what authenticates.
+
+Every alert is exactly 612 characters, four SMS parts, whatever it carries. `AlertSizeTest` enforces this for a panic with and without coordinates, the worst case, and an acknowledgement.
 
 The signature covers the exact bytes that travel, so the receiver verifies what was sent and nothing is re-serialized. Encryption comes last, so the carrier sees neither the payload nor who signed it.
 
 ### 4.3 Receive path
 
-`ImpartSmsReceiver` matches the prefix and ignores every other SMS. It does nothing at all if the node was wiped. Then, under `goAsync()` and a 30-second wake lock, `AlertVerifier` decides:
+`ImpartSmsReceiver` first applies a syntactic filter with no I/O: a body is a candidate only if it is exactly 612 characters, starts with 12 tag characters and continues in base64. An ordinary text never costs a wake lock or a database read. A body starting with the old `IMPART_ALERT:` prefix is reported as outdated and never decrypted. The receiver does nothing at all if the node was wiped. Then, under `goAsync()` and a 30-second wake lock, `AlertRecognizer` computes the pair tag of every active contact and matches the body's tag; no match, no alert. For a match, `AlertVerifier` decides:
 
 1. Decrypt with this node's hybrid key. Failure: unreadable.
 2. Split the signature from the payload. A bare JSON plaintext is a v1 alert: outdated.
-3. Parse the payload. Failure: malformed.
+3. Parse the payload. A `v` below 3: outdated. Failure: malformed.
 4. Find the sender by `from` among active contacts. Missing or revoked: unknown sender.
 5. Verify the signature with the signing key stored for that contact. Failure: bad signature, which means someone is impersonating them.
-6. Check `to` is this node. Otherwise: not for this node. This stops a trusted contact forwarding a third node's signed alert.
-7. Check the time. More than 10 minutes in the future: rejected. More than 24 hours old: stale, reported and not raised.
-8. Record `id` in the seen-alerts table. Already there: replayed.
-9. Accepted. A panic raises the full-screen alarm and shows the delay if it arrived late. An acknowledgement posts a notification.
+6. Check the body's tag is the tag of this node and that sender. Otherwise: tag mismatch, which means a genuine alert was relayed under another pair's tag.
+7. Check `to` is this node. Otherwise: not for this node. This stops a trusted contact forwarding a third node's signed alert.
+8. Check the time. More than 10 minutes in the future: rejected. More than 24 hours old: stale, reported and not raised.
+9. Record `id` in the seen-alerts table. Already there: replayed.
+10. Accepted. A panic raises the full-screen alarm and shows the delay if it arrived late. An acknowledgement posts a notification.
 
-Every verdict other than acceptance posts a visible status notification. Nothing about the payload is trusted until step 5 passes, and an ID is only recorded once the alert has passed every other check.
+The decrypted bytes are zeroed on every path out (section 4.4).
+
+Every verdict other than acceptance posts a visible status notification. An alert whose tag matches no active contact is not an alert as far as this node is concerned and produces nothing, like any other text; that is the price of a body that does not name the app. Nothing about the payload is trusted until step 5 passes, and an ID is only recorded once the alert has passed every other check.
 
 The acknowledgement goes back to the contact's stored phone number, encrypted to the contact's stored key. Nothing in the incoming alert decides where it goes.
 
@@ -141,10 +148,10 @@ This section is a security requirement in itself. An honest threat model does no
 The carrier, and any SMS or SS7 intermediary, can see:
 
 - That the sender's number texted the receiver's number, and when.
-- How many SMS parts it took.
-- That the body starts with `IMPART_ALERT:`.
+- That it took four SMS parts of base64 text, 612 characters, like every other Impart alert.
+- The 12-character pair tag at the front, which is the same for every alert between those two phones and means nothing to anyone without both public keys.
 
-The carrier cannot see the contents, the sender's identity inside the envelope, whether it is a panic or an acknowledgement, or any coordinates.
+The carrier cannot see the contents, the sender's identity inside the envelope, whether it is a panic or an acknowledgement, whether coordinates were attached, or the name of the app.
 
 Impart gives confidentiality and authenticity of content, not metadata privacy. Over SMS the metadata (two real phone numbers and the timing) is arguably more exposing than a push token would be. That is the trade for removing every server from the loop and getting a wake path Doze cannot throttle.
 
@@ -191,7 +198,7 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 | A3-3 | Replay a copied alert (Messages inbox, backup, carrier) | mitigated | Unique 128-bit ID recorded in `seen_alerts` once accepted, 24-hour age limit, IDs kept for 48 h | `replayed alert is rejected the second time`, `alert older than a day is stale` | done |
 | A3-4 | A trusted contact forwards a third node's signed alert | mitigated | Signed `to` must equal this node (step 6) | `signed alert addressed to another node is rejected` | done |
 | A3-5 | Spoof the sender phone number | mitigated | The sender number is never consulted. Trust is by UUID and stored key inside the ciphertext; the ACK goes to the stored number | `ack round trip is accepted`; `IntrusionActivity` ACK path | done |
-| A3-6 | Trigger a false alarm with a random `IMPART_ALERT:` text | mitigated | Decrypt fails: `Unreadable`, reported as a status notification, no alarm | `garbage is unreadable` | done |
+| A3-6 | Trigger a false alarm with a random alert-shaped text | mitigated | Decrypt fails: `Unreadable`, reported as a status notification, no alarm | `garbage is unreadable` | done |
 | A3-7 | SIM swap or number reassignment: a stranger now holds a contact's number | partly | Panics to the old number cannot be decrypted by the new holder, and the stranger cannot sign. The owner must revoke the contact to stop paging a stranger's phone. If the owner's own number moves, every contact re-pairs with the new QR | `alert from a revoked contact is rejected` | spec 08 says revoke; T13 rotation helps after a device loss |
 | A3-8 | Another app forges an `SMS_RECEIVED` broadcast | mitigated | Receiver requires `BROADCAST_SMS`, held only by the telephony stack | manifest check in T05 | done |
 | A3-9 | A QR that points panics at a premium short code | mitigated | Numbers must be full E.164 (`PhoneNumbers`) | `PhoneNumbersTest`, `AddContactUseCaseTest` | done |
@@ -201,8 +208,8 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 
 | ID | Attack | Status | Defense | Test | Owner |
 |---|---|---|---|---|---|
-| A4-1 | Read the stock Messages inbox and see `IMPART_ALERT:` texts between two numbers | open | Android stores a copy for every app that is not the default SMS app. The copies cannot be decrypted or replayed, but they name the app and the pair | n/a | T14 (optional default SMS mode keeps alerts out of the provider); T07 (prefix proposal) |
-| A4-2 | Tell a panic from an ACK by the message length or part count | open | Nothing pads the ciphertext | measurements in section 6.1 | T07 (proposal, Joel decides) |
+| A4-1 | Read the stock Messages inbox and see Impart texts between two numbers | partly | Android stores a copy for every app that is not the default SMS app. Since v3 the copies are 612 characters of base64 behind a 12-character tag: they do not name the app and cannot be decrypted or replayed. They still show that two numbers exchanged something encrypted | `PairTagTest`, `AlertSizeTest` | T07 (done); T14 removes the copy itself |
+| A4-2 | Tell a panic from an ACK by the message length or part count | mitigated | Every alert is padded inside the signed, encrypted payload to exactly 612 characters, four parts (section 4.2, 6.1) | `AlertSizeTest.every alert kind fits in four parts and sizes are reported` | T07 (done) |
 | A4-3 | Carrier records show that number A texted number B at a time, in N parts | out of reach | SMS has no metadata privacy. Stated in section 5, the README and the privacy policy | n/a | T19 |
 | A4-4 | A screenshot or screen recording of the app | mitigated | `FLAG_SECURE` on both activities and, through `SecureDialog`/`SecureAlertDialog`, on every dialog window | `WindowHardeningSourceTest` | T04 (done) |
 | A4-5 | Learn that the phone runs Impart from the launcher | partly | The Calculator cloak (`CloakManager`) renames the launcher entry; the package name still says `com.uncoalesced.impart` to anything that lists packages | manual | documented |
@@ -267,7 +274,7 @@ What the carrier, the stock Messages app and anyone reading either can learn fro
 | Panic, worst case (full-precision coordinates) | 481 | 4 |
 | Acknowledgement | 457 | 3 |
 
-So today: the body starts with `IMPART_ALERT:`, which names the app; a panic and an ACK are usually both 3 parts and within 50 characters of each other, so the part count rarely tells them apart, but the exact length does (a watcher who sees 413 then 457 can guess "panic without location, then ACK"); and the timing (a reply within a minute) says which was which anyway.
+Before v3: the body started with `IMPART_ALERT:`, which names the app; a panic and an ACK were usually both 3 parts and within 50 characters of each other, so the part count rarely told them apart, but the exact length did (a watcher who saw 413 then 457 could guess "panic without location, then ACK"); and the timing (a reply within a minute) says which was which anyway.
 
 Options, each with what it hides and what it costs:
 
@@ -278,7 +285,7 @@ Options, each with what it hides and what it costs:
 
 Recommendation: ship T14 (option 4) first, because it removes the inbox copy without touching the frozen wire format. Then, in one wire format bump (v3), do options 1 and 2 together: pad to 4 parts and use a per-pair tag, so a single re-pair buys both. Option 3 is not recommended: the battery and surface cost lands on the most important code path for a small gain over option 2. Nothing hides the carrier metadata (A4-3).
 
-Decision: pending Joel (asked in chat during T07). The wire format stays v2 until he answers.
+Decision (Joel, 2026-11-04): options 1 and 2 together, now, as wire format v3. Implemented: `PanicPayloadCodec.VERSION = 3`, the `p` padding field, `AlertWire` (612 characters, syntactic filter), `PairTag`, `AlertRecognizer`, and the `TagMismatch` verdict. Every phone must update and re-pair (spec 08). Option 4 remains T14. The measurement after the change: every alert kind is 612 characters, 4 parts (`AlertSizeTest`).
 
 ## 7. Key rotation and revocation
 

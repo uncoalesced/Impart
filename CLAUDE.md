@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What Impart is
 
-Impart is a closed-loop emergency paging system for a small set of trusted Android phones. A panic from one node wakes a paired device from deep sleep, launches a full-screen alert over the lock screen, and sounds a looping alarm on the alarm audio stream. Alerts are signed, end-to-end encrypted, and delivered over SMS as the only transport. There is no Firebase, no Cloud Functions, no push service, no server and no INTERNET permission. The only thing that leaves a device is an `IMPART_ALERT:` SMS carrying Tink ciphertext.
+Impart is a closed-loop emergency paging system for a small set of trusted Android phones. A panic from one node wakes a paired device from deep sleep, launches a full-screen alert over the lock screen, and sounds a looping alarm on the alarm audio stream. Alerts are signed, end-to-end encrypted, and delivered over SMS as the only transport. There is no Firebase, no Cloud Functions, no push service, no server and no INTERNET permission. The only thing that leaves a device is a fixed-length SMS (a 12-character pair tag plus Tink ciphertext, 612 characters, four parts).
 
 The design lives in `specs/`. Read the relevant spec before making non-trivial changes; the specs are load-bearing, not aspirational. The most important ones:
 
@@ -81,13 +81,14 @@ Permissions are requested only once the app itself is showing. `IntrusionActivit
 
 This is why the app exists. Understand it before touching the receiver, relay, verifier or intrusion activity. Full detail is in `specs/02` and `specs/03` section 4.
 
-1. Sender: `RelayManagerImpl` builds a `PanicPayload`. `AlertEnvelope.seal` serializes it once, signs those bytes with Ed25519, and HPKE-encrypts `<signature>.<payload>` to the contact's stored hybrid key. The relay prefixes `IMPART_ALERT:` and sends a multipart SMS from the default SMS SIM with sent-intents. `SmsSentReceiver` turns a refused part into a notification.
-2. Receiver: `ImpartSmsReceiver` matches the prefix and ignores everything if the node was wiped. Under `goAsync()` with a 30 s wake lock, it asks `AlertVerifier`, which in order:
+1. Sender: `RelayManagerImpl` builds a `PanicPayload`. `AlertEnvelope.seal` serializes it once, signs those bytes with Ed25519, and HPKE-encrypts `<signature>.<payload>` to the contact's stored hybrid key. The payload is padded inside the signature to a fixed size (`AlertWire`), the relay prefixes the pair tag (`PairTag`, derived from both hybrid public keys) and sends a multipart SMS from the default SMS SIM with sent-intents. `SmsSentReceiver` turns a refused part into a notification.
+2. Receiver: `ImpartSmsReceiver` applies the syntactic filter (`AlertWire.couldBeAlert`), reports an old `IMPART_ALERT:` body as outdated, and ignores everything if the node was wiped. Under `goAsync()` with a 30 s wake lock, `AlertRecognizer` matches the tag against the active contacts, then `AlertVerifier` in order:
    - Decrypts.
    - Unseals.
    - Parses.
    - Finds the sender by UUID among active contacts.
    - Verifies the signature against the stored signing key.
+   - Checks that the body's tag is the tag of this pair.
    - Checks that `to` is this node.
    - Rejects alerts more than 10 min in the future or more than 24 h old.
    - Records the ID in `seen_alerts`, rejecting a replay.

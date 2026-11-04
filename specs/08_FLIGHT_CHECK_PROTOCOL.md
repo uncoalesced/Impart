@@ -19,6 +19,10 @@ adb logcat -s ImpartSmsReceiver IntrusionActivity IntrusionAlarm RelayManager Sm
 
 A debug build is fine for this test. Do not hand debug builds to people for real use. Section "Before real use" explains why.
 
+## Before you start: every phone on the same build
+
+The wire format changed to v3 in November 2026 (padding and a per-pair tag, `specs/03` section 4.2). A phone on an older build cannot exchange alerts with a phone on this one: its texts are reported as "ALERT FROM AN OUTDATED VERSION" and its receiver ignores v3 bodies. Uninstall any older Impart from every test phone, install this build everywhere, and pair again from scratch. The T02 PIN change also means an old install's PINs are migrated on first run, which is fine, but a clean install is the simplest known state.
+
 ## Phase 1: first launch on each phone
 
 1. Open Impart. The terms screen comes first. Open "Read the Terms of Service" and "Read the Privacy Policy", scroll to the end of each, go back, and tap I UNDERSTAND AND ACCEPT.
@@ -87,7 +91,7 @@ Expected on B within one to ten seconds, depending on the carrier:
 
 Expected on A: a notification "A's nickname acknowledged your panic signal".
 
-The ciphertext also appears in the stock Messages app on both phones as a long `IMPART_ALERT:...` text. That is expected.
+The ciphertext also appears in the stock Messages app on both phones as a 612-character text of random-looking letters that starts with the same 12 characters every time these two phones page each other. That is expected: nothing in it names Impart, and every alert has the same length.
 
 If A shows an error under the panic buttons, read it. "No SIM is selected for sending SMS" and "Contact has no phone number" come before the radio is involved. A notification "PANIC SMS FAILED TO SEND" means the radio refused a part, and it names the reason.
 
@@ -95,7 +99,7 @@ If A shows an error under the panic buttons, read it. "No SIM is selected for se
 
 This checks the two attacks the signed-alert change closed.
 
-1. On B, open the stock Messages app, find the IMPART_ALERT text that A sent in Phase 4, and copy the whole text.
+1. On B, open the stock Messages app, find the 612-character text that A sent in Phase 4, and copy the whole text.
 2. From C (or any phone), send that exact text to B as a normal SMS.
 
 Expected on B: a notification "REPEATED ALERT IGNORED", and no alarm.

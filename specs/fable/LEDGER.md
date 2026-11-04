@@ -67,8 +67,8 @@ Finding: before T05 the merged manifest of every variant carried `android.permis
 ## T07: Wire metadata proposal (no code change without Joel)
 
 - [x] Metadata subsection written, with measurements and a recommendation. (spec 03 section 6.1, `AlertSizeTest`; T07 commit)
-- [ ] Joel's decision recorded in the ledger.
-- [ ] If approved: implemented, tested, spec 08 updated.
+- [x] Joel's decision recorded in the ledger. (Decisions from Joel, 2026-11-04: v3 with padding and per-pair tag)
+- [x] If approved: implemented, tested, spec 08 updated. (`PairTag`, `AlertWire`, `AlertRecognizer`, padding in `PanicPayloadCodec`, `TagMismatch` verdict; `PairTagTest`, `AlertRecognizerTest`, `AlertSizeTest`, new cases in `AlertVerifierTest`; spec 08 "Before you start"; T07 commit)
 
 ## T08: The duress wipe leaves nothing behind
 

@@ -33,11 +33,11 @@ sequenceDiagram
     participant UI as IntrusionActivity
 
     A->>Rly: Initiate Panic (target phone number, public key)
-    Rly->>Rly: encrypt payload (Tink), prefix IMPART_ALERT:
+    Rly->>Rly: pad, sign, encrypt payload (Tink), prefix the pair tag
     Rly->>Net: SmsManager multipart send
     Net->>OS: deliver SMS, wake modem/RIL out of Doze
     OS->>Rcv: broadcast SMS_RECEIVED
-    Rcv->>Rcv: match IMPART_ALERT:, acquire PARTIAL_WAKE_LOCK (30s), goAsync
+    Rcv->>Rcv: 612-char base64 body? acquire PARTIAL_WAKE_LOCK (30s), goAsync, match a contact pair tag
     Rcv->>Rcv: decrypt ciphertext (Tink); failure posts a visible status notification
     Rcv->>Rcv: look up sender public key in the Contact Matrix; unknown sender gets no alarm
     Rcv->>OS: fire FullScreenIntent notification
@@ -53,7 +53,7 @@ This is the single most important transport decision in the system, so it's wort
 
 The doctrine is no third-party delivery infrastructure in the loop, at all. A push relay (FCM or otherwise) means Google's servers see who paged whom and when, decide whether and when to deliver, and can throttle or drop the message. For an emergency tool that is an unacceptable dependency and an unacceptable metadata leak.
 
-SMS is a peer-to-peer carrier primitive. An incoming SMS is delivered by the modem/RIL and raises the `SMS_RECEIVED` broadcast on the receiver even when the app is killed or the device is in Doze. It is the same wake path an ordinary text uses, which no app-level battery optimizer can suppress. Impart carries only ciphertext in the message body (`IMPART_ALERT:` + Tink output), so the carrier relays an opaque text and never sees plaintext. `ImpartSmsReceiver` matches the prefix and hands control back to Impart's own code the instant the SMS arrives, which is what gets the wake lock, full-screen intent and alarm audio chain to fire.
+SMS is a peer-to-peer carrier primitive. An incoming SMS is delivered by the modem/RIL and raises the `SMS_RECEIVED` broadcast on the receiver even when the app is killed or the device is in Doze. It is the same wake path an ordinary text uses, which no app-level battery optimizer can suppress. Impart carries only ciphertext in the message body (a 12-character pair tag + Tink output, padded to 612 characters), so the carrier relays an opaque text and never sees plaintext. `ImpartSmsReceiver` recognises the shape and the tag and hands control back to Impart's own code the instant the SMS arrives, which is what gets the wake lock, full-screen intent and alarm audio chain to fire.
 
 Trade-offs, stated honestly: SMS requires a SIM with an SMS plan and cellular coverage; delivery latency is typically 1 to 5 s but is carrier-dependent and not guaranteed; and because Impart is not the default SMS app, it cannot `abortBroadcast()`, so the ciphertext SMS also lands in the stock Messages inbox on the receiver. These are accepted costs of removing every server from the path.
 
@@ -61,13 +61,13 @@ Trade-offs, stated honestly: SMS requires a SIM with an SMS plan and cellular co
 
 ### 4.1 Ingress: `RelayManagerImpl` → `SmsManager`
 
-`RelayManagerImpl.dispatchPanic` runs entirely on the sender's device. It builds a `PanicPayload.Panic` (its own UUID, the recipient's UUID, a fresh random message ID, the time, and lat/lng only if location sharing is on). `AlertEnvelope` signs the serialized payload with the node's Ed25519 key and Tink-encrypts `<signature>.<payload>` to the contact's hybrid public key. The relay then prefixes `IMPART_ALERT:`, resolves the default SMS subscription (so dual-SIM phones send from the right SIM, and a phone with no SIM fails with a message instead of pretending), splits it with `divideMessage`, and sends it with `sendMultipartTextMessage`. Each part carries a sent-intent aimed at `SmsSentReceiver`; a part the radio refuses becomes a notification rather than a log line. There is no ingress server. The "network" is the carrier's SMS channel.
+`RelayManagerImpl.dispatchPanic` runs entirely on the sender's device. It builds a `PanicPayload.Panic` (its own UUID, the recipient's UUID, a fresh random message ID, the time, and lat/lng only if location sharing is on). `AlertEnvelope` signs the serialized payload with the node's Ed25519 key and Tink-encrypts `<signature>.<payload>` to the contact's hybrid public key. The relay then prefixes the pair tag and hands the 612-character body to `SmsManager` as a multipart SMS. Each part carries a sent-intent aimed at `SmsSentReceiver`; a part the radio refuses becomes a notification rather than a log line. There is no ingress server. The "network" is the carrier's SMS channel.
 
 ### 4.2 The Brain: `ImpartSmsReceiver`
 
-`ImpartSmsReceiver` is a `BroadcastReceiver` registered for `android.provider.Telephony.SMS_RECEIVED`. `onReceive` reassembles the multipart message body and, if it starts with `IMPART_ALERT:`, begins the intrusion sequence. In strict order:
+`ImpartSmsReceiver` is a `BroadcastReceiver` registered for `android.provider.Telephony.SMS_RECEIVED`. `onReceive` reassembles the multipart message body and, if it has the shape of a v3 alert (exactly 612 characters: a 12-character pair tag and base64), begins the intrusion sequence. In strict order:
 
-1. Match the `IMPART_ALERT:` prefix and ignore everything else. If the node has been wiped by the duress PIN, stop here and stay dark.
+1. Apply the syntactic filter and ignore everything else. A body with the old `IMPART_ALERT:` prefix is reported as outdated. If the node has been wiped by the duress PIN, stop here and stay dark. Under the wake lock, `AlertRecognizer` matches the tag against the pair tags of the active contacts; no match means the text is not an alert for this node.
 2. Acquire the wake lock (below), call `goAsync()`, and move to the IO dispatcher. Nothing after this point runs on the main thread.
 3. Hand the ciphertext to `AlertVerifier`, which decrypts, splits the Ed25519 signature from the payload, finds the sender by UUID among active contacts, verifies the signature with the key stored at pairing, checks the alert is addressed to this node, checks its age (at most 24 hours old, at most 10 minutes in the future) and records its ID so it can never be accepted twice. The exact order and reasoning are in `03_SECURITY_PROTOCOL.md` section 4.3.
 4. Every verdict except acceptance posts a visible notification on the status channel: unreadable, malformed, outdated, unrecognized node, failed verification, misdirected, impossible time, too old, or repeated. None of them raises the alarm.

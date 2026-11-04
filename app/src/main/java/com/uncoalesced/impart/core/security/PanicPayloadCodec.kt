@@ -7,11 +7,8 @@ import org.json.JSONObject
 import java.security.SecureRandom
 import java.util.Base64
 
-// Every Impart SMS body is this prefix followed by base64 Tink ciphertext.
-const val IMPART_ALERT_PREFIX = "IMPART_ALERT:"
-
-// Decrypted alert from a build that predates signed alerts. Rejected, never trusted.
-class OutdatedAlertException : IllegalArgumentException("Alert uses the unsigned v1 format.")
+// Decrypted alert from a build that predates this wire format. Rejected, never trusted.
+class OutdatedAlertException : IllegalArgumentException("Alert uses an outdated wire format.")
 
 // The signature and the exact payload bytes it covers. The payload string is carried as-is
 // so the receiver verifies the same bytes the sender signed; nothing is re-serialized.
@@ -20,10 +17,17 @@ data class SignedAlert(val signatureBase64: String, val payloadJson: String)
 // The receive-side form: the payload stays a byte array so it can be zeroed after parsing.
 class SignedAlertBytes(val signatureBase64: String, val payloadBytes: ByteArray)
 
-// Wire format v2. Short keys keep a worst-case panic inside four SMS parts.
+// Wire format v3. Short keys keep a worst-case panic inside the padded size, and a "p" field
+// of random characters pads every payload to the same length so a panic cannot be told from
+// an acknowledgement by its size.
 object PanicPayloadCodec {
-    const val VERSION = 2
+    const val VERSION = 3
+    // A Tink Ed25519 signature is a 5-byte key prefix plus 64 bytes: 92 base64 characters,
+    // followed by the separator. AlertSizeTest pins this against the real keysets.
+    const val SIGNATURE_PREFIX_CHARS = 93
     private const val SEPARATOR = '.'
+    private const val KEY_PADDING = "p"
+    private const val PADDING_OVERHEAD = 7 // ,"p":""
     private const val KEY_VERSION = "v"
     private const val KEY_TYPE = "t"
     private const val KEY_FROM = "from"
@@ -42,7 +46,21 @@ object PanicPayloadCodec {
 
     fun newMessageId(): String = ByteArray(ID_BYTES).also { random.nextBytes(it) }.let(idEncoder::encodeToString)
 
-    fun encode(payload: PanicPayload): String {
+    // paddedTo: the exact length in UTF-8 bytes the JSON must reach. Every field is ASCII,
+    // so characters are bytes. A payload that is already longer is sent unpadded; the size
+    // test guarantees that never happens for a well-formed alert.
+    fun encode(payload: PanicPayload, paddedTo: Int = 0): String {
+        val bare = encodeBare(payload)
+        val room = paddedTo - bare.length - PADDING_OVERHEAD
+        if (room < 0) return bare
+        val padding = ByteArray((room * 3 + 3) / 4 + 1).also { random.nextBytes(it) }
+            .let(idEncoder::encodeToString)
+            .substring(0, room)
+        // Insert before the closing brace so the object stays one JSON value.
+        return bare.substring(0, bare.length - 1) + ",\"" + KEY_PADDING + "\":\"" + padding + "\"}"
+    }
+
+    private fun encodeBare(payload: PanicPayload): String {
         val json = JSONObject()
             .put(KEY_VERSION, VERSION)
             .put(KEY_TYPE, if (payload is PanicPayload.Ack) TYPE_ACK else TYPE_PANIC)

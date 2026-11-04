@@ -3,7 +3,7 @@
 
 Impart is a panic button for a small circle of people who trust each other. Hold the button on one phone and a paired phone wakes up, takes over the lock screen and sounds an alarm, even if it was asleep in a pocket with Do Not Disturb on.
 
-It runs over ordinary SMS. There is no server, no account, no push service and no internet permission. The only thing that ever leaves a phone is a text message whose body is `IMPART_ALERT:` followed by ciphertext. Your carrier sees that two numbers texted each other. It does not see what was said, or who inside the message sent it.
+It runs over ordinary SMS. There is no server, no account, no push service and no internet permission. The only thing that ever leaves a phone is a text message of fixed length whose body is a short per-pair tag followed by ciphertext. Your carrier sees that two numbers texted each other. It does not see what was said, who inside the message sent it, whether it was a panic or a reply, or that the app is Impart.
 
 Impart is not an emergency service. If someone is in danger, call your local emergency number first.
 

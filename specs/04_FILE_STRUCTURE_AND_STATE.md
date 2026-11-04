@@ -45,7 +45,7 @@ Impart/
         │   │   │   │                          validation; no android imports
         │   │   │   ├── AlertEnvelope.kt       sign-then-encrypt for outgoing alerts
         │   │   │   ├── AlertVerifier.kt       every check an incoming alert must pass; AlertVerdict
-        │   │   │   ├── PanicPayloadCodec.kt   IMPART_ALERT_PREFIX, v2 payload JSON, signed envelope,
+        │   │   │   ├── PanicPayloadCodec.kt   v3 payload JSON with padding, signed envelope,
         │   │   │   │                          message IDs
         │   │   │   ├── QrPayloadCodec.kt      v2 handshake QR JSON
         │   │   │   ├── KeyFingerprint.kt      80-bit fingerprint of a node's two public keys

@@ -10,10 +10,13 @@ import android.os.PowerManager
 import android.provider.Telephony
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.uncoalesced.impart.core.security.AlertRecognizer
 import com.uncoalesced.impart.core.security.AlertVerdict
+import com.uncoalesced.impart.core.security.AlertWire
 import com.uncoalesced.impart.core.security.AlertVerifier
 import com.uncoalesced.impart.core.security.DuressManager
-import com.uncoalesced.impart.core.security.IMPART_ALERT_PREFIX
+import com.uncoalesced.impart.core.security.LEGACY_ALERT_PREFIX
+import com.uncoalesced.impart.core.security.Recognition
 import com.uncoalesced.impart.core.util.Redact
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.domain.model.Contact
@@ -41,6 +44,9 @@ class ImpartSmsReceiver : BroadcastReceiver() {
     lateinit var alertVerifier: AlertVerifier
 
     @Inject
+    lateinit var alertRecognizer: AlertRecognizer
+
+    @Inject
     lateinit var securePrefsManager: SecurePrefsManager
 
     @Inject
@@ -50,7 +56,8 @@ class ImpartSmsReceiver : BroadcastReceiver() {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         val body = messages.joinToString(separator = "") { it.messageBody.orEmpty() }
-        if (!body.startsWith(IMPART_ALERT_PREFIX)) return
+        // Syntactic filter only: an ordinary text never costs a wake lock or a database read.
+        if (!body.startsWith(LEGACY_ALERT_PREFIX) && !AlertWire.couldBeAlert(body)) return
 
         if (duressManager.isCorrupted.value) {
             Log.w(TAG, "Alert ignored: this node has been wiped")
@@ -67,8 +74,14 @@ class ImpartSmsReceiver : BroadcastReceiver() {
         // unstructured; the wake lock timeout is the upper bound on its life.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                val verdict = alertVerifier.verify(body.removePrefix(IMPART_ALERT_PREFIX), securePrefsManager.localUuid())
-                handle(appContext, verdict)
+                when (val recognition = alertRecognizer.recognize(body)) {
+                    Recognition.NotAnAlert -> Unit
+                    Recognition.OutdatedPrefix -> handle(appContext, AlertVerdict.Outdated)
+                    is Recognition.Alert -> handle(
+                        appContext,
+                        alertVerifier.verify(recognition.ciphertextBase64, securePrefsManager.localUuid(), recognition.tag)
+                    )
+                }
             } catch (t: Throwable) {
                 Log.e(TAG, "Intrusion pipeline failed", t)
                 status(
@@ -95,7 +108,7 @@ class ImpartSmsReceiver : BroadcastReceiver() {
             )
             AlertVerdict.Outdated -> status(
                 context, ImpartNotifications.ID_UNREADABLE, "ALERT FROM AN OUTDATED VERSION",
-                "An Impart alert arrived in the old unsigned format. Update Impart on both phones and pair again."
+                "An Impart alert arrived in an old wire format. Update Impart on both phones and pair again."
             )
             AlertVerdict.UnknownSender -> status(
                 context, ImpartNotifications.ID_UNKNOWN_SENDER, "ALERT FROM UNRECOGNIZED NODE",
@@ -104,6 +117,10 @@ class ImpartSmsReceiver : BroadcastReceiver() {
             is AlertVerdict.BadSignature -> security(
                 context, "ALERT FAILED VERIFICATION",
                 "An alert claiming to be from ${verdict.claimedSender.displayName} failed its signature check. Someone may be impersonating them. No alarm was raised."
+            )
+            is AlertVerdict.TagMismatch -> security(
+                context, "ALERT WITH A MISMATCHED TAG",
+                "An alert signed by ${verdict.sender.displayName} arrived under another pair's tag. It may have been relayed or tampered with. No alarm was raised."
             )
             is AlertVerdict.NotForThisNode -> security(
                 context, "MISDIRECTED ALERT",
