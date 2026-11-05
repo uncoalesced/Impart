@@ -54,7 +54,7 @@ Disagreements found during orientation, each owned by a later task:
 ## T05: Manifest and component audit, plus the no-INTERNET CI job
 
 - [x] `manifest-check.sh` runs in CI on both workflows. (`manifest` job in `development.yml` and `main.yml`; T05 commit)
-- [x] A deliberate test commit adding INTERNET made the job fail (link the failed run, then revert). (b4b5226 let the library INTERNET permission through; the manifest job failed: https://github.com/uncoalesced/Impart/actions/runs/41891997330/job/126791540861; reverted by the next commit)
+- [x] A deliberate test commit adding INTERNET made the job fail (link the failed run, then revert). (ac155a1, was b4b5226 before the identity rewrite, let the library INTERNET permission through; the manifest job failed: https://github.com/uncoalesced/Impart/actions/runs/41891997330/job/126791540861; reverted by the next commit)
 - [x] Component list documented in spec 04. (spec 04 section 4.1; T05 commit)
 
 Finding: before T05 the merged manifest of every variant carried `android.permission.INTERNET` (from `com.google.android.datatransport:transport-backend-cct`, ML Kit's telemetry backend) and `ACCESS_NETWORK_STATE` (WorkManager). Both are now removed at merge time. Pending Joel: replace ML Kit barcode scanning with the bundled ZXing decoder and fused location with `LocationManager`, which would remove every Google component from the APK.
@@ -156,7 +156,7 @@ Design change: the decoy flag moved out of the encrypted preferences into `share
 
 ## CI evidence
 
-- First full green `development CI` run with the security code of T02 to T10 on the branch: bb97923, https://github.com/uncoalesced/Impart/actions/runs/41897076643 (coding standards, gradle wrapper validation, android debug build + test + lint, merged manifest check, android release build with R8). Earlier heads were cancelled by the next push under the workflow's `cancel-in-progress` rule, which is why only the latest head of a series carries a completed run.
+- First full green `development CI` run with the security code of T02 to T10 on the branch: fed2292 (was bb97923 before the identity rewrite), https://github.com/uncoalesced/Impart/actions/runs/41897076643 (coding standards, gradle wrapper validation, android debug build + test + lint, merged manifest check, android release build with R8). Earlier heads were cancelled by the next push under the workflow's `cancel-in-progress` rule, which is why only the latest head of a series carries a completed run.
 
 ## Definition of done (brief section 8)
 
@@ -176,4 +176,6 @@ Record each question asked and Joel's answer, with the date.
 - 2026-11-04, T07 wire format: measurements in spec 03 section 6.1 (panic 413 to 481 chars, ACK 457, 3 parts, worst case 4). Joel: bump to v3, pad every alert to 4 parts and replace the `IMPART_ALERT:` prefix with a per-pair tag. Every phone updates and re-pairs; spec 08 says so.
 - 2026-11-04, T04 overlay permission: Joel: add `android.permission.HIDE_OVERLAY_WINDOWS` and call `setHideOverlayWindows(true)` on API 31+.
 - 2026-11-04, Google components: Joel: replace ML Kit barcode scanning with ZXing and Play Services fused location with `LocationManager`, as task T21 after T09, so the APK carries no Google code.
+- 2026-11-05, commit identity (Joel, PR #8 comment and chat): every commit is `uncoalesced <mail@uncoalesced.com>`, with no Gmail or Anthropic address and no `Co-Authored-By` trailer. The 21 commits after `dd2c273` were rewritten with an identical tree and force-pushed with a lease (old head `b64c4a1`, new head `f0feb47`). CI run links recorded before that point still name the old hashes.
+- 2026-11-05, community files (Joel, PR #8 comment): add SECURITY.md, CODE_OF_CONDUCT.md, CONTRIBUTING.md and the other standard repository files. Done in T19.
 - 2026-11-04, T09 CodeQL: Joel will enable GitHub code scanning on the repository, so the upload step is strict. If the first run still refuses the upload, make it tolerant and tell him.
