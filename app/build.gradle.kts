@@ -18,7 +18,8 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Swaps in the Hilt test application (T17).
+        testInstrumentationRunner = "com.uncoalesced.impart.HiltTestRunner"
     }
 
     signingConfigs {
@@ -163,4 +164,13 @@ dependencies {
     // JVM unit tests. org.json ships a real JSONObject so the codecs run without an emulator.
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
+
+    // Instrumented tests (T17): Compose UI tests on an emulator, with a fake RelayManager.
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
 }

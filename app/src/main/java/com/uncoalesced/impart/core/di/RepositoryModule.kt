@@ -17,7 +17,6 @@ import com.uncoalesced.impart.data.local.AndroidWipeSideEffects
 import com.uncoalesced.impart.data.local.AndroidWipeTargets
 import com.uncoalesced.impart.data.local.prefs.PlainDecoyFlagStore
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
-import com.uncoalesced.impart.data.remote.RelayManagerImpl
 import com.uncoalesced.impart.data.repository.ContactRepositoryImpl
 import com.uncoalesced.impart.data.repository.SeenAlertStoreImpl
 import com.uncoalesced.impart.data.sms.TelephonyProviderSmsStore
@@ -25,7 +24,6 @@ import com.uncoalesced.impart.data.repository.SystemMonotonicClock
 import com.uncoalesced.impart.data.repository.SystemWallClock
 import com.uncoalesced.impart.domain.repository.ContactRepository
 import com.uncoalesced.impart.domain.repository.MonotonicClock
-import com.uncoalesced.impart.domain.repository.RelayManager
 import com.uncoalesced.impart.domain.repository.SeenAlertStore
 import com.uncoalesced.impart.domain.repository.SmsStore
 import com.uncoalesced.impart.domain.repository.WallClock
@@ -39,9 +37,6 @@ import dagger.hilt.components.SingletonComponent
 abstract class RepositoryModule {
     @Binds
     abstract fun bindContactRepository(impl: ContactRepositoryImpl): ContactRepository
-
-    @Binds
-    abstract fun bindRelayManager(impl: RelayManagerImpl): RelayManager
 
     @Binds
     abstract fun bindKeysetSource(impl: KeystoreHelper): KeysetSource
