@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.sp
 import com.uncoalesced.impart.R
 
 // Both families are bundled in res/font under the SIL Open Font License (design/fonts/).
-// Nothing is downloaded: downloadable fonts need Play Services and the network.
+// Nothing is downloaded: downloadable fonts need Google Play services and the network.
 
 // Headings, the wordmark, numbers, PINs, fingerprints, timestamps, phone numbers: anything a
 // person compares character by character.

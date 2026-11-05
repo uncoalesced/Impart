@@ -213,7 +213,7 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 | A4-3 | Carrier records show that number A texted number B at a time, in N parts | out of reach | SMS has no metadata privacy. Stated in section 5, the README and the privacy policy | n/a | T19 |
 | A4-4 | A screenshot or screen recording of the app | mitigated | `FLAG_SECURE` on both activities and, through `SecureDialog`/`SecureAlertDialog`, on every dialog window | `WindowHardeningSourceTest` | T04 (done) |
 | A4-5 | Learn that the phone runs Impart from the launcher | partly | The Calculator cloak (`CloakManager`) renames the launcher entry; the package name still says `com.uncoalesced.impart` to anything that lists packages | manual | documented |
-| A4-6 | Learn the user's location from an alert | mitigated | Coordinates are opt-in, inside the ciphertext, and present only when location sharing is on. The fix is asked from Play Services' fused provider in Google's own process; that process, not Impart, has network access | `PanicPayloadCodecTest` | T19 documents the Play Services point |
+| A4-6 | Learn the user's location from an alert | mitigated | Coordinates are opt-in, inside the ciphertext, and present only when location sharing is on. Since T21 the fix comes from Android's `LocationManager` (GPS, then network), at most 8 s, never older than 2 min (`LocationPolicy`); no Play Services. The platform's network location provider may be run by Google or the OEM in their own process; PRIVACY.md says so | `PanicPayloadCodecTest`, `LocationPolicyTest` | T21 (done) |
 | A4-7 | Logcat over ADB | mitigated | Numbers become `***67`, contacts become UUID prefixes (`Redact`); names, payloads and keys are never logged | `RedactTest`; T19 grep of the final diff | done |
 
 ### A5: hostile app on the same phone
@@ -260,7 +260,7 @@ Status values: **mitigated** (the attack fails, and a test or a cited line prove
 | A8-3 | A compromised GitHub Action | mitigated | Every action is pinned to a full commit SHA with the version in a comment; every workflow runs with `contents: read` and only the CodeQL job may write security events | review of `.github/workflows/*.yml` | T09 (done) |
 | A8-4 | A fake update APK | mitigated for release builds | A release signed with Joel's private key (REPORT section 9) cannot be replaced by an APK signed with any other key; the deployment workflow fails without all four secrets and on a debug-signed output; the readiness card shows the certificate | `verify-release-signature.sh`, `SigningIdentityTest` | T11 (done) |
 | A8-5 | A change that adds a network path | mitigated | `manifest-check.sh` fails CI on `INTERNET`, `ACCESS_NETWORK_STATE` or `ACCESS_WIFI_STATE` in the merged manifest of either variant, on a debuggable release, on backups, on cleartext traffic and on an exported component without a permission | `manifest` job in both workflows; deliberate INTERNET commit (ledger) | T05 (done) |
-| A8-6 | A dependency that phones home | mitigated | Found during T05: ML Kit's telemetry backend was adding `INTERNET` to the merged manifest, so until then the APK could open a socket. It is now removed at merge time, so no socket can be opened from this process whatever a library wants. The telemetry pipeline (datatransport) is still in the APK and fails at the socket; Play Services location runs in Google's process (A4-6). Replacing ML Kit and fused location is pending Joel | `manifest` job | T05 (done), T19 |
+| A8-6 | A dependency that phones home | mitigated | Found during T05: ML Kit's telemetry backend was adding `INTERNET` to the merged manifest. T05 removed the permission at merge time; T21 removed ML Kit, its telemetry pipeline and Play Services location from the build entirely (ZXing decodes QR codes on the device, `LocationManager` gives the fix). The F-Droid job in `main.yml` now fails if any of them returns | `manifest` job, `fdroid-readiness` job | T05, T21 (done) |
 | A8-7 | Hostile code hidden in a shrunk release | partly | Every release build's `mapping.txt` is a CI artifact, so a shrunk APK can be read back against the source that built it; the build itself runs only from this repository's workflows | `release-mapping` artifacts | T10 (done) |
 
 ### 6.1 Metadata
@@ -300,7 +300,7 @@ The inventory (`WipeInventory`, asserted by `DuressWiperTest` and `DuressManager
 | `shared_prefs/androidx.work.util.preferences.xml`, `androidx.work.util.id.xml` | WorkManager bookkeeping | Deleted |
 | `databases/impart_database` and `-wal`, `-shm`, `-journal` | Room, SQLCipher-encrypted | Closed, then deleted with every sidecar |
 | `databases/androidx.work.workdb*`, `no_backup/androidx.work.workdb*` | WorkManager's queue (the dead man's switch) | Work cancelled first, then deleted |
-| `databases/com.google.android.datatransport.events*` | ML Kit's telemetry queue | Deleted (gone for good with T21) |
+| `databases/com.google.android.datatransport.events*` | ML Kit's telemetry queue, left by builds before T21 | Deleted; current builds never create it |
 | `files/`, `cache/`, `code_cache/`, `no_backup/` | everything inside | Deleted recursively |
 | Keystore `_androidx_security_master_key_` | wraps the encrypted preferences' keysets | Deleted |
 | Keystore `impart_master_key` | wraps the Tink keysets | Deleted |

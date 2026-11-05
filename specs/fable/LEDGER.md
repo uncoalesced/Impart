@@ -27,7 +27,7 @@ Disagreements found during orientation, each owned by a later task:
 
 - [x] Spec 03 section 6 has rows for all eight adversaries, each with status, defense, test and owner task. (T01 commit: 60 rows, A1-1 to A8-7)
 - [x] Every open row maps to a task ID. (T01 commit: open rows map to T02, T03, T04, T05, T07, T08, T09, T10, T11, T14)
-- [x] Any new task files are listed in the ledger. (none needed: every open attack has an owner among T02 to T19)
+- [x] Any new task files are listed in the ledger. (none needed for T01 itself: every open attack had an owner among T02 to T19. T21 was added later from the T05 audit and has its own section below)
 
 ## T02: PINs are verified, never stored
 
@@ -131,6 +131,15 @@ Note: the Calculator cloak icon read the old navy through `colors.xml`. It now h
 - [x] Kotlin table matches the JSON (test). (`ImpartMarkTest.kotlin table matches the committed cell list` reads `design/impart-mark.cells.json`; T16 commit)
 - [x] Center cell never drawn (test). (`ImpartMarkCells.drawable()` filters (4, 4) and `ImpartMark` draws only that list; `ImpartMarkTest.the center cell is never drawn`; T16 commit)
 - [x] Mark visible on the lock, legal and About screens. (`ImpartLockup` on `AppLockScreen`, `LegalAcceptanceScreen` and the Settings About section, which also shows version, build type, the short signing-certificate fingerprint and the legal documents; hidden under the Calculator cloak and never on the decoy, asserted by `ImpartMarkTest`; device check in spec 08; T16 commit)
+
+## T21: No Google components in the APK
+
+Added 2026-11-04 after the T05 audit; Joel approved in chat. Task file `specs/fable/tasks/T21-no-google-components.md`.
+
+- [x] No `com.google.android.gms`, `com.google.mlkit`, `firebase` or `datatransport` in the dependency graph or the merged manifest. (`./gradlew :app:dependencies --configuration releaseRuntimeClasspath` and the merged release manifest show none; the `fdroid-readiness` job in `main.yml` now fails if one returns; T21 commit)
+- [x] QR decode logic unit-tested on the JVM with a generated QR image. (`QrFrameDecoderTest`: a real handshake QR in a landscape frame, rotated, and with padded rows; T21 commit)
+- [x] Location timeout and provider order unit-tested. (`LocationPolicyTest`; T21 commit)
+- [x] Docs updated. (PRIVACY.md location bullet, TERMS.md third-party list, spec 03 rows A4-6 and A8-6 and section 6.2, spec 04 section 4.1, CLAUDE.md, both workflows; T21 commit)
 
 ## T17: Instrumented Compose tests and an emulator CI job
 

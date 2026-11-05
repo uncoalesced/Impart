@@ -12,8 +12,6 @@ androidxHilt = "1.2.0"
 tink = "1.12.0"
 zxing = "3.5.3"
 camerax = "1.4.1"
-mlkitBarcode = "17.3.0"
-playServicesLocation = "21.3.0"
 workManager = "2.9.0"
 securityCrypto = "1.1.0-alpha06"
 sqlcipher = "4.17.0"
@@ -59,10 +57,6 @@ camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = 
 camerax-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
-mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcode" }
-
-# Location
-play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 
 # Tests
 junit = { group = "junit", name = "junit", version.ref = "junit" }

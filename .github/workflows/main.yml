@@ -79,21 +79,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      # F-Droid's main repo builds from source and rejects non-free
-      # dependencies. Transport is SMS-only (no Firebase). Until T21 lands the app
-      # still depends on Google Play Services (location) and ML Kit (barcode), which
-      # are proprietary. Report them so promotion is a conscious decision, not a
-      # surprise rejection. Warn (do not fail) - a GMS build can still ship via
-      # IzzyOnDroid or a Play-only release.
+      # F-Droid's main repo builds from source and rejects non-free dependencies, and
+      # brief rule 10 forbids Play Services, Firebase and ML Kit outright. T21 removed the
+      # last of them, so a return is a failure, not a warning.
       - name: Scan for non-free dependencies
         run: |
-          hits=$(grep -nE 'firebase|play-services|com\.google\.mlkit|gms' app/build.gradle.kts || true)
+          hits=$(grep -rnE 'firebase|play-services|com\.google\.mlkit|com\.google\.android\.gms|datatransport' app/build.gradle.kts gradle/libs.versions.toml || true)
           if [ -n "$hits" ]; then
             echo "$hits"
-            echo "::warning::proprietary Google dependencies present - blocks F-Droid main repo inclusion (OK for IzzyOnDroid / Play). See specs/06 roadmap."
-          else
-            echo "no proprietary Google dependencies detected"
+            echo "::error::a proprietary Google dependency is back. Impart ships none (brief rule 10, T21)."
+            exit 1
           fi
+          echo "no proprietary Google dependencies detected"
 
   manifest:
     name: merged manifest check (no network, no unprotected exports)

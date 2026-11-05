@@ -37,7 +37,7 @@ There is no backend and no `functions/` directory. `namespace` and `applicationI
 `development` -> `main` -> `deployment`. Stores pull from `deployment`. Workflows in `.github/workflows/`:
 
 - `development.yml` (push or PR to `development`): `assembleDebug testDebugUnitTest lintDebug` plus the standards script. This is the gate for feature branches.
-- `main.yml` (push or PR to `main`): an unsigned release build, `bundleRelease`, a `versionCode` check, an F-Droid readiness scan (warns about Play Services and ML Kit, does not fail), and a summary job.
+- `main.yml` (push or PR to `main`): an unsigned release build, `bundleRelease`, a `versionCode` check, an F-Droid readiness scan (fails if Play Services, Firebase or ML Kit return), the manifest check, wrapper validation, and a summary job.
 - `deployment.yml` (push to `deployment` or manual): signed AAB and APK as workflow artifacts. It never auto-publishes.
 
 Release signing is env-driven: `app/build.gradle.kts` wires the release signing config only when `RELEASE_KEYSTORE_PATH` and friends are set. The debug keystore is public, so debug builds are for testing only; the readiness card says so on-device.

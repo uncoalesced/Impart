@@ -153,16 +153,12 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.sqlcipher.android)
 
-    // CameraX & Barcode
+    // CameraX for the preview and frames; ZXing decodes the QR on the device (T21).
     implementation(libs.zxing.core)
     implementation(libs.camerax.core)
     implementation(libs.camerax.camera2)
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
-    implementation(libs.mlkit.barcode.scanning)
-
-    // Location
-    implementation(libs.play.services.location)
 
     // JVM unit tests. org.json ships a real JSONObject so the codecs run without an emulator.
     testImplementation(libs.junit)

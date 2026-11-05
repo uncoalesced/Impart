@@ -162,12 +162,9 @@ Components in the merged manifest:
 | WorkManager alarm services, constraint proxies, reschedule receiver, `ForceStopRunnable$BroadcastReceiver` | no | | WorkManager | |
 | `MultiInstanceInvalidationService` | no | | Room | |
 | `MetadataHolderService` | no | | CameraX | |
-| `MlKitComponentDiscoveryService`, `MlKitInitProvider` | no | | ML Kit | Barcode model is bundled; nothing is downloaded |
-| `GoogleApiActivity` | no | | Play Services | |
-| `TransportBackendDiscovery`, `JobInfoSchedulerService`, `AlarmManagerSchedulerBroadcastReceiver` | no | | datatransport (via ML Kit) | ML Kit's telemetry pipeline. With `INTERNET` removed its uploads fail at the socket and are retried into nothing |
 | `androidx.compose.ui.tooling.PreviewActivity` | removed | | ui-tooling (debug) | Was exported without a permission in debug builds |
 
-Open: ML Kit and Play Services location are the only Google code in the APK, and the datatransport pipeline exists only to serve ML Kit. Replacing ML Kit with the ZXing decoder already in the dependency list, and fused location with `LocationManager`, would remove all of it. Joel's call (asked during T05).
+Since T21 (Joel, 2026-11-04) no Google Play services, Firebase, ML Kit or datatransport component is in the merged manifest or the dependency graph: ZXing decodes QR codes from CameraX frames and `LocationManager` gives the location fix. The `tools:node="remove"` lines for network permissions stay as defence in depth.
 
 ## 5. State conventions
 

@@ -60,8 +60,11 @@ Impart is built on other open-source and third-party components:
 - AndroidX, Jetpack Compose, Room, CameraX and WorkManager, under the Apache License 2.0.
 - Kotlin, kotlinx.coroutines and Dagger Hilt, under the Apache License 2.0.
 - Google Tink, the encryption library, under the Apache License 2.0.
-- ZXing, for drawing QR codes, under the Apache License 2.0.
-- Google ML Kit barcode scanning and Google Play services location, under Google's own terms.
+- ZXing, for drawing and reading QR codes, under the Apache License 2.0.
+- SQLCipher for Android, which encrypts the contact database, under its BSD-style license.
+- JetBrains Mono and IBM Plex Sans, the bundled fonts, under the SIL Open Font License 1.1.
+
+Impart contains no Google Play services, Firebase or ML Kit code.
 
 The license does not give you the right to use the names Impart or uncoalesced to promote your own version. If you publish a changed version, give it a different name.
 

@@ -28,7 +28,7 @@ object WipeInventory {
     // WorkManager keeps its work database under no_backup on recent versions and under
     // databases on older ones; both locations are covered.
     const val WORK_DATABASE = "androidx.work.workdb"
-    // ML Kit's telemetry queue (datatransport). Present until T21 removes ML Kit.
+    // ML Kit's telemetry queue (datatransport), left on disk by builds before T21.
     const val DATATRANSPORT_DATABASE = "com.google.android.datatransport.events"
 
     const val SECURE_PREFS = "impart_node_secure_prefs"
