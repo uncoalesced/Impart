@@ -128,9 +128,9 @@ Note: the Calculator cloak icon read the old navy through `colors.xml`. It now h
 
 ## T16: The Impart mark inside the app
 
-- [ ] Kotlin table matches the JSON (test).
-- [ ] Center cell never drawn (test).
-- [ ] Mark visible on the lock, legal and About screens.
+- [x] Kotlin table matches the JSON (test). (`ImpartMarkTest.kotlin table matches the committed cell list` reads `design/impart-mark.cells.json`; T16 commit)
+- [x] Center cell never drawn (test). (`ImpartMarkCells.drawable()` filters (4, 4) and `ImpartMark` draws only that list; `ImpartMarkTest.the center cell is never drawn`; T16 commit)
+- [x] Mark visible on the lock, legal and About screens. (`ImpartLockup` on `AppLockScreen`, `LegalAcceptanceScreen` and the Settings About section, which also shows version, build type, the short signing-certificate fingerprint and the legal documents; hidden under the Calculator cloak and never on the decoy, asserted by `ImpartMarkTest`; device check in spec 08; T16 commit)
 
 ## T17: Instrumented Compose tests and an emulator CI job
 

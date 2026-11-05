@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import com.uncoalesced.impart.presentation.components.ImpartLockup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -30,7 +31,7 @@ import com.uncoalesced.impart.presentation.theme.*
 // Shown once, before anything else, and again whenever LegalDocument.CURRENT_VERSION moves.
 // The card uses amber, not panic red: this is a warning, not an emergency.
 @Composable
-fun LegalAcceptanceScreen(viewModel: LegalViewModel, onDecline: () -> Unit) {
+fun LegalAcceptanceScreen(viewModel: LegalViewModel, onDecline: () -> Unit, showMark: Boolean = true) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     if (state != LegalDocumentState.Closed) {
         LegalDocumentScreen(state = state, onBack = viewModel::close, onRetry = viewModel::open)
@@ -44,7 +45,11 @@ fun LegalAcceptanceScreen(viewModel: LegalViewModel, onDecline: () -> Unit) {
             .verticalScroll(rememberScrollState())
             .padding(24.dp)
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        if (showMark) {
+            ImpartLockup(markSize = 64.dp, modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(16.dp))
+        }
         Text(text = "BEFORE YOU START", color = ImpartTextMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Spacer(modifier = Modifier.height(8.dp))
         Text(text = "Impart pages people you trust. Read this first.", color = ImpartTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)

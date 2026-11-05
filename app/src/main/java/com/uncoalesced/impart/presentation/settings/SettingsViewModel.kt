@@ -8,7 +8,12 @@ import com.uncoalesced.impart.core.security.CryptoManager
 import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.security.KeyFingerprint
 import com.uncoalesced.impart.core.security.KeyGeneration
+import android.content.Context
+import com.uncoalesced.impart.core.security.CloakManager
+import com.uncoalesced.impart.core.security.SigningIdentity
 import com.uncoalesced.impart.core.security.UnlockResult
+import com.uncoalesced.impart.core.util.InstalledSignature
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.uncoalesced.impart.core.sms.DefaultSmsRole
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.domain.usecase.RotateKeysUseCase
@@ -32,8 +37,19 @@ class SettingsViewModel @Inject constructor(
     private val securePrefsManager: SecurePrefsManager,
     private val rotateKeysUseCase: RotateKeysUseCase,
     private val keyGeneration: KeyGeneration,
-    private val defaultSmsRole: DefaultSmsRole
+    private val defaultSmsRole: DefaultSmsRole,
+    cloakManager: CloakManager,
+    @ApplicationContext context: Context
 ) : ViewModel() {
+
+    // About section (T16). The mark is hidden while the Calculator cloak is on.
+    val isCloaked: StateFlow<Boolean> = cloakManager.isCloaked
+
+    // Short fingerprint of the certificate this install was signed with, and whether it is the
+    // public debug key, so two phones can compare builds by eye.
+    val signingCertificate: String = InstalledSignature.certificates(context).lastOrNull()?.let { der ->
+        SigningIdentity.shortFingerprint(der) + if (SigningIdentity.isDebugCertificate(der)) " (public debug key)" else ""
+    } ?: "Unreadable"
 
     // Default SMS app mode (T14). The system is the source of truth; re-read on demand.
     private val _isDefaultSmsApp = MutableStateFlow(defaultSmsRole.isDefault())

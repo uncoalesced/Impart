@@ -8,10 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -31,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.uncoalesced.impart.presentation.theme.ImpartMono
 import com.uncoalesced.impart.core.security.PinEntry
 import com.uncoalesced.impart.core.security.UnlockResult
+import com.uncoalesced.impart.presentation.components.ImpartLockup
 import com.uncoalesced.impart.presentation.components.PinPad
 import com.uncoalesced.impart.presentation.theme.ImpartWarning
 import com.uncoalesced.impart.presentation.theme.ImpartGround
@@ -47,6 +44,8 @@ private fun secondsOf(millis: Long): Long = (millis + 999L) / 1000L
 @Composable
 fun AppLockScreen(
     shufflePad: Boolean,
+    // False while the Calculator cloak is on: nothing on this screen may name Impart.
+    showMark: Boolean = true,
     onSubmit: (CharArray) -> UnlockResult
 ) {
     val entry = remember { PinEntry() }
@@ -74,9 +73,11 @@ fun AppLockScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Default.Lock, contentDescription = null, tint = ImpartTextMuted, modifier = Modifier.size(48.dp))
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "IMPART LOCKED", color = ImpartTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+        if (showMark) {
+            ImpartLockup(markSize = 72.dp)
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+        Text(text = if (showMark) "IMPART LOCKED" else "LOCKED", color = ImpartTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
         Spacer(modifier = Modifier.height(8.dp))
         Text(text = "ENTER YOUR PIN", color = ImpartTextMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Spacer(modifier = Modifier.height(24.dp))

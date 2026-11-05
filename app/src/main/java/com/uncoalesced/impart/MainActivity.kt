@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uncoalesced.impart.presentation.theme.ImpartSurfaceRaised
 import com.uncoalesced.impart.presentation.theme.ImpartMono
 import com.uncoalesced.impart.core.security.AppLockManager
+import com.uncoalesced.impart.core.security.CloakManager
 import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.sms.DefaultSmsRole
 import com.uncoalesced.impart.presentation.messages.MessagesScreen
@@ -104,6 +105,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var defaultSmsRole: DefaultSmsRole
 
+    @Inject
+    lateinit var cloakManager: CloakManager
+
     // Who holds the SMS role can change in system settings while the app is away, so it is
     // re-read on every resume. The Texts tab exists only while Impart holds it.
     private val isDefaultSmsApp = MutableStateFlow(false)
@@ -126,6 +130,7 @@ class MainActivity : ComponentActivity() {
                 val pinsChosen by securePrefsManager.hasCustomPins.collectAsStateWithLifecycle()
                 val unlocked by appLockManager.isUnlocked.collectAsStateWithLifecycle()
                 val shufflePad by securePrefsManager.shufflePinPad.collectAsStateWithLifecycle()
+                val cloaked by cloakManager.isCloaked.collectAsStateWithLifecycle()
 
                 // Order matters. The decoy wins over everything once the duress PIN has fired.
                 // Then the terms (first run, or after they change), then choosing PINs, then
@@ -134,7 +139,8 @@ class MainActivity : ComponentActivity() {
                     corrupted -> NodeCorruptedScreen()
                     acceptedLegal < LegalDocument.CURRENT_VERSION -> LegalAcceptanceScreen(
                         viewModel = hiltViewModel(),
-                        onDecline = { finish() }
+                        onDecline = { finish() },
+                        showMark = !cloaked
                     )
                     !pinsChosen -> Box(modifier = Modifier.fillMaxSize().background(ImpartGround)) {
                         PinSetupDialog(
@@ -146,7 +152,7 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     }
-                    !unlocked -> AppLockScreen(shufflePad = shufflePad, onSubmit = appLockManager::submitPin)
+                    !unlocked -> AppLockScreen(shufflePad = shufflePad, showMark = !cloaked, onSubmit = appLockManager::submitPin)
                     else -> {
                         LaunchedEffect(Unit) { requestMissingPermissions() }
                         val smsDefault by isDefaultSmsApp.collectAsStateWithLifecycle()

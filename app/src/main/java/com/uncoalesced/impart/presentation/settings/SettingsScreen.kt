@@ -49,6 +49,7 @@ import com.uncoalesced.impart.presentation.legal.LegalDocumentState
 import com.uncoalesced.impart.presentation.legal.LegalViewModel
 import com.uncoalesced.impart.presentation.security.ChangePinsFlow
 import com.uncoalesced.impart.presentation.security.SecurityAuthDialog
+import com.uncoalesced.impart.presentation.components.ImpartLockup
 import com.uncoalesced.impart.presentation.components.SecureAlertDialog
 import androidx.compose.material3.TextButton
 import com.uncoalesced.impart.presentation.theme.*
@@ -61,6 +62,7 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
     var showChangePins by remember { mutableStateOf(false) }
     val wipeAfterFailures by settingsViewModel.wipeAfterFailedAttempts.collectAsStateWithLifecycle()
     val shufflePad by settingsViewModel.shufflePinPad.collectAsStateWithLifecycle()
+    val cloaked by settingsViewModel.isCloaked.collectAsStateWithLifecycle()
     var pendingWipeToggle by remember { mutableStateOf<Boolean?>(null) }
     var rotateStep by remember { mutableStateOf(RotateStep.IDLE) }
     val isDefaultSms by settingsViewModel.isDefaultSmsApp.collectAsStateWithLifecycle()
@@ -167,12 +169,6 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
             modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
         )
 
-        Section("LEGAL") {
-            LegalDocument.entries.forEachIndexed { index, document ->
-                if (index > 0) Divider()
-                NavRow(title = document.title) { legalViewModel.open(document) }
-            }
-        }
 
         Section("SMS APP MODE") {
             SwitchRow(
@@ -231,8 +227,28 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
         }
 
         Section("ABOUT") {
-            InfoRow(title = "Version", value = BuildConfig.VERSION_NAME + if (BuildConfig.DEBUG) " (debug build)" else "")
+            if (!cloaked) {
+                ImpartLockup(
+                    markSize = 72.dp,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                )
+                Divider()
+            }
+            InfoRow(title = "Version", value = BuildConfig.VERSION_NAME, monospace = true)
             Divider()
+            InfoRow(title = "Build type", value = if (BuildConfig.DEBUG) "Debug, for testing only" else "Release")
+            Divider()
+            InfoRow(
+                title = "Signing certificate",
+                value = settingsViewModel.signingCertificate,
+                monospace = true,
+                hint = "SHA-256, first 16 hex digits. Every phone in your group should show the same value for the same release."
+            )
+            Divider()
+            LegalDocument.entries.forEach { document ->
+                NavRow(title = document.title) { legalViewModel.open(document) }
+                Divider()
+            }
             InfoRow(title = "License", value = "Apache License 2.0")
             Divider()
             NavRow(title = "Source code", subtitle = LegalDocument.SOURCE_URL) {
