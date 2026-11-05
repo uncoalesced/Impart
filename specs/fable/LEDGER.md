@@ -154,10 +154,10 @@ Added 2026-11-04 after the T05 audit; Joel approved in chat. Task file `specs/fa
 
 ## T19: Docs match the code
 
-- [ ] LegalDocumentParserTest green.
-- [ ] CURRENT_VERSION bumped once.
-- [ ] Search terms used for unbacked claims listed in the ledger, none left.
-- [ ] `SECURITY.md` present at the repository root (asked by Joel in chat, 2026-11-04).
+- [x] LegalDocumentParserTest green. (parses the rewritten TERMS.md and PRIVACY.md; T19 commit)
+- [x] CURRENT_VERSION bumped once. (`LegalDocument.CURRENT_VERSION` 2 to 3, the only bump on this branch; T19 commit)
+- [x] Search terms used for unbacked claims listed in the ledger, none left. (searched every Markdown file, case-insensitive, for: unbreakable, military, untraceable, cannot be traced, can't be traced, impossible, Keystore-only, secure delete, securely delete, secure overwrite, 100%, fully secure, completely secure, guarantee, bulletproof, hackproof, zero risk, anonymous. Fixed: the manifesto's "impossible to spoof" UUIDs, spec 02's "cannot abortBroadcast" inbox claim and its missing-onboarding claim. Remaining matches are honest by context: "100% Kotlin", "not guaranteed", "ALERT WITH AN IMPOSSIBLE TIME", "no claim of secure overwrite", "a reduction of exposure, not a guarantee", and the honesty rule itself; T19 commit)
+- [x] `SECURITY.md` present at the repository root (asked by Joel in chat, 2026-11-04). (with CODE_OF_CONDUCT.md, CONTRIBUTING.md, SUPPORT.md, CHANGELOG.md, the PR template and issue templates, asked by Joel on PR #8; T19 commit)
 
 ## T20: Hand back to Joel
 

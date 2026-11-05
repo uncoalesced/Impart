@@ -17,12 +17,14 @@ An encrypted settings file, locked with a key held in your phone's Android Keyst
 - Your own phone number, as you typed it on the My QR screen.
 - A random salt and a keyed hash for each of your two PINs, plus a count of recent wrong PIN attempts. The PINs themselves are not stored. The key for the hash lives in the Android Keystore and cannot be copied out, so a copy of the settings file cannot be used to guess your PINs on another computer.
 - Your dead man's switch interval and last check-in time.
-- Whether location sharing is on.
+- Your settings: whether location sharing is on, whether the PIN pad is shuffled, whether 20 wrong PINs wipe the app, and whether you confirmed your phone maker's background settings.
 - Which version of these documents you accepted.
+
+A separate small file holds one yes or no value: whether the duress PIN has been used. It is the only thing the duress PIN leaves behind, so the fake error screen keeps showing.
 
 A database holds:
 
-- Your trusted contacts: their random ID, their two public keys, their phone number, the nickname you gave them, the date you paired, and whether you revoked them. Revoking a contact stops them paging you and you paging them, but the entry stays in the database, marked as revoked, until you use the duress PIN or uninstall.
+- Your trusted contacts: their random ID, their two public keys, their phone number, the nickname you gave them, the date you paired, whether you revoked them, and whether they need to pair again because you rotated your keys. Revoking a contact stops them paging you and you paging them, but the entry stays in the database, marked as revoked, until you use the duress PIN or uninstall.
 - The IDs of alerts you received in the last 48 hours, so that a copied alert cannot raise the alarm twice.
 
 The database is encrypted with a random key that is itself encrypted with a key held in the Android Keystore. Copying the database file off the phone does not reveal your contact list. The duress PIN destroys that key along with the database.
@@ -68,7 +70,8 @@ Impart writes short diagnostic lines to Android's system log, such as "alert ver
 - Everything stays on your phone until you delete it. We hold nothing, so there is nothing for us to delete.
 - Alert IDs are deleted automatically after 48 hours.
 - Uninstalling Impart deletes everything it stored.
-- The duress PIN deletes your contacts, your keys, the alert IDs, any scheduled dead man's switch, and every setting, leaving only a marker that keeps the fake error screen showing. It cannot delete the copies of alerts in your Messages app.
+- The duress PIN, or 20 wrong PINs in a row if you turned that on, deletes your contacts, your keys, the key that checks your PINs, the alert IDs, any scheduled dead man's switch, every setting, every cached file and every notification, leaving only the marker that keeps the fake error screen showing. Deleting the keys is what makes anything left in the phone's flash memory unreadable; Impart does not claim to overwrite storage. It cannot delete copies of alerts in another app's inbox, or your ordinary texts in the phone's message store.
+- "Rotate my keys" destroys your old keys at once and replaces them.
 
 ## Backups
 
@@ -84,7 +87,13 @@ Because we never receive your data, we have nothing to give you, correct or dele
 
 ## Security
 
-Alerts are encrypted with Google Tink using HPKE (X25519 and AES-256-GCM) and signed with Ed25519. Private keys are protected by the Android Keystore. The app blocks screenshots and screen recording, asks for a PIN when it starts and after it has been in the background, and only raises the alarm for alerts that are signed by a paired contact, addressed to you, recent, and not seen before. No system is perfectly secure, and Impart has not been independently audited.
+Alerts are encrypted with Google Tink using HPKE (X25519 and AES-256-GCM) and signed with Ed25519. Private keys are protected by the Android Keystore. PINs are typed on Impart's own keypad, never the system keyboard. The app blocks screenshots, screen recording and the recent-apps preview, refuses taps while another app draws over it, asks for a PIN when it starts, when the screen turns off and after it has been in the background, and only raises the alarm for alerts that are signed by a paired contact, addressed to you, recent, and not seen before.
+
+What Impart cannot protect against: software that already controls your phone (a rooted or hacked phone, or a malicious app with accessibility access, can see what you see), a compromised operating system, someone who makes you hand over both PINs, and what your carrier sees about who texted whom and when. No system is perfectly secure, and Impart has not been independently audited. To report a security problem, see SECURITY.md in the source repository.
+
+## Fonts and other parts
+
+Impart bundles the JetBrains Mono and IBM Plex Sans fonts under the SIL Open Font License 1.1. They are part of the app and are never downloaded. Impart contains no Google Play services, Firebase or ML Kit code, and no analytics or crash reporting of any kind.
 
 ## Changes to this policy
 

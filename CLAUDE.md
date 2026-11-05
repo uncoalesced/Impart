@@ -19,9 +19,11 @@ The design lives in `specs/`. Read the relevant spec before making non-trivial c
 ./gradlew assembleDebug          # build debug APK
 ./gradlew installDebug           # build and install on a connected device
 ./gradlew test                   # JVM unit tests
-./gradlew connectedAndroidTest   # instrumented tests (none exist yet)
+./gradlew connectedDebugAndroidTest   # Compose UI tests and the migration test, on a device or emulator
+./gradlew assembleRelease        # R8-minified release (signed only when RELEASE_* is set)
 ./gradlew lint                   # Android Lint
-bash .github/scripts/standards-check.sh   # signature, palette, Compose-only, secret scan
+bash .github/scripts/standards-check.sh   # signature, palette, retired colors, Compose-only, secret scan
+bash .github/scripts/manifest-check.sh    # after processDebugManifest processReleaseManifest: no network, no open components
 ```
 
 Run one test class: `./gradlew test --tests "com.uncoalesced.impart.core.security.AlertVerifierTest"`.
@@ -34,36 +36,40 @@ There is no backend and no `functions/` directory. `namespace` and `applicationI
 
 ## CI and branch model
 
-`development` -> `main` -> `deployment`. Stores pull from `deployment`. Workflows in `.github/workflows/`:
+`development` -> `main` -> `deployment`. Stores pull from `deployment`. Every action in every workflow is pinned to a full commit SHA with the version in a comment, and every workflow runs with `contents: read`. Workflows in `.github/workflows/`:
 
-- `development.yml` (push or PR to `development`): `assembleDebug testDebugUnitTest lintDebug` plus the standards script. This is the gate for feature branches.
-- `main.yml` (push or PR to `main`): an unsigned release build, `bundleRelease`, a `versionCode` check, an F-Droid readiness scan (fails if Play Services, Firebase or ML Kit return), the manifest check, wrapper validation, and a summary job.
-- `deployment.yml` (push to `deployment` or manual): signed AAB and APK as workflow artifacts. It never auto-publishes.
+- `development.yml` (push or PR to `development`), the gate for feature branches: coding standards; Gradle wrapper validation; `assembleDebug testDebugUnitTest lintDebug`; the merged-manifest check (`manifest-check.sh`, both variants); the unsigned R8 release build with `mapping.txt` uploaded; the instrumented Compose tests on API 26 and API 34 emulators.
+- `codeql.yml` (PR or push to `development` and `main`): CodeQL for java-kotlin with a manual `assembleDebug`. The upload to code scanning tolerates refusal until code scanning is enabled on the repository; the SARIF is kept as an artifact.
+- `main.yml` (push or PR to `main`): the release build with unit tests and lint and the mapping, `bundleRelease`, a `versionCode` check, the F-Droid scan (fails if Play Services, Firebase or ML Kit return), the manifest check, wrapper validation, and a summary job.
+- `deployment.yml` (push to `deployment` or manual): signed AAB and APK as artifacts, with their mappings. It fails without all four `RELEASE_*` secrets and fails on any output signed with the debug key (`verify-release-signature.sh`). It never auto-publishes.
 
-Release signing is env-driven: `app/build.gradle.kts` wires the release signing config only when `RELEASE_KEYSTORE_PATH` and friends are set. The debug keystore is public, so debug builds are for testing only; the readiness card says so on-device.
+Release signing is env-driven: `app/build.gradle.kts` wires the release signing config (v2 and v3 only) when `RELEASE_KEYSTORE_PATH` and friends are set. The debug keystore is public, so debug builds are for testing only; the readiness card checks the installed certificate and says so on-device.
 
 ## Architecture
 
 Single Gradle module. Clean-architecture layering under `app/src/main/java/com/uncoalesced/impart/`:
 
 - `domain/` is pure Kotlin, with no Android imports and the highest test bar.
-  - `model/`: `Contact` (with a `displayName` extension, both public keys), `HandshakePayload`, `NodeIdentity`, `PanicPayload` (`Panic` or `Ack`, each with from, to, id and sentAt), `PanicDispatchReport`, and `LegalDocument` (with `LegalBlock` and the contact constants).
-  - `repository/`: the interfaces `ContactRepository`, `RelayManager`, `SeenAlertStore` and `WallClock`.
-  - `rules/PhoneNumbers`: E.164 validation.
-  - `usecase/`: `AddContactUseCase` (returns `Added`, `Refreshed` or `KeyChanged`), `RenameContactUseCase` and `RevokeContactUseCase`.
+  - `model/`: `Contact` (both public keys, `needsRepair`, a `displayName` extension), `HandshakePayload`, `NodeIdentity`, `PanicPayload` (`Panic` or `Ack`), `PanicDispatchReport`, `SmsConversation` and `SmsMessageItem`, and `LegalDocument`.
+  - `repository/`: the interfaces `ContactRepository`, `RelayManager`, `SeenAlertStore`, `SmsStore`, `WallClock` and `MonotonicClock`.
+  - `rules/`: `PhoneNumbers` (E.164) and `PanicEligibility` (who may be paged).
+  - `usecase/`: `AddContactUseCase` (returns `Added`, `Refreshed` or `KeyChanged`), `RenameContactUseCase`, `RevokeContactUseCase` and `RotateKeysUseCase`.
 - `data/`:
-  - `local/db/`: Room `ImpartDatabase` v4, SQLCipher-encrypted with a key held in `SecurePrefsManager`, with `ContactDao`, `SeenAlertDao` and their entities.
-  - `local/prefs/SecurePrefsManager`: the single `EncryptedSharedPreferences`.
-  - `local/assets/LegalDocumentLoader`.
-  - `remote/RelayManagerImpl`: the SMS dispatcher.
-  - `repository/`: `ContactRepositoryImpl`, `SeenAlertStoreImpl` and `SystemWallClock`.
+  - `local/db/`: Room `ImpartDatabase` v5, SQLCipher-encrypted with a key held in `SecurePrefsManager`, with `ContactDao`, `SeenAlertDao`, their entities and `ContactMigrations` (4 to 5).
+  - `local/prefs/`: `SecurePrefsManager`, the single `EncryptedSharedPreferences` (implements `PinStore`, `LockoutStore` and `NodeStateStore`), and `PlainDecoyFlagStore`, the one boolean the duress wipe leaves.
+  - `local/`: `AndroidWipeTargets` and `AndroidWipeSideEffects` for the duress wipe; `local/assets/LegalDocumentLoader`.
+  - `remote/RelayManagerImpl`: the SMS dispatcher. `sms/TelephonyProviderSmsStore`: ordinary texts in SMS app mode.
+  - `repository/`: `ContactRepositoryImpl`, `SeenAlertStoreImpl`, `SystemWallClock` and `SystemMonotonicClock`.
 - `core/`:
-  - `security/`: `KeystoreHelper` (implements `KeysetSource` with hybrid and signing keysets), `CryptoManager`, `AlertEnvelope`, `AlertVerifier`, `PanicPayloadCodec`, `QrPayloadCodec`, `KeyFingerprint`, `AppLockManager`, `LockoutPolicy`, `DuressManager`, `CloakManager` and `DeadManSwitchManager`.
-  - `services/`: `ImpartSmsReceiver`, `SmsSentReceiver` and `ImpartNotifications`.
-  - `workers/`, `util/` (including `NodeReadinessChecker`, `LegalDocumentParser` and `Redact`), and `di/` (`DatabaseModule`, `RepositoryModule`).
-- `presentation/`: Compose screens by feature: `dashboard/`, `contacts/`, `handshake/`, `intrusion/`, `security/`, `legal/`, `settings/`, `decoy/`, `components/` and `theme/`. ViewModels expose the managers' `StateFlow`s directly rather than mirroring them.
+  - `security/`: keys and crypto (`KeystoreHelper` as `KeysetSource`, `CryptoManager`, `KeyFingerprint`, `KeyGeneration`, `SigningIdentity`); the wire (`AlertWire`, `PairTag`, `AlertEnvelope`, `AlertRecognizer`, `AlertVerifier`, `PanicPayloadCodec`, `QrPayloadCodec`); PINs and the lock (`PinHasher`, `KeystorePinHasher`, `PinVerifier`, `PinStore`, `PinEntry`, `AppLockManager`, `LockoutPolicy`, `LockoutStore`, `ObscuredTouchPolicy`); duress (`DuressManager`, `DuressWiper`, `WipeTargets` and `WipeInventory`, `DecoyFlagStore`, `NodeStateStore`, `PinAuthority`); `CloakManager` and `DeadManSwitchManager`.
+  - `services/`: `AlertIntake` (the receive pipeline from recognition to notification), `ImpartSmsReceiver`, `SmsSentReceiver` and `ImpartNotifications`.
+  - `sms/`: SMS app mode: `DefaultSmsRole`, `SmsRouter`, `SmsDeliverDispatcher`, `SmsDeliverReceiver`, `MmsDeliverReceiver`, `MmsNotificationParser`, `HeadlessSmsSendService` and `OrdinarySmsSender`.
+  - `workers/`, `util/` (`NodeReadinessChecker`, `OemSettings` and its resolver, `InstalledSignature`, `QrFrameDecoder`, `LocationHelper` and `LocationPolicy`, `WindowHardening`, `SensitiveClipboard`, `LegalDocumentParser`, `Redact`, `TimeFormat`), and `di/` (`DatabaseModule`, `RepositoryModule`, `RelayModule`).
+- `presentation/`: Compose screens by feature: `dashboard/`, `contacts/`, `handshake/`, `intrusion/`, `security/`, `legal/`, `settings/`, `messages/`, `decoy/`, `components/` (`PinPad`, `HoldToFireButton`, `SecureDialog`, `SecureTouch`, `ImpartMark`) and `theme/`. ViewModels expose the managers' `StateFlow`s directly rather than mirroring them.
 
-DI is Hilt, `SingletonComponent` only. Navigation is tab state in `MainActivity.MainAppScreen`: Dashboard, My QR, Scan QR, Contacts and Settings.
+DI is Hilt, `SingletonComponent` only. `RelayManager` has its own `RelayModule` so the instrumented tests can replace it. Navigation is tab state in `MainActivity.MainAppScreen`: Dashboard, My QR, Scan QR, Contacts and Settings, plus Texts while Impart is the default SMS app.
+
+Every window goes through `WindowHardening` (FLAG_SECURE, overlays hidden on API 31+, no recents screenshot on API 33+); every dialog is a `SecureDialog` or `SecureAlertDialog`; every PIN is typed on `PinPad`. `WindowHardeningSourceTest` enforces all three.
 
 ### The gate in front of the app
 
@@ -72,10 +78,10 @@ DI is Hilt, `SingletonComponent` only. Navigation is tab state in `MainActivity.
 1. `NodeCorruptedScreen` if the duress PIN has fired.
 2. `LegalAcceptanceScreen` while `acceptedLegalVersion < LegalDocument.CURRENT_VERSION`.
 3. The mandatory `PinSetupDialog(required = true)` until the user has chosen PINs. The published defaults 1234 and 9999 are refused and unlock nothing.
-4. `AppLockScreen` while `AppLockManager.isUnlocked` is false. It is false on every process start and after 30 s in the background.
+4. `AppLockScreen` while `AppLockManager.isUnlocked` is false. It is false on every process start, as soon as the screen turns off, and after 30 s in the background.
 5. The app itself.
 
-Permissions are requested only once the app itself is showing. `IntrusionActivity` sits outside this gate on purpose.
+Permissions are requested only once the app itself is showing. `IntrusionActivity` sits outside this gate on purpose. `ComposeSmsActivity` (SMS app mode) shows nothing itself: it forwards to `MainActivity`, behind the gate.
 
 ### The intrusion pipeline
 
@@ -96,36 +102,41 @@ This is why the app exists. Understand it before touching the receiver, relay, v
    Every non-accepted `AlertVerdict` posts a visible status notification. An accepted panic posts the `CATEGORY_ALARM` full-screen-intent notification.
 3. `IntrusionActivity` (`singleTop`, `showWhenLocked`, `turnScreenOn`, `FLAG_SECURE`) cancels that notification and starts `IntrusionAlarm`, which loops a `MediaPlayer` on `USAGE_ALARM` with the stream raised, plus vibration. It shows the sender and the send time, and on acknowledge sends a signed ACK to the contact as stored. Never route anything to an address taken from the alert.
 
+When Impart is the default SMS app, `ImpartSmsReceiver` steps aside and `SmsDeliverReceiver` receives `SMS_DELIVER`: `SmsDeliverDispatcher` hands alert-shaped bodies to `AlertIntake` without ever touching the Telephony provider, and stores every other text there.
+
 Known gaps:
 
-- OEM battery skins can still kill the receiver. The readiness card asks for the exemption.
+- OEM battery skins can still kill the receiver. The readiness card asks for the exemption and opens the vendor's autostart screen on Xiaomi, OPPO, realme, vivo, Huawei, HONOR, OnePlus and Samsung.
 - Android 14 can withhold the full-screen intent. The readiness card links to the setting.
-- A non-default SMS app cannot stop the ciphertext landing in the stock Messages inbox.
+- Unless Impart is the default SMS app, the ciphertext also lands in the stock Messages inbox. Since wire v3 it does not name the app.
 
 ### Security model
 
-Details, and the attack table from the September 2026 review, are in `specs/03_SECURITY_PROTOCOL.md`.
+Details, and the attack table keyed by adversary A1 to A8, are in `specs/03_SECURITY_PROTOCOL.md`.
 
-- **Crypto.** Tink HPKE (`DHKEM_X25519_HKDF_SHA256_HKDF_SHA256_AES_256_GCM`) for confidentiality and Tink `ED25519` for sender authentication. Both keysets are managed by `AndroidKeysetManager` and wrapped by one Android Keystore master key. `CryptoManager` has no Android imports, so everything is unit-tested on the JVM. Encrypt, decrypt and sign throw on failure; verify returns false. Nothing falls back.
+- **Crypto.** Tink HPKE (`DHKEM_X25519_HKDF_SHA256_HKDF_SHA256_AES_256_GCM`) for confidentiality and Tink `ED25519` for sender authentication. Both keysets are managed by `AndroidKeysetManager` and wrapped by one Android Keystore master key. `CryptoManager` has no Android imports, so everything is unit-tested on the JVM. Encrypt, decrypt and sign throw on failure; verify returns false. Nothing falls back. Decrypted bytes are zeroed after use.
+- **Wire format v3 is frozen.** Every alert is `<12-char pair tag><base64 HPKE ciphertext>`, exactly 612 characters, with padding inside the signed payload. Changing it forces every phone to re-pair and needs Joel's approval.
 - **Trust is a physical QR handshake only.** QR v2 carries `{v, uuid, phoneNumber, publicKey, signingKey}`.
   - `AddContactUseCase` rejects blank fields, the node's own UUID, and any number that is not full E.164.
   - A known UUID with different keys returns `KeyChanged` and writes nothing until the user confirms in the fingerprint dialog.
   - `HandshakeViewModel` rejects keys Tink cannot parse as the right type.
+  - "Rotate my keys" replaces both keysets and flags every contact `needsRepair`; `PanicEligibility` refuses to page them until they re-pair.
+- **PINs are never stored.** `PinVerifier` keeps a salt and `HMAC(key, salt || pin)` per PIN under the non-exportable Keystore key `impart_pin_mac`, compared in constant time. Lockouts are counted on `elapsedRealtime` with the boot count, so a clock change, reboot or force-stop cannot shorten them.
 - **Own phone number.** It is user-entered on My QR, validated as E.164, and persisted in `SecurePrefsManager`.
+- **No network, no Google.** The merged manifest carries no network permission (`manifest-check.sh`), and the build has no Play Services, Firebase or ML Kit: QR codes are read by `QrFrameDecoder` (ZXing), the location by `LocationHelper` (`LocationManager`).
 - **No backups.** `allowBackup` is false and `res/xml/data_extraction_rules.xml` excludes everything from Android 12+ cloud backup and device transfer: Keystore-wrapped data restored onto another device would crash on first read.
-- **Logs** go through `Redact`: numbers become `***67`, contacts become UUID prefixes. Never log a display name, a phone number or a payload.
+- **Logs** go through `Redact`: numbers become `***67`, contacts become UUID prefixes. Never log a display name, a phone number or a payload. Release builds strip `Log.v`, `Log.d` and `Log.i`.
 
 ### Duress and covert features
 
-- `DuressManager` is the single place that decides what a PIN means. `AppLockManager.submitPin` wraps it with the persisted lockout counters from `LockoutPolicy`, and the duress PIN wins even during a lockout.
-- The wipe, `executeNuclearWipe`, runs in this order:
-  1. `SecurePrefsManager.wipeForDuress()` clears every key and sets the corrupted flag in one `commit()`.
-  2. Cancel all WorkManager work.
-  3. Delete the Room database (contacts and seen alerts).
-  4. Purge both Tink keysets and the master key.
+- `DuressManager` is the single place that decides what a PIN means. `AppLockManager.submitPin` wraps it with the persisted lockout state, and the duress PIN wins even during a lockout. The optional hard cap (Settings, off by default) runs the wipe on the twentieth consecutive wrong PIN.
+- The wipe, `executeNuclearWipe`, is silent and runs in this order:
+  1. Commit the plain decoy flag (`shared_prefs/impart_decoy.xml`) so a crash at any later step still shows the decoy.
+  2. Clear the encrypted preferences and drop the in-memory keysets.
+  3. `DuressWiper`: cancel all WorkManager work, close the database, delete every database with its sidecars, every preferences file, the contents of `files`, `cache`, `code_cache` and `no_backup`, every Keystore alias in `WipeInventory`, and finally every notification.
 
-  `isCorrupted` flips and `MainActivity` shows the decoy. Nothing announces the wipe.
-- `CloakManager` toggles the Calculator launcher alias. State is read back from `PackageManager`.
+  `isCorrupted` flips and `MainActivity` shows the decoy. Nothing announces the wipe, nothing is logged, and the launcher cloak is left as it was.
+- `CloakManager` toggles the Calculator launcher alias. State is read back from `PackageManager`. Under the cloak the mark is never shown.
 - `DeadManSwitchManager` and `core/workers/`: WorkManager dead man's switch with a one-hour warning. The worker reports partial failures as a notification.
 
 ### Legal documents
@@ -154,17 +165,21 @@ Full rules are in `specs/05_CODING_STANDARDS.md`. Non-negotiable:
 
 ## Tests
 
-`app/src/test/` holds JVM tests. `TestNodes.kt` builds in-memory nodes with real Tink keysets.
+`app/src/test/` holds JVM tests. `TestNodes.kt` builds in-memory nodes with real Tink keysets; `SoftwarePinHasher`, `MemoryPinStore` and `FakeWipeWorld` stand in for the Keystore, the preferences and the data directory.
 
-- `AlertVerifierTest` reproduces the attacks from the security review and asserts each is rejected: forgery with public keys, payload tampering, replay, forwarding to another node, revoked and unknown senders, and stale or future timestamps. It also asserts that a worst-case panic fits in four SMS parts.
-- The others: `CryptoManagerTest`, `PanicPayloadCodecTest`, `QrPayloadCodecTest`, `KeyFingerprintTest`, `LockoutPolicyTest`, `PhoneNumbersTest`, `AddContactUseCaseTest`, `RenameContactUseCaseTest`, `RedactTest`, `TimeFormatTest` and `LegalDocumentParserTest`.
+- `AlertVerifierTest` reproduces the attacks from the security review and asserts each is rejected: forgery with public keys, payload tampering, replay, forwarding to another node, a genuine alert under another pair's tag, revoked and unknown senders, stale or future timestamps, and v2 payloads. `AlertSizeTest` asserts every alert kind is exactly 612 characters.
+- Security: `PinVerifierTest`, `AppLockManagerTest`, `LockoutPolicyTest`, `ZeroingTest`, `DuressManagerTest`, `DuressWiperTest`, `PairTagTest`, `AlertRecognizerTest`, `ObscuredTouchPolicyTest`, `PinEntryTest`, `SigningIdentityTest`, `CryptoManagerTest`, `PanicPayloadCodecTest`, `QrPayloadCodecTest`, `KeyFingerprintTest`.
+- Features: `RotateKeysUseCaseTest`, `ContactMigrationsTest`, `DefaultSmsModeTest`, `MmsNotificationParserTest`, `OemSettingsTest`, `QrFrameDecoderTest`, `LocationPolicyTest`, `AddContactUseCaseTest`, `RenameContactUseCaseTest`, `PhoneNumbersTest`.
+- UI rules on the JVM: `WindowHardeningSourceTest`, `ContrastTest`, `ImpartMarkTest`, plus `RedactTest`, `TimeFormatTest` and `LegalDocumentParserTest`.
 
-`org.json:json` is a test dependency so `JSONObject` works without an emulator. There are no instrumented tests yet; the hardware protocol in `specs/08` is the integration test.
+`app/src/androidTest/` holds the Compose UI tests, run on API 26 and 34 emulators in CI: `GateOrderTest`, `LockTest`, `HandshakeTest`, `DashboardTest`, `IntrusionTest` and `ContactMigrationTest`. `HiltTestRunner` installs a test application; `FakeRelayModule` replaces `RelayModule`, so no test sends an SMS.
+
+`org.json:json` is a test dependency so `JSONObject` works without an emulator. The hardware protocol in `specs/08` remains the integration test for the radio, Doze and real carriers.
 
 ## Open items
 
-- Copies of alerts in the stock Messages app are outside Impart's control.
-- R8 is off for release builds.
-- Google Play restricts the SMS permissions to default SMS apps.
+- Copies of alerts in another app's inbox, when Impart is not the default SMS app, are outside Impart's control.
+- Google Play restricts the SMS permissions to default SMS apps; SMS app mode makes Impart eligible, but a submission is Joel's decision.
+- Impart has not been independently audited.
 
 The list is in `specs/06_ROADMAP_AND_NEXT_STEPS.md`.

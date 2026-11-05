@@ -25,7 +25,7 @@ To keep the system honest, it helps to say plainly what falls outside its philos
 
 ## 3. The Core Directive
 
-Identity within Impart is stripped of vanity. There are no avatars, no display customization, no social performance layer. Nodes are identified by UUIDs: cold, unambiguous, and impossible to spoof through impersonation of a name or handle. You do not "friend" someone on Impart. You **exchange trust** with them, physically, once, via the mechanism described in `03_SECURITY_PROTOCOL.md`.
+Identity within Impart is stripped of vanity. There are no avatars, no display customization, no social performance layer. Nodes are identified by UUIDs: cold and unambiguous. Copying someone's name, handle or even their UUID gains nothing, because an alert is trusted only when it is signed with the key stored when the two phones met. You do not "friend" someone on Impart. You **exchange trust** with them, physically, once, via the mechanism described in `03_SECURITY_PROTOCOL.md`.
 
 This is deliberate. A system whose entire purpose is to force attention must not become a place where attention is currency. The absence of vanity metrics keeps Impart aligned with its purpose: signal, not performance.
 

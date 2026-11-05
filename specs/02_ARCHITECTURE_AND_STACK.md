@@ -9,12 +9,13 @@
 |---|---|---|
 | Platform | Native Android | Min SDK 26 (Android 8.0), Target SDK 35 |
 | Language | Kotlin | 100% Kotlin, no Java interop by design |
+| Third-party code | Tink, SQLCipher, ZXing, AndroidX, Hilt | No Google Play services, Firebase or ML Kit (T21); every version pinned in `gradle/libs.versions.toml` |
 | UI Toolkit | Jetpack Compose | Exclusively. No XML layouts, no Fragments |
 | Dependency Injection | Dagger Hilt | `@HiltAndroidApp`, `@AndroidEntryPoint`, `@Inject` constructor injection |
-| Transport / Signaling | **Encrypted SMS only** (`SmsManager` send, `SMS_RECEIVED` `BroadcastReceiver`) | No Firebase, no Cloud Functions, no Google delivery path |
+| Transport / Signaling | **Encrypted SMS only** (`SmsManager` send; `SMS_RECEIVED`, or `SMS_DELIVER` in the optional default SMS app mode) | Wire format v3: 612 characters, per-pair tag. No Firebase, no Cloud Functions, no Google delivery path |
 | Backend / Logic | **None** | Peer-to-peer over the carrier SMS channel; there is no server |
-| Local Storage (structured) | Room Database (version 4) | The Contact Matrix and the seen-alert IDs used against replay. Not encrypted at rest yet; SQLCipher is a roadmap item |
-| Local Storage (key-value) | EncryptedSharedPreferences (one instance, `SecurePrefsManager`) | Node UUID, own phone number, location toggle, dead man's switch schedule, PINs and lock counters, accepted legal version, wiped flag |
+| Local Storage (structured) | Room Database (version 5), SQLCipher-encrypted | The Contact Matrix (with the re-pair flag) and the seen-alert IDs used against replay. The key lives in the encrypted preferences and dies with the duress wipe |
+| Local Storage (key-value) | EncryptedSharedPreferences (one instance, `SecurePrefsManager`), plus one plain boolean for the decoy | Node UUID, own phone number, settings, dead man's switch schedule, salted PIN hashes and the lockout state, the SQLCipher key, accepted legal version. The PIN HMAC key and the master keys live in the Android Keystore |
 | Auth | None | Identity is a locally generated UUID; trust is established only by the physical QR handshake |
 
 ## 2. Architectural Style: Event-Driven, OS-First
@@ -55,7 +56,7 @@ The doctrine is no third-party delivery infrastructure in the loop, at all. A pu
 
 SMS is a peer-to-peer carrier primitive. An incoming SMS is delivered by the modem/RIL and raises the `SMS_RECEIVED` broadcast on the receiver even when the app is killed or the device is in Doze. It is the same wake path an ordinary text uses, which no app-level battery optimizer can suppress. Impart carries only ciphertext in the message body (a 12-character pair tag + Tink output, padded to 612 characters), so the carrier relays an opaque text and never sees plaintext. `ImpartSmsReceiver` recognises the shape and the tag and hands control back to Impart's own code the instant the SMS arrives, which is what gets the wake lock, full-screen intent and alarm audio chain to fire.
 
-Trade-offs, stated honestly: SMS requires a SIM with an SMS plan and cellular coverage; delivery latency is typically 1 to 5 s but is carrier-dependent and not guaranteed; and because Impart is not the default SMS app, it cannot `abortBroadcast()`, so the ciphertext SMS also lands in the stock Messages inbox on the receiver. These are accepted costs of removing every server from the path.
+Trade-offs, stated honestly: SMS requires a SIM with an SMS plan and cellular coverage; delivery latency is typically 1 to 5 s but is carrier-dependent and not guaranteed; and unless the user makes Impart the default SMS app (optional, T14), the ciphertext SMS also lands in the stock Messages inbox on the receiver, as 612 characters behind a per-pair tag that does not name the app. These are accepted costs of removing every server from the path.
 
 ## 4. The intrusion pipeline, mechanic by mechanic
 
@@ -139,9 +140,9 @@ Incoming SMS wakes the modem/RIL and raises `SMS_RECEIVED` even under **stock An
 
 - **Xiaomi (MIUI/HyperOS)** and other Chinese OEM skins aggressively kill background apps and require the user to manually disable battery restrictions and enable "Autostart" for Impart.
 - **Samsung (One UI)** has historically applied similar restrictions under "Put unused apps to sleep" / "Deep sleeping apps" lists.
-- The dashboard's Node Readiness card checks `isIgnoringBatteryOptimizations` and, on Android 14, `canUseFullScreenIntent`, and opens the right Settings page for each. Per-OEM deep links (the "Don't kill my app" intent list) are still a roadmap item.
+- The dashboard's Node Readiness card checks `isIgnoringBatteryOptimizations` and, on Android 14, `canUseFullScreenIntent`, and opens the right Settings page for each. Since T12 it also opens the per-OEM autostart or background screen (the "Don't kill my app" list, kept in code in `OemSettings`), which the user confirms.
 
-Separately, SMS delivery depends on a SIM with SMS service and cellular coverage; there is no data/Wi-Fi fallback by design (that would put a server back in the loop). Impart should not overstate its reliability guarantee on non-stock OEM skins, or where there is no cellular signal, until this onboarding step exists.
+Separately, SMS delivery depends on a SIM with SMS service and cellular coverage; there is no data/Wi-Fi fallback by design (that would put a server back in the loop). Impart does not claim reliable delivery on non-stock OEM skins or without cellular signal. The readiness card is the onboarding step: it asks for the battery exemption and the full-screen permission, and on Xiaomi, OPPO, realme, vivo, Huawei, HONOR, OnePlus and Samsung it opens the maker's own background settings, which the user confirms because they cannot be read back.
 
 ## 6. Dependency Injection Topology
 
