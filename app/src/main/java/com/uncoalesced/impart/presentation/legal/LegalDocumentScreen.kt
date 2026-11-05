@@ -19,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,7 +43,7 @@ fun LegalDocumentScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(ImpartGround)) {
         Row(
-            modifier = Modifier.fillMaxWidth().background(ImpartBackground).padding(horizontal = 4.dp, vertical = 4.dp),
+            modifier = Modifier.fillMaxWidth().background(ImpartSurface).padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
@@ -58,18 +57,18 @@ fun LegalDocumentScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = ImpartPanicRed)
+                CircularProgressIndicator(color = ImpartAccentTint)
             }
             is LegalDocumentState.Failed -> Column(
                 modifier = Modifier.fillMaxSize().padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text(text = state.message, color = ImpartAmber, textAlign = TextAlign.Center)
+                Text(text = state.message, color = ImpartWarning, textAlign = TextAlign.Center)
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = { onRetry(state.document) },
-                    colors = ButtonDefaults.buttonColors(containerColor = ImpartBackground, contentColor = ImpartTextPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = ImpartSurface, contentColor = ImpartTextPrimary)
                 ) {
                     Text("TRY AGAIN")
                 }
@@ -107,16 +106,16 @@ private fun LegalBlockView(block: LegalBlock) {
                     .padding(top = 8.dp, end = 10.dp)
                     .size(5.dp)
                     .clip(CircleShape)
-                    .background(ImpartSecondary)
+                    .background(ImpartTextMuted)
             )
             Text(text = block.text, color = ImpartTextPrimary, fontSize = 14.sp, lineHeight = 21.sp)
         }
         is LegalBlock.Preformatted -> Text(
             text = block.text,
-            color = ImpartSecondary,
+            color = ImpartTextMuted,
             fontSize = 11.sp,
             lineHeight = 15.sp,
-            fontFamily = FontFamily.Monospace
+            fontFamily = ImpartMono
         )
     }
 }

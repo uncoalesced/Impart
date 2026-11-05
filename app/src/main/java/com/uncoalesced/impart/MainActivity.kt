@@ -43,12 +43,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.uncoalesced.impart.presentation.theme.ImpartSurfaceRaised
+import com.uncoalesced.impart.presentation.theme.ImpartMono
 import com.uncoalesced.impart.core.security.AppLockManager
 import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.sms.DefaultSmsRole
@@ -73,11 +74,10 @@ import com.uncoalesced.impart.presentation.legal.LegalAcceptanceScreen
 import com.uncoalesced.impart.presentation.security.AppLockScreen
 import com.uncoalesced.impart.presentation.security.PinSetupDialog
 import com.uncoalesced.impart.presentation.settings.SettingsScreen
-import com.uncoalesced.impart.presentation.theme.ImpartAmber
-import com.uncoalesced.impart.presentation.theme.ImpartBackground
+import com.uncoalesced.impart.presentation.theme.ImpartWarning
 import com.uncoalesced.impart.presentation.theme.ImpartGround
-import com.uncoalesced.impart.presentation.theme.ImpartPanicRed
-import com.uncoalesced.impart.presentation.theme.ImpartSecondary
+import com.uncoalesced.impart.presentation.theme.ImpartAccentTint
+import com.uncoalesced.impart.presentation.theme.ImpartTextMuted
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 import com.uncoalesced.impart.presentation.theme.ImpartTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -290,13 +290,13 @@ fun MainAppScreen(
     Scaffold(
         containerColor = ImpartGround,
         bottomBar = {
-            NavigationBar(containerColor = ImpartBackground, contentColor = ImpartTextPrimary) {
+            NavigationBar(containerColor = ImpartSurfaceRaised, contentColor = ImpartTextPrimary) {
                 val navColors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = ImpartPanicRed,
-                    selectedTextColor = ImpartPanicRed,
-                    unselectedIconColor = ImpartSecondary,
-                    unselectedTextColor = ImpartSecondary,
-                    indicatorColor = ImpartBackground
+                    selectedIconColor = ImpartAccentTint,
+                    selectedTextColor = ImpartAccentTint,
+                    unselectedIconColor = ImpartTextMuted,
+                    unselectedTextColor = ImpartTextMuted,
+                    indicatorColor = ImpartSurfaceRaised
                 )
                 tabs.forEach { tab ->
                     NavigationBarItem(
@@ -364,24 +364,24 @@ private fun KeyChangeDialog(
     val rejectNotifier = rememberObscuredTouchNotifier()
     SecureAlertDialog(
         onDismissRequest = onReject,
-        containerColor = ImpartBackground,
+        containerColor = ImpartSurfaceRaised,
         titleContentColor = ImpartTextPrimary,
-        textContentColor = ImpartSecondary,
+        textContentColor = ImpartTextMuted,
         title = { Text("KEYS CHANGED FOR ${change.existing.displayName}") },
         text = {
             Column {
                 Text("This QR claims to be ${change.existing.displayName} but carries different keys. Only accept if you are standing with them and they reinstalled Impart.")
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("OLD KEY", color = ImpartSecondary, fontWeight = FontWeight.Bold)
-                Text(change.oldFingerprint, color = ImpartTextPrimary, fontFamily = FontFamily.Monospace)
+                Text("OLD KEY", color = ImpartTextMuted, fontWeight = FontWeight.Bold)
+                Text(change.oldFingerprint, color = ImpartTextPrimary, fontFamily = ImpartMono)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("NEW KEY", color = ImpartAmber, fontWeight = FontWeight.Bold)
-                Text(change.newFingerprint, color = ImpartTextPrimary, fontFamily = FontFamily.Monospace)
+                Text("NEW KEY", color = ImpartWarning, fontWeight = FontWeight.Bold)
+                Text(change.newFingerprint, color = ImpartTextPrimary, fontFamily = ImpartMono)
             }
         },
         confirmButton = {
             TextButton(onClick = onAccept, modifier = Modifier.rejectObscuredTouches(rejectNotifier)) {
-                Text("ACCEPT NEW KEYS", color = ImpartAmber, fontWeight = FontWeight.Bold)
+                Text("ACCEPT NEW KEYS", color = ImpartWarning, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

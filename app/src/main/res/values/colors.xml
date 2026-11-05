@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Mirrors presentation/theme/Color.kt. XML resources (window background, launcher icon)
-     cannot read Compose constants, so this is the one sanctioned duplicate of the palette. -->
+<!-- Mirrors presentation/theme/Color.kt (spec 09). XML resources (the window background and
+     the system bars) cannot read Compose constants, so this is the one sanctioned duplicate.
+     ContrastTest fails if impart_ground drifts from ImpartPalette.GROUND. -->
 <resources>
     <color name="impart_ground">#000000</color>
-    <color name="impart_background">#2B2D42</color>
-    <color name="impart_secondary">#8D99AE</color>
-    <color name="impart_text_primary">#EDF2F4</color>
-    <color name="impart_panic_red">#EF233C</color>
+
+    <!-- The Calculator cloak is not part of the brand (spec 09 sections 5 and 8). It must look
+         like a stock calculator, so it uses its own neutral greys and never an Impart color. -->
+    <color name="cloak_background">#3C4043</color>
+    <color name="cloak_foreground">#F1F3F4</color>
 </resources>

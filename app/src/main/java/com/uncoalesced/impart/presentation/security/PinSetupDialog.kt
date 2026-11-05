@@ -32,9 +32,9 @@ import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.security.PinEntry
 import com.uncoalesced.impart.presentation.components.PinPad
 import com.uncoalesced.impart.presentation.components.SecureDialog
-import com.uncoalesced.impart.presentation.theme.ImpartAmber
-import com.uncoalesced.impart.presentation.theme.ImpartBackground
-import com.uncoalesced.impart.presentation.theme.ImpartSecondary
+import com.uncoalesced.impart.presentation.theme.ImpartWarning
+import com.uncoalesced.impart.presentation.theme.ImpartSurfaceRaised
+import com.uncoalesced.impart.presentation.theme.ImpartTextMuted
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 
 private enum class SetupStep(val title: String) {
@@ -129,8 +129,8 @@ fun PinSetupDialog(
         properties = DialogProperties(dismissOnBackPress = !required, dismissOnClickOutside = !required)
     ) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = ImpartBackground),
-            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = ImpartSurfaceRaised),
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
@@ -152,7 +152,7 @@ fun PinSetupDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "The standard PIN unlocks Impart. The duress PIN, entered anywhere Impart asks for a PIN, silently wipes the node and shows a fake error screen. ${DuressManager.MIN_PIN_LENGTH} to ${DuressManager.MAX_PIN_LENGTH} digits each, and they must differ.",
-                    color = ImpartSecondary,
+                    color = ImpartTextMuted,
                     fontSize = 10.sp
                 )
 
@@ -178,14 +178,14 @@ fun PinSetupDialog(
                 val error = errorMessage
                 if (error != null) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = error, color = ImpartAmber, fontSize = 12.sp)
+                    Text(text = error, color = ImpartWarning, fontSize = 12.sp)
                 }
 
                 if (!required) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                         TextButton(onClick = onDismiss) {
-                            Text("CANCEL", color = ImpartSecondary)
+                            Text("CANCEL", color = ImpartTextMuted)
                         }
                     }
                 }

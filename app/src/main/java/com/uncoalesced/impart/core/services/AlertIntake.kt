@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.uncoalesced.impart.R
 import com.uncoalesced.impart.core.security.AlertRecognizer
 import com.uncoalesced.impart.core.security.AlertVerdict
 import com.uncoalesced.impart.core.security.AlertVerifier
@@ -132,7 +133,7 @@ class AlertIntake @Inject constructor(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(context, ImpartNotifications.CHANNEL_PANIC)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setSmallIcon(R.drawable.ic_stat_impart)
             .setContentTitle("IMPART: PANIC SIGNAL")
             .setContentText("Incoming panic from ${sender.displayName}. Tap to open.")
             .setPriority(NotificationCompat.PRIORITY_MAX)

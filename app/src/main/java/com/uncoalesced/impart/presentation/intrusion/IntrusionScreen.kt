@@ -7,6 +7,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -15,18 +16,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.uncoalesced.impart.presentation.components.rejectObscuredTouches
 import com.uncoalesced.impart.presentation.components.rememberObscuredTouchNotifier
-import com.uncoalesced.impart.presentation.theme.ImpartBackground
-import com.uncoalesced.impart.presentation.theme.ImpartPanicRed
+import com.uncoalesced.impart.presentation.theme.ImpartAccent
+import com.uncoalesced.impart.presentation.theme.ImpartGround
+import com.uncoalesced.impart.presentation.theme.ImpartMono
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 
-// Background is always the panic red. That color means one thing in this app.
+// Full-bleed Watermelon: the one screen that means "someone needs you now". Text on it is
+// black (5.18:1); Porcelain on Watermelon is only 4.03:1, so it appears only on the black
+// panels and buttons drawn over the red (spec 09 section 3).
 @Composable
 fun IntrusionScreen(
     senderName: String,
@@ -41,7 +44,7 @@ fun IntrusionScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ImpartPanicRed)
+            .background(ImpartAccent)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -49,32 +52,33 @@ fun IntrusionScreen(
         Text(
             text = "CRITICAL EMERGENCY",
             style = MaterialTheme.typography.displaySmall,
-            color = ImpartTextPrimary,
+            color = ImpartGround,
+            fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "INCOMING PANIC SIGNAL DETECTED",
             style = MaterialTheme.typography.titleLarge,
-            color = ImpartTextPrimary,
+            color = ImpartGround,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "FROM: $senderName",
-            color = ImpartTextPrimary,
-            fontSize = 18.sp,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.ExtraBold,
+            color = ImpartGround,
+            fontSize = 20.sp,
+            fontFamily = ImpartMono,
+            fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
         if (sentLabel != null) {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = sentLabel,
-                color = ImpartTextPrimary,
-                fontSize = 14.sp,
-                fontFamily = FontFamily.Monospace,
+                color = ImpartGround,
+                fontSize = 15.sp,
+                fontFamily = ImpartMono,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
@@ -86,7 +90,7 @@ fun IntrusionScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(ImpartBackground.copy(alpha = 0.5f))
+                    .background(ImpartGround, RoundedCornerShape(10.dp))
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -102,8 +106,8 @@ fun IntrusionScreen(
                     text = "$lat, $lng",
                     color = ImpartTextPrimary,
                     fontSize = 18.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.ExtraBold
+                    fontFamily = ImpartMono,
+                    fontWeight = FontWeight.Bold
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -119,11 +123,12 @@ fun IntrusionScreen(
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = ImpartTextPrimary,
-                        contentColor = ImpartBackground
+                        contentColor = ImpartGround
                     ),
+                    shape = RoundedCornerShape(4.dp),
                     modifier = Modifier.fillMaxWidth().height(52.dp)
                 ) {
-                    Text("NAVIGATE (OPEN MAPS)", fontWeight = FontWeight.ExtraBold)
+                    Text("NAVIGATE (OPEN MAPS)", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -133,9 +138,10 @@ fun IntrusionScreen(
         Button(
             onClick = onDismiss,
             colors = ButtonDefaults.buttonColors(
-                containerColor = ImpartBackground,
+                containerColor = ImpartGround,
                 contentColor = ImpartTextPrimary
             ),
+            shape = RoundedCornerShape(4.dp),
             modifier = Modifier.fillMaxWidth().height(60.dp).rejectObscuredTouches(rejectNotifier)
         ) {
             Text("ACKNOWLEDGE & DISMISS", style = MaterialTheme.typography.titleMedium)

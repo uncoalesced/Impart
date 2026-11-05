@@ -38,28 +38,41 @@ The following are forbidden, with no exceptions carved out for "just this one sc
 
 ## 4. The Color System
 
-Colors are defined once, as constants, and referenced everywhere else, never hardcoded inline as a second copy of the hex value.
+Colors are defined once, in `presentation/theme/Color.kt`, and referenced everywhere else. The palette and its rules are `specs/09_DESIGN_LANGUAGE.md`; if this section and spec 09 disagree, spec 09 wins and this section is the defect.
 
 ```kotlin
 // Engineered by uncoalesced
 package com.uncoalesced.impart.presentation.theme
 
-import androidx.compose.ui.graphics.Color
-
-// IMPART PALETTE v5 (AMOLED)
-val ImpartGround       = Color(0xFF000000) // Screen-level background, always
-val ImpartBackground   = Color(0xFF2B2D42) // Surfaces: cards, nav bar, dialogs
-val ImpartSecondary    = Color(0xFF8D99AE) // Muted labels and unselected state
-val ImpartTextPrimary  = Color(0xFFEDF2F4) // Crisp high-contrast text
-val ImpartPanicRed     = Color(0xFFEF233C) // Primary intrusion and panic button
-val ImpartPanicDark    = Color(0xFFD90429) // Critical accent and pressed states
-val ImpartAmber        = Color(0xFFFFB000) // Expiring / stale warning (non-emergency)
-val ImpartVerified     = Color(0xFF2FBF71) // Recently verified / healthy state
+object ImpartPalette {                 // ARGB values, read by ContrastTest on the JVM
+    const val GROUND = 0xFF000000      // Every screen background
+    const val SURFACE = 0xFF262626     // Cards, list rows
+    const val SURFACE_RAISED = 0xFF333333 // Dialogs, nav bar, sheets
+    const val BORDER = 0xFF4B4B4B      // Dividers, outlines
+    const val TEXT_PRIMARY = 0xFFFDFFFC // Porcelain
+    const val TEXT_MUTED = 0xFF9A9B99  // Labels, unselected, timestamps
+    const val ACCENT_SHADE = 0xFFAD2F4A // Pressed states, broadcast panic
+    const val ACCENT = 0xFFEF2D56      // Watermelon: Impart and emergencies
+    const val ACCENT_TINT = 0xFFF47690 // Accent text and icons on surfaces
+    const val WARNING = 0xFFF19143     // Sandy Brown
+    const val VERIFIED = 0xFF748E54    // Palm Leaf, dots and fills
+    const val VERIFIED_TINT = 0xFFA3B48F // Palm Leaf text on surfaces
+}
+// ImpartGround, ImpartSurface, ImpartSurfaceRaised, ImpartBorder, ImpartTextPrimary,
+// ImpartTextMuted, ImpartAccentShade, ImpartAccent, ImpartAccentTint, ImpartWarning,
+// ImpartVerified and ImpartVerifiedTint wrap these as Compose Colors.
 ```
 
-Screen backgrounds are `ImpartGround`, true black, so AMOLED pixels stay off. `ImpartBackground` is for surfaces only. `res/values/colors.xml` mirrors the values the window background and launcher icon need; it is the one sanctioned duplicate.
+Rules:
 
-`IntrusionScreen` uses `ImpartPanicRed` as its background under all circumstances. This is the one non-negotiable color mapping in the system, since it's the visual signal that something is genuinely wrong. It should never be reused for a non-emergency context (e.g. a generic "error" toast), or its meaning as an emergency signal degrades.
+- Screen backgrounds are `ImpartGround`, true black, so AMOLED pixels stay off. `ImpartSurface` is for cards and rows, `ImpartSurfaceRaised` for dialogs, the navigation bar and sheets.
+- Watermelon (`ImpartAccent`) means "this is Impart" or "this is an emergency". It never means error or warning. A failed send, a refused part, a destructive action or a stale contact uses `ImpartWarning`.
+- `IntrusionScreen` is full-bleed `ImpartAccent` with `ImpartGround` text. Porcelain on Watermelon is only 4.03:1 and is allowed only at 24sp bold or larger.
+- Text drawn on Watermelon is black; accent-colored text on a surface uses `ImpartAccentTint`; Palm Leaf text uses `ImpartVerifiedTint`.
+- Every pairing the UI uses has a row in `ContrastTest` and in the spec 09 table. Body text needs 4.5:1, large text and graphics 3:1.
+- The decoy and the Calculator cloak use no Watermelon, no mark and no wordmark (spec 09 section 8). The cloak icon has its own neutral `cloak_*` colors.
+- `res/values/colors.xml` mirrors only what XML resources need (`impart_ground` for the window and system bars) plus the cloak's neutral colors. It is the one sanctioned duplicate.
+- Fonts are `ImpartMono` (JetBrains Mono) for headings, numbers, PINs, fingerprints, timestamps and phone numbers, and `ImpartSans` (IBM Plex Sans) for body text, from `presentation/theme/Type.kt`. Never `FontFamily.Monospace` or a downloadable font.
 
 ## 5. Naming & Style Conventions
 

@@ -23,6 +23,14 @@ if [ -n "$palette" ]; then
   fail=1
 fi
 
+echo "== Retired palette check (spec 09 replaced these; T15) =="
+retired=$(grep -rniE '2B2D42|EF233C|D90429|FFB000' --include='*.kt' --include='*.xml' app/src/main 2>/dev/null || true)
+if [ -n "$retired" ]; then
+  echo "$retired"
+  echo "::error::a retired palette value is back; use the spec 09 tokens in presentation/theme/Color.kt"
+  fail=1
+fi
+
 echo "== Pure Compose check (no XML layouts / Fragments / findViewById) =="
 compose=$(grep -rnE 'findViewById|R\.layout\.|setContentView\(R\.layout|import androidx\.fragment|: *Fragment\(' \
   --include='*.kt' app/src/main 2>/dev/null || true)

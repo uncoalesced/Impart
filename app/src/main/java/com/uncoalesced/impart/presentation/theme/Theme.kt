@@ -5,19 +5,30 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 
+// Material 3 roles mapped onto the spec 09 tokens. Error is Sandy Brown on purpose:
+// Watermelon never means "error" in Impart.
 private val DarkColorScheme = darkColorScheme(
-    primary = ImpartPanicRed,
-    secondary = ImpartSecondary,
+    primary = ImpartAccent,
+    onPrimary = ImpartGround,
+    primaryContainer = ImpartAccentShade,
+    onPrimaryContainer = ImpartTextPrimary,
+    secondary = ImpartTextMuted,
+    onSecondary = ImpartGround,
+    tertiary = ImpartVerified,
+    onTertiary = ImpartGround,
     background = ImpartGround,
-    surface = ImpartBackground,
-    surfaceVariant = ImpartBackground,
-    onPrimary = ImpartTextPrimary,
-    onSecondary = ImpartTextPrimary,
     onBackground = ImpartTextPrimary,
+    surface = ImpartSurface,
     onSurface = ImpartTextPrimary,
-    onSurfaceVariant = ImpartSecondary,
-    error = ImpartPanicDark,
-    onError = ImpartTextPrimary
+    surfaceVariant = ImpartSurfaceRaised,
+    onSurfaceVariant = ImpartTextMuted,
+    surfaceContainer = ImpartSurface,
+    surfaceContainerHigh = ImpartSurfaceRaised,
+    surfaceContainerHighest = ImpartSurfaceRaised,
+    outline = ImpartBorder,
+    outlineVariant = ImpartBorder,
+    error = ImpartWarning,
+    onError = ImpartGround
 )
 
 @Composable

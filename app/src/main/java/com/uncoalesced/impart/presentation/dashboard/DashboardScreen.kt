@@ -30,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -115,9 +114,9 @@ fun DashboardScreen(
     pendingVendorConfirm?.let { fix ->
         SecureAlertDialog(
             onDismissRequest = { pendingVendorConfirm = null },
-            containerColor = ImpartBackground,
+            containerColor = ImpartSurfaceRaised,
             titleContentColor = ImpartTextPrimary,
-            textContentColor = ImpartSecondary,
+            textContentColor = ImpartTextMuted,
             title = { Text("DID YOU ALLOW IT?") },
             text = { Text("${fix.instruction} Impart cannot read these settings back, so the row stays amber until you confirm.") },
             confirmButton = {
@@ -125,7 +124,7 @@ fun DashboardScreen(
                     viewModel.confirmVendorSettings(true)
                     pendingVendorConfirm = null
                 }) {
-                    Text("YES, ALLOWED", color = ImpartVerified, fontWeight = FontWeight.Bold)
+                    Text("YES, ALLOWED", color = ImpartVerifiedTint, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -133,7 +132,7 @@ fun DashboardScreen(
                     viewModel.confirmVendorSettings(false)
                     pendingVendorConfirm = null
                 }) {
-                    Text("NOT YET", color = ImpartSecondary)
+                    Text("NOT YET", color = ImpartTextMuted)
                 }
             }
         )
@@ -173,7 +172,7 @@ fun DashboardScreen(
                 Icon(
                     imageVector = Icons.Default.Lock,
                     contentDescription = "Change PINs",
-                    tint = ImpartPanicRed
+                    tint = ImpartAccentTint
                 )
             }
         }
@@ -201,7 +200,7 @@ fun DashboardScreen(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "PHONE NUMBER UNAVAILABLE: ${identity.message}",
-                        color = ImpartAmber,
+                        color = ImpartWarning,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -214,7 +213,7 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Every row except Build must be green before the Doze test can pass. Tap a row to fix it.",
-                color = ImpartSecondary,
+                color = ImpartTextMuted,
                 fontSize = 10.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -290,10 +289,10 @@ fun DashboardScreen(
 
                 Text(
                     text = "Interval: ${if (dmsIntervalHours == 0) "OFF" else "${dmsIntervalHours}H"}",
-                    color = ImpartSecondary,
+                    color = ImpartTextMuted,
                     fontSize = 12.sp
                 )
-                Text(text = "Last Check-In: $lastCheckinText", color = ImpartSecondary, fontSize = 12.sp)
+                Text(text = "Last Check-In: $lastCheckinText", color = ImpartTextMuted, fontSize = 12.sp)
 
                 if (dmsIntervalHours > 0 && dmsLastCheckin > 0L) {
                     val remainingMillis = dmsLastCheckin + dmsIntervalHours * HOUR_MS - nowMillis
@@ -305,10 +304,10 @@ fun DashboardScreen(
                         } else {
                             "NEXT CHECK-IN REQUIRED IN: ${formatCountdown(remainingMillis)}"
                         },
-                        color = if (overdue || remainingMillis < HOUR_MS) ImpartAmber else ImpartTextPrimary,
+                        color = if (overdue || remainingMillis < HOUR_MS) ImpartWarning else ImpartTextPrimary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = ImpartMono
                     )
                 }
 
@@ -321,9 +320,9 @@ fun DashboardScreen(
                             onClick = { viewModel.setDmsInterval(hours) },
                             label = { Text(if (hours == 0) "OFF" else "${hours}H") },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = ImpartPanicRed,
-                                selectedLabelColor = ImpartTextPrimary,
-                                labelColor = ImpartSecondary
+                                selectedContainerColor = ImpartAccent,
+                                selectedLabelColor = ImpartGround,
+                                labelColor = ImpartTextMuted
                             )
                         )
                     }
@@ -335,7 +334,7 @@ fun DashboardScreen(
                         onClick = { viewModel.dmsCheckIn() },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = ImpartSecondary.copy(alpha = 0.5f),
+                            containerColor = ImpartSurfaceRaised,
                             contentColor = ImpartTextPrimary
                         )
                     ) {
@@ -346,19 +345,20 @@ fun DashboardScreen(
         }
 
         when (val state = uiState) {
-            is DashboardUiState.Loading -> CircularProgressIndicator(color = ImpartPanicRed)
+            is DashboardUiState.Loading -> CircularProgressIndicator(color = ImpartAccentTint)
             is DashboardUiState.Success -> Text(
                 text = state.message,
-                color = ImpartVerified,
+                color = ImpartVerifiedTint,
                 style = MaterialTheme.typography.titleMedium
             )
             is DashboardUiState.Error -> {
-                Text("Error: ${state.message}", color = ImpartPanicRed)
+                // A failed send is a warning, not an emergency: Sandy Brown.
+                Text("Error: ${state.message}", color = ImpartWarning)
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = { viewModel.resetState() },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = ImpartPanicRed,
+                        containerColor = ImpartSurfaceRaised,
                         contentColor = ImpartTextPrimary
                     )
                 ) {
@@ -367,17 +367,17 @@ fun DashboardScreen(
             }
             is DashboardUiState.Idle -> {
                 if (contacts.isEmpty()) {
-                    Text("No trusted contacts found. Pair a node by QR first.", color = ImpartSecondary)
+                    Text("No trusted contacts found. Pair a node by QR first.", color = ImpartTextMuted)
                 } else {
                     HoldToFireButton(
                         label = "BROADCAST PANIC (ALL NODES)",
-                        containerColor = ImpartPanicDark,
+                        containerColor = ImpartAccentShade,
                         onFire = { viewModel.broadcastPanic(contacts) },
                         modifier = Modifier.fillMaxWidth().height(64.dp)
                     )
 
                     Spacer(modifier = Modifier.height(24.dp))
-                    Text("Hold a contact button to INITIATE PANIC:", color = ImpartSecondary)
+                    Text("Hold a contact button to INITIATE PANIC:", color = ImpartTextMuted)
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Plain Column so the whole dashboard is one scroll container. Contacts are
@@ -401,7 +401,8 @@ fun PanicButton(contact: Contact, onPanic: (Contact) -> Unit) {
     Column {
         HoldToFireButton(
             label = "INITIATE PANIC: ${contact.displayName}",
-            containerColor = ImpartPanicRed,
+            containerColor = ImpartAccent,
+            contentColor = ImpartGround,
             onFire = { onPanic(contact) },
             modifier = Modifier.fillMaxWidth().height(80.dp),
             fontSize = 20.sp
@@ -409,7 +410,7 @@ fun PanicButton(contact: Contact, onPanic: (Contact) -> Unit) {
         if (contact.needsRepair) {
             Text(
                 text = "Cannot page ${contact.displayName} until you re-pair: your keys were rotated.",
-                color = ImpartAmber,
+                color = ImpartWarning,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 4.dp)
@@ -424,7 +425,7 @@ private fun DashboardCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = ImpartBackground),
+        colors = CardDefaults.cardColors(containerColor = ImpartSurface),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth().padding(bottom = bottomPadding)
     ) {
@@ -435,7 +436,7 @@ private fun DashboardCard(
 @Composable
 private fun CardHeader(icon: ImageVector, title: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(imageVector = icon, contentDescription = null, tint = ImpartSecondary)
+        Icon(imageVector = icon, contentDescription = null, tint = ImpartTextMuted)
         Spacer(modifier = Modifier.width(8.dp))
         Text(text = title, color = ImpartTextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
@@ -455,11 +456,11 @@ private fun ToggleRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-            Icon(imageVector = icon, contentDescription = null, tint = ImpartSecondary)
+            Icon(imageVector = icon, contentDescription = null, tint = ImpartTextMuted)
             Spacer(modifier = Modifier.width(8.dp))
             Column {
                 Text(text = title, color = ImpartTextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text(text = subtitle, color = ImpartSecondary, fontSize = 10.sp)
+                Text(text = subtitle, color = ImpartTextMuted, fontSize = 10.sp)
             }
         }
         Switch(
@@ -467,8 +468,8 @@ private fun ToggleRow(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = ImpartTextPrimary,
-                checkedTrackColor = ImpartPanicRed,
-                uncheckedThumbColor = ImpartSecondary,
+                checkedTrackColor = ImpartAccent,
+                uncheckedThumbColor = ImpartTextMuted,
                 uncheckedTrackColor = ImpartGround
             )
         )
@@ -477,7 +478,7 @@ private fun ToggleRow(
 
 @Composable
 private fun ReadinessRow(item: ReadinessItem, onFix: () -> Unit) {
-    val tint = if (item.ok) ImpartVerified else ImpartAmber
+    val tint = if (item.ok) ImpartVerifiedTint else ImpartWarning
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -497,7 +498,7 @@ private fun ReadinessRow(item: ReadinessItem, onFix: () -> Unit) {
             Text(text = item.detail, color = tint, fontSize = 10.sp)
         }
         if (item.fix != null) {
-            Text(text = "FIX", color = ImpartAmber, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+            Text(text = "FIX", color = ImpartWarning, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
         }
     }
 }
@@ -510,12 +511,12 @@ private fun IdentityRow(label: String, value: String, onCopy: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = label, color = ImpartSecondary, fontSize = 9.sp)
+            Text(text = label, color = ImpartTextMuted, fontSize = 9.sp)
             Text(
                 text = value,
                 color = ImpartTextPrimary,
                 fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = ImpartMono,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -524,7 +525,7 @@ private fun IdentityRow(label: String, value: String, onCopy: () -> Unit) {
             Icon(
                 imageVector = Icons.Default.ContentCopy,
                 contentDescription = "Copy $label",
-                tint = ImpartSecondary
+                tint = ImpartTextMuted
             )
         }
     }

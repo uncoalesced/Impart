@@ -38,21 +38,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.uncoalesced.impart.presentation.theme.ImpartMono
 import com.uncoalesced.impart.core.util.TimeFormat
 import com.uncoalesced.impart.domain.model.SmsConversation
 import com.uncoalesced.impart.domain.model.SmsMessageItem
-import com.uncoalesced.impart.presentation.theme.ImpartAmber
-import com.uncoalesced.impart.presentation.theme.ImpartBackground
+import com.uncoalesced.impart.presentation.theme.ImpartWarning
+import com.uncoalesced.impart.presentation.theme.ImpartSurface
 import com.uncoalesced.impart.presentation.theme.ImpartGround
-import com.uncoalesced.impart.presentation.theme.ImpartPanicRed
-import com.uncoalesced.impart.presentation.theme.ImpartSecondary
+import com.uncoalesced.impart.presentation.theme.ImpartAccentTint
+import com.uncoalesced.impart.presentation.theme.ImpartTextMuted
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 
 // Minimal SMS client, shown only while Impart is the default SMS app and only behind the
@@ -92,16 +92,16 @@ fun MessagesScreen(viewModel: MessagesViewModel, composeTo: String?, composeBody
     Column(modifier = Modifier.fillMaxSize().background(ImpartGround).padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(text = "TEXTS", color = ImpartTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
-            TextButton(onClick = { newAddress = "" }) { Text("NEW", color = ImpartPanicRed, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = { newAddress = "" }) { Text("NEW", color = ImpartAccentTint, fontWeight = FontWeight.Bold) }
         }
         Text(
             text = "Ordinary texts, stored on this phone only. Impart alerts never appear here.",
-            color = ImpartSecondary,
+            color = ImpartTextMuted,
             fontSize = 10.sp
         )
         Spacer(modifier = Modifier.height(12.dp))
         if (conversations.isEmpty()) {
-            Text("No texts yet.", color = ImpartSecondary)
+            Text("No texts yet.", color = ImpartTextMuted)
         }
         LazyColumn {
             items(conversations, key = { it.address }) { conversation ->
@@ -117,21 +117,21 @@ private fun ConversationRow(conversation: SmsConversation, onOpen: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onOpen)
-            .background(ImpartBackground, RoundedCornerShape(10.dp))
+            .background(ImpartSurface, RoundedCornerShape(10.dp))
             .padding(12.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = conversation.address,
-                color = if (conversation.unread) ImpartAmber else ImpartTextPrimary,
-                fontFamily = FontFamily.Monospace,
+                color = if (conversation.unread) ImpartWarning else ImpartTextPrimary,
+                fontFamily = ImpartMono,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
                 modifier = Modifier.weight(1f)
             )
-            Text(text = TimeFormat.clock(conversation.lastAt), color = ImpartSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Text(text = TimeFormat.clock(conversation.lastAt), color = ImpartTextMuted, fontSize = 10.sp, fontFamily = ImpartMono)
         }
-        Text(text = conversation.lastBody, color = ImpartSecondary, fontSize = 12.sp, maxLines = 2)
+        Text(text = conversation.lastBody, color = ImpartTextMuted, fontSize = 12.sp, maxLines = 2)
     }
     Spacer(modifier = Modifier.height(8.dp))
 }
@@ -161,14 +161,14 @@ private fun ThreadView(
                 OutlinedTextField(
                     value = address,
                     onValueChange = onAddressChange,
-                    label = { Text("TO (NUMBER)", color = ImpartSecondary) },
+                    label = { Text("TO (NUMBER)", color = ImpartTextMuted) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, autoCorrect = false),
                     colors = fieldColors(),
                     modifier = Modifier.weight(1f)
                 )
             } else {
-                Text(text = address, color = ImpartTextPrimary, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(text = address, color = ImpartTextPrimary, fontFamily = ImpartMono, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         }
         LazyColumn(state = listState, modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
@@ -178,7 +178,7 @@ private fun ThreadView(
             OutlinedTextField(
                 value = draft,
                 onValueChange = { draft = it },
-                placeholder = { Text("Message", color = ImpartSecondary) },
+                placeholder = { Text("Message", color = ImpartTextMuted) },
                 // Password keyboard class with visible text: no learning, no suggestions.
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrect = false),
                 visualTransformation = VisualTransformation.None,
@@ -193,7 +193,7 @@ private fun ThreadView(
                 },
                 enabled = draft.isNotBlank() && address.isNotBlank()
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = ImpartPanicRed)
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = ImpartAccentTint)
             }
         }
     }
@@ -208,12 +208,12 @@ private fun Bubble(message: SmsMessageItem) {
         Box(
             modifier = Modifier
                 .widthIn(max = 300.dp)
-                .background(if (message.outgoing) ImpartPanicRed.copy(alpha = 0.25f) else ImpartBackground, RoundedCornerShape(10.dp))
+                .background(if (message.outgoing) ImpartAccentTint.copy(alpha = 0.25f) else ImpartSurface, RoundedCornerShape(10.dp))
                 .padding(10.dp)
         ) {
             Column {
                 Text(text = message.body, color = ImpartTextPrimary, fontSize = 14.sp)
-                Text(text = TimeFormat.clock(message.at), color = ImpartSecondary, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                Text(text = TimeFormat.clock(message.at), color = ImpartTextMuted, fontSize = 9.sp, fontFamily = ImpartMono)
             }
         }
     }
@@ -223,7 +223,7 @@ private fun Bubble(message: SmsMessageItem) {
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = ImpartTextPrimary,
     unfocusedTextColor = ImpartTextPrimary,
-    focusedBorderColor = ImpartPanicRed,
-    unfocusedBorderColor = ImpartSecondary,
-    cursorColor = ImpartPanicRed
+    focusedBorderColor = ImpartAccentTint,
+    unfocusedBorderColor = ImpartTextMuted,
+    cursorColor = ImpartAccentTint
 )

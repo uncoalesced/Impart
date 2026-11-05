@@ -141,11 +141,12 @@ Full rules are in `specs/05_CODING_STANDARDS.md`. Non-negotiable:
 - Signature rule: every `.kt` and `.kts` file starts with `// Engineered by uncoalesced`.
 - No emojis anywhere: code, UI text, logs, markdown.
 - No XML layouts, Fragments, DataBinding, ViewBinding or `findViewById`. Compose and Material 3 only. Vector drawables and adaptive icons in `res/` are fine; they are not layouts.
-- Colors come from `presentation/theme/Color.kt`. The palette is being moved to `specs/09_DESIGN_LANGUAGE.md` (Watermelon accent); until that task lands, spec 09 wins where the bullets below disagree.
-  - Screen backgrounds are `ImpartGround` (true black, AMOLED).
-  - `ImpartBackground` (navy) is for surfaces: cards, the nav bar, dialogs.
-  - `IntrusionScreen` is always `ImpartPanicRed`. Never reuse that red for a non-emergency state; warnings use `ImpartAmber`.
-  - `res/values/colors.xml` is the one sanctioned mirror.
+- Colors come from `presentation/theme/Color.kt`, which follows `specs/09_DESIGN_LANGUAGE.md`; spec 09 wins if they disagree.
+  - Screen backgrounds are `ImpartGround` (true black, AMOLED). Cards and rows use `ImpartSurface`; dialogs, the nav bar and sheets use `ImpartSurfaceRaised`.
+  - Watermelon `ImpartAccent` means Impart or an emergency, never an error. `IntrusionScreen` is full-bleed `ImpartAccent` with black text. Warnings, errors and destructive actions use `ImpartWarning`; healthy states use `ImpartVerified` (dots) and `ImpartVerifiedTint` (text).
+  - Accent text on a surface uses `ImpartAccentTint`. Every pairing is in `ContrastTest` (4.5:1 body, 3:1 large or graphic).
+  - Fonts: `ImpartMono` (JetBrains Mono) and `ImpartSans` (IBM Plex Sans), bundled in `res/font`. No system monospace, no downloadable fonts.
+  - The decoy and the Calculator cloak never use Watermelon or the mark. `res/values/colors.xml` is the one sanctioned mirror.
 - State hoisting is mandatory.
 - No silent failure. Use cases return `Result<T>` or a sealed result. Every branch of the intrusion pipeline ends in something visible. `printStackTrace` is banned; use tagged, redacted `Log` calls.
 - Repository interfaces live in `domain/repository/`. Implementations live in `data/` with an `Impl` suffix. Use cases are verb-first with a `UseCase` suffix. Prefer `sealed interface` for state hierarchies.

@@ -40,7 +40,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,9 +71,9 @@ fun ContactMatrixScreen(
     pendingRevoke?.let { target ->
         SecureAlertDialog(
             onDismissRequest = { pendingRevoke = null },
-            containerColor = ImpartBackground,
+            containerColor = ImpartSurfaceRaised,
             titleContentColor = ImpartTextPrimary,
-            textContentColor = ImpartSecondary,
+            textContentColor = ImpartTextMuted,
             title = { Text("REVOKE ${target.displayName}") },
             text = {
                 Text("This contact will no longer receive your panic signals, and theirs will no longer raise your alarm. Re-pairing requires a new physical QR handshake.")
@@ -87,12 +86,12 @@ fun ContactMatrixScreen(
                     },
                     modifier = Modifier.rejectObscuredTouches(rejectNotifier)
                 ) {
-                    Text("REVOKE", color = ImpartPanicRed, fontWeight = FontWeight.Bold)
+                    Text("REVOKE", color = ImpartWarning, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { pendingRevoke = null }) {
-                    Text("CANCEL", color = ImpartSecondary)
+                    Text("CANCEL", color = ImpartTextMuted)
                 }
             }
         )
@@ -152,7 +151,7 @@ fun ContactMatrixScreen(
         if (contacts.isEmpty()) {
             Text(
                 text = "No trusted nodes yet. Pairing is a physical act: scan their QR, then let them scan yours.",
-                color = ImpartSecondary,
+                color = ImpartTextMuted,
                 fontSize = 12.sp
             )
         }
@@ -175,7 +174,7 @@ fun ContactMatrixScreen(
 @Composable
 fun ContactRow(contact: Contact, onRename: (Contact) -> Unit, onRevoke: (Contact) -> Unit) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = ImpartBackground),
+        colors = CardDefaults.cardColors(containerColor = ImpartSurface),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -200,9 +199,9 @@ fun ContactRow(contact: Contact, onRename: (Contact) -> Unit, onRevoke: (Contact
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = contact.phoneNumber ?: "NO NUMBER",
-                    color = ImpartSecondary,
+                    color = ImpartTextMuted,
                     fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = ImpartMono
                 )
                 val fingerprint = remember(contact.publicKeyBase64, contact.signingKeyBase64) {
                     KeyFingerprint.of(contact.publicKeyBase64, contact.signingKeyBase64)
@@ -211,34 +210,35 @@ fun ContactRow(contact: Contact, onRename: (Contact) -> Unit, onRevoke: (Contact
                     text = "KEY $fingerprint",
                     color = ImpartTextPrimary,
                     fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = ImpartMono
                 )
                 Text(
                     text = contact.uuid,
-                    color = ImpartSecondary,
+                    color = ImpartTextMuted,
                     fontSize = 9.sp,
-                    fontFamily = FontFamily.Monospace
+                    fontFamily = ImpartMono
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 VerificationBadge(addedAt = contact.addedAt)
                 if (contact.needsRepair) {
                     Text(
                         text = "RE-PAIR NEEDED: YOUR KEYS WERE ROTATED. SCAN EACH OTHER'S QR AGAIN.",
-                        color = ImpartAmber,
+                        color = ImpartWarning,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
-                Text(text = "Tap to rename", color = ImpartSecondary.copy(alpha = 0.7f), fontSize = 9.sp)
+                Text(text = "Tap to rename", color = ImpartTextMuted.copy(alpha = 0.7f), fontSize = 9.sp)
             }
             Spacer(modifier = Modifier.width(12.dp))
             Button(
                 onClick = { onRevoke(contact) },
+                // Revoking is destructive, not an emergency: Sandy Brown, never Watermelon.
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = ImpartPanicRed,
-                    contentColor = ImpartTextPrimary
+                    containerColor = ImpartWarning,
+                    contentColor = ImpartGround
                 ),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(4.dp)
             ) {
                 Text(text = "REVOKE", fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
@@ -251,9 +251,9 @@ private fun RenameContactDialog(contact: Contact, onDismiss: () -> Unit, onSave:
     var nickname by remember(contact.uuid) { mutableStateOf(contact.nickname.orEmpty()) }
     SecureAlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = ImpartBackground,
+        containerColor = ImpartSurfaceRaised,
         titleContentColor = ImpartTextPrimary,
-        textContentColor = ImpartSecondary,
+        textContentColor = ImpartTextMuted,
         title = { Text("RENAME NODE") },
         text = {
             Column {
@@ -271,11 +271,11 @@ private fun RenameContactDialog(contact: Contact, onDismiss: () -> Unit, onSave:
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = ImpartTextPrimary,
                         unfocusedTextColor = ImpartTextPrimary,
-                        focusedBorderColor = ImpartPanicRed,
-                        unfocusedBorderColor = ImpartSecondary,
-                        focusedLabelColor = ImpartPanicRed,
-                        unfocusedLabelColor = ImpartSecondary,
-                        cursorColor = ImpartPanicRed
+                        focusedBorderColor = ImpartAccentTint,
+                        unfocusedBorderColor = ImpartTextMuted,
+                        focusedLabelColor = ImpartAccentTint,
+                        unfocusedLabelColor = ImpartTextMuted,
+                        cursorColor = ImpartAccentTint
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -283,12 +283,12 @@ private fun RenameContactDialog(contact: Contact, onDismiss: () -> Unit, onSave:
         },
         confirmButton = {
             TextButton(onClick = { onSave(nickname) }, enabled = nickname.isNotBlank()) {
-                Text("SAVE", color = ImpartPanicRed, fontWeight = FontWeight.Bold)
+                Text("SAVE", color = ImpartAccentTint, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("CANCEL", color = ImpartSecondary)
+                Text("CANCEL", color = ImpartTextMuted)
             }
         }
     )
@@ -300,7 +300,7 @@ private fun RenameContactDialog(contact: Contact, onDismiss: () -> Unit, onSave:
 private fun VerificationBadge(addedAt: Long) {
     val ageDays = TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - addedAt)
     val stale = ageDays >= REVERIFY_THRESHOLD_DAYS
-    val tint = if (stale) ImpartAmber else ImpartVerified
+    val tint = if (stale) ImpartWarning else ImpartVerifiedTint
     val label = when {
         stale -> "LAST VERIFIED ${ageDays}D AGO - CONSIDER RE-PAIRING"
         ageDays <= 0L -> "LAST VERIFIED TODAY"

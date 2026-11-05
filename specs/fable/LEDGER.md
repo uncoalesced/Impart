@@ -118,11 +118,13 @@ Design change: the decoy flag moved out of the encrypted preferences into `share
 
 ## T15: Re-skin to the uncoalesced design language
 
-- [ ] No `2B2D42`, `EF233C`, `D90429` or `FFB000` left anywhere.
-- [ ] Contrast test green.
-- [ ] Spec 05 and CLAUDE.md match Color.kt.
-- [ ] Standards script green.
-- [ ] Notification small icon switched.
+- [x] No `2B2D42`, `EF233C`, `D90429` or `FFB000` left anywhere. (none in `app/src`, the resources, spec 05 or CLAUDE.md; `ContrastTest` and the new "retired palette" step in `standards-check.sh` fail if one returns. The only remaining mentions are the search terms in those two checks, the task file and this gate, and the "Replaces" column of spec 09, which records what was retired; T15 commit)
+- [x] Contrast test green. (`ContrastTest`: 24 pairings, body 4.5:1, large or graphic 3:1; T15 commit)
+- [x] Spec 05 and CLAUDE.md match Color.kt. (spec 05 section 4 rewritten around `ImpartPalette`; CLAUDE.md color bullets; T15 commit)
+- [x] Standards script green. (local run; gains the retired-palette check; T15 commit)
+- [x] Notification small icon switched. (`R.drawable.ic_stat_impart` in `ImpartNotifications` and `AlertIntake`; T15 commit)
+
+Note: the Calculator cloak icon read the old navy through `colors.xml`. It now has its own neutral `cloak_background` (`#3C4043`) and `cloak_foreground` (`#F1F3F4`), so it still looks like a stock calculator and never uses an Impart color (spec 09 section 8).
 
 ## T16: The Impart mark inside the app
 

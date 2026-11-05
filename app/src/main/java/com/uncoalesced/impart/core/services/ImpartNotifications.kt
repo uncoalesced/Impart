@@ -7,6 +7,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import androidx.core.app.NotificationCompat
+import com.uncoalesced.impart.R
 
 // Single owner of every channel and notification id. Channels are created once in
 // ImpartApplication.onCreate, which also runs when an SMS cold-starts the process.
@@ -68,7 +69,7 @@ object ImpartNotifications {
         text: String
     ) {
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setSmallIcon(R.drawable.ic_stat_impart)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -84,7 +85,7 @@ object ImpartNotifications {
     fun notifyMessage(context: Context, address: String) {
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
         val builder = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
-            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setSmallIcon(R.drawable.ic_stat_impart)
             .setContentTitle("New text message")
             .setContentText("From $address. Unlock Impart to read it.")
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)

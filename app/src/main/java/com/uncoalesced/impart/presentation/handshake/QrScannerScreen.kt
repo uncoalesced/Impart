@@ -87,7 +87,7 @@ fun QrScannerScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Scanning a handshake QR is the only way to trust another node.",
-                    color = ImpartSecondary,
+                    color = ImpartTextMuted,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
@@ -95,8 +95,8 @@ fun QrScannerScreen(
                 Button(
                     onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = ImpartPanicRed,
-                        contentColor = ImpartTextPrimary
+                        containerColor = ImpartAccent,
+                        contentColor = ImpartGround
                     )
                 ) {
                     Text("GRANT CAMERA ACCESS", fontWeight = FontWeight.Bold)
@@ -122,7 +122,7 @@ fun QrScannerScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "ALIGN QR CODE WITHIN FRAME",
-                color = ImpartSecondary,
+                color = ImpartTextMuted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 2.sp

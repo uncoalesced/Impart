@@ -27,8 +27,8 @@ import androidx.compose.ui.unit.sp
 import com.uncoalesced.impart.core.security.PinEntry
 import com.uncoalesced.impart.presentation.components.PinPad
 import com.uncoalesced.impart.presentation.components.SecureDialog
-import com.uncoalesced.impart.presentation.theme.ImpartBackground
-import com.uncoalesced.impart.presentation.theme.ImpartSecondary
+import com.uncoalesced.impart.presentation.theme.ImpartSurfaceRaised
+import com.uncoalesced.impart.presentation.theme.ImpartTextMuted
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 
 // Asks for a PIN before a sensitive change. The caller receives the digits as a CharArray
@@ -45,8 +45,8 @@ fun SecurityAuthDialog(
 
     SecureDialog(onDismissRequest = onDismiss) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = ImpartBackground),
-            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = ImpartSurfaceRaised),
+            shape = RoundedCornerShape(10.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
@@ -67,7 +67,7 @@ fun SecurityAuthDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "ENTER NODE ACCESS OR DURESS PIN",
-                    color = ImpartSecondary,
+                    color = ImpartTextMuted,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -96,7 +96,7 @@ fun SecurityAuthDialog(
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                     TextButton(onClick = onDismiss) {
-                        Text("CANCEL", color = ImpartSecondary)
+                        Text("CANCEL", color = ImpartTextMuted)
                     }
                 }
             }

@@ -36,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -98,9 +97,9 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
         )
         RotateStep.CONFIRM -> SecureAlertDialog(
             onDismissRequest = { rotateStep = RotateStep.IDLE },
-            containerColor = ImpartBackground,
+            containerColor = ImpartSurfaceRaised,
             titleContentColor = ImpartTextPrimary,
-            textContentColor = ImpartSecondary,
+            textContentColor = ImpartTextMuted,
             title = { Text("ROTATE MY KEYS?") },
             text = {
                 Text(
@@ -112,12 +111,12 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
                     rotateStep = RotateStep.IDLE
                     settingsViewModel.rotateKeys()
                 }) {
-                    Text("ROTATE", color = ImpartAmber, fontWeight = FontWeight.Bold)
+                    Text("ROTATE", color = ImpartWarning, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { rotateStep = RotateStep.IDLE }) {
-                    Text("CANCEL", color = ImpartSecondary)
+                    Text("CANCEL", color = ImpartTextMuted)
                 }
             }
         )
@@ -263,14 +262,14 @@ private fun open(context: Context, intent: Intent) {
 private fun Section(title: String, content: @Composable ColumnScope.() -> Unit) {
     Text(
         text = title,
-        color = ImpartSecondary,
+        color = ImpartTextMuted,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 2.sp,
         modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
     )
     Card(
-        colors = CardDefaults.cardColors(containerColor = ImpartBackground),
+        colors = CardDefaults.cardColors(containerColor = ImpartSurface),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
     ) {
@@ -289,9 +288,9 @@ private fun NavRow(title: String, subtitle: String? = null, onClick: () -> Unit)
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, color = ImpartTextPrimary, fontSize = 15.sp)
-            if (subtitle != null) Text(text = subtitle, color = ImpartSecondary, fontSize = 11.sp)
+            if (subtitle != null) Text(text = subtitle, color = ImpartTextMuted, fontSize = 11.sp)
         }
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = ImpartSecondary)
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = ImpartTextMuted)
     }
 }
 
@@ -305,12 +304,12 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheck
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, color = ImpartTextPrimary, fontSize = 15.sp)
-            Text(text = subtitle, color = ImpartSecondary, fontSize = 11.sp)
+            Text(text = subtitle, color = ImpartTextMuted, fontSize = 11.sp)
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = ImpartTextPrimary, checkedTrackColor = ImpartPanicRed)
+            colors = SwitchDefaults.colors(checkedThumbColor = ImpartTextPrimary, checkedTrackColor = ImpartAccent)
         )
     }
 }
@@ -318,13 +317,13 @@ private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheck
 @Composable
 private fun InfoRow(title: String, value: String, monospace: Boolean = false, hint: String? = null) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-        Text(text = title, color = ImpartSecondary, fontSize = 11.sp)
+        Text(text = title, color = ImpartTextMuted, fontSize = 11.sp)
         Text(
             text = value,
             color = ImpartTextPrimary,
             fontSize = 15.sp,
-            fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default
+            fontFamily = if (monospace) ImpartMono else ImpartSans
         )
-        if (hint != null) Text(text = hint, color = ImpartSecondary, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+        if (hint != null) Text(text = hint, color = ImpartTextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }

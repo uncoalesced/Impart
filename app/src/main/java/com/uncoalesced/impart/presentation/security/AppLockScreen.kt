@@ -24,17 +24,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.uncoalesced.impart.presentation.theme.ImpartMono
 import com.uncoalesced.impart.core.security.PinEntry
 import com.uncoalesced.impart.core.security.UnlockResult
 import com.uncoalesced.impart.presentation.components.PinPad
-import com.uncoalesced.impart.presentation.theme.ImpartAmber
+import com.uncoalesced.impart.presentation.theme.ImpartWarning
 import com.uncoalesced.impart.presentation.theme.ImpartGround
-import com.uncoalesced.impart.presentation.theme.ImpartSecondary
+import com.uncoalesced.impart.presentation.theme.ImpartTextMuted
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 import kotlinx.coroutines.delay
 
@@ -74,11 +74,11 @@ fun AppLockScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Default.Lock, contentDescription = null, tint = ImpartSecondary, modifier = Modifier.size(48.dp))
+        Icon(Icons.Default.Lock, contentDescription = null, tint = ImpartTextMuted, modifier = Modifier.size(48.dp))
         Spacer(modifier = Modifier.height(16.dp))
         Text(text = "IMPART LOCKED", color = ImpartTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
         Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "ENTER YOUR PIN", color = ImpartSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Text(text = "ENTER YOUR PIN", color = ImpartTextMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Spacer(modifier = Modifier.height(24.dp))
 
         PinPad(
@@ -116,14 +116,14 @@ fun AppLockScreen(
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "Too many wrong attempts. Try again in ${waitSeconds}s.",
-                color = ImpartAmber,
+                color = ImpartWarning,
                 fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = ImpartMono,
                 textAlign = TextAlign.Center
             )
         } else if (current != null) {
             Spacer(modifier = Modifier.height(12.dp))
-            Text(text = current, color = ImpartAmber, fontSize = 12.sp, textAlign = TextAlign.Center)
+            Text(text = current, color = ImpartWarning, fontSize = 12.sp, textAlign = TextAlign.Center)
         }
     }
 }

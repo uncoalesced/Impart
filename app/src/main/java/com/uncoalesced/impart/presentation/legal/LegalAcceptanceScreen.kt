@@ -45,13 +45,13 @@ fun LegalAcceptanceScreen(viewModel: LegalViewModel, onDecline: () -> Unit) {
             .padding(24.dp)
     ) {
         Spacer(modifier = Modifier.height(24.dp))
-        Text(text = "BEFORE YOU START", color = ImpartSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Text(text = "BEFORE YOU START", color = ImpartTextMuted, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Spacer(modifier = Modifier.height(8.dp))
         Text(text = "Impart pages people you trust. Read this first.", color = ImpartTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
         Spacer(modifier = Modifier.height(20.dp))
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = ImpartBackground),
+            colors = CardDefaults.cardColors(containerColor = ImpartSurface),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -78,7 +78,7 @@ fun LegalAcceptanceScreen(viewModel: LegalViewModel, onDecline: () -> Unit) {
         }
         Spacer(modifier = Modifier.height(8.dp))
         TextButton(onClick = onDecline, modifier = Modifier.fillMaxWidth()) {
-            Text("DECLINE AND CLOSE", color = ImpartSecondary)
+            Text("DECLINE AND CLOSE", color = ImpartTextMuted)
         }
     }
 }
@@ -86,7 +86,7 @@ fun LegalAcceptanceScreen(viewModel: LegalViewModel, onDecline: () -> Unit) {
 @Composable
 private fun Warning(text: String) {
     Row {
-        Text(text = "!", color = ImpartAmber, fontWeight = FontWeight.ExtraBold, modifier = Modifier.width(16.dp))
+        Text(text = "!", color = ImpartWarning, fontWeight = FontWeight.ExtraBold, modifier = Modifier.width(16.dp))
         Text(text = text, color = ImpartTextPrimary, fontSize = 14.sp, lineHeight = 20.sp)
     }
 }
@@ -101,6 +101,6 @@ private fun DocumentLink(document: LegalDocument, onOpen: (LegalDocument) -> Uni
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = "Read the ${document.title}", color = ImpartTextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = ImpartSecondary)
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = ImpartTextMuted)
     }
 }

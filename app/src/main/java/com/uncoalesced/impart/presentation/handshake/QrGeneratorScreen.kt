@@ -22,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -53,7 +52,7 @@ fun QrGeneratorScreen(
     ) {
         Text(
             text = "NODE HANDSHAKE",
-            color = ImpartSecondary,
+            color = ImpartTextMuted,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 2.sp
@@ -76,18 +75,18 @@ fun QrGeneratorScreen(
             value = phoneNumber,
             onValueChange = onPhoneNumberChange,
             label = { Text("MY PHONE NUMBER (WITH COUNTRY CODE)") },
-            placeholder = { Text("+15551234567", color = ImpartSecondary) },
+            placeholder = { Text("+15551234567", color = ImpartTextMuted) },
             singleLine = true,
             // Phone keyboard class: no text suggestions, no learning. No autocorrect either.
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, autoCorrect = false),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = ImpartTextPrimary,
                 unfocusedTextColor = ImpartTextPrimary,
-                focusedBorderColor = ImpartPanicRed,
-                unfocusedBorderColor = ImpartSecondary,
-                focusedLabelColor = ImpartPanicRed,
-                unfocusedLabelColor = ImpartSecondary,
-                cursorColor = ImpartPanicRed
+                focusedBorderColor = ImpartAccentTint,
+                unfocusedBorderColor = ImpartTextMuted,
+                focusedLabelColor = ImpartAccentTint,
+                unfocusedLabelColor = ImpartTextMuted,
+                cursorColor = ImpartAccentTint
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -95,7 +94,7 @@ fun QrGeneratorScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = ImpartSecondary.copy(alpha = 0.15f)),
+            colors = CardDefaults.cardColors(containerColor = ImpartTextMuted.copy(alpha = 0.15f)),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.padding(16.dp)
         ) {
@@ -104,10 +103,10 @@ fun QrGeneratorScreen(
                 contentAlignment = Alignment.Center
             ) {
                 when (qrState) {
-                    QrState.Generating -> CircularProgressIndicator(color = ImpartPanicRed)
+                    QrState.Generating -> CircularProgressIndicator(color = ImpartAccentTint)
                     is QrState.Unavailable -> Text(
                         text = qrState.message,
-                        color = ImpartPanicRed,
+                        color = ImpartWarning,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
@@ -119,7 +118,7 @@ fun QrGeneratorScreen(
         if (qrState is QrState.Ready) {
             Text(
                 text = "KEY FINGERPRINT",
-                color = ImpartSecondary,
+                color = ImpartTextMuted,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 2.sp
@@ -129,13 +128,13 @@ fun QrGeneratorScreen(
                 text = qrState.fingerprint,
                 color = ImpartTextPrimary,
                 fontSize = 16.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = ImpartMono,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "When pairing, read this aloud. The other phone must show the same fingerprint for you in its Contacts tab.",
-                color = ImpartSecondary,
+                color = ImpartTextMuted,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center
             )
@@ -145,7 +144,7 @@ fun QrGeneratorScreen(
 
         Text(
             text = "Pairing is two-way. After they scan you, scan them.",
-            color = ImpartSecondary,
+            color = ImpartTextMuted,
             fontSize = 12.sp,
             textAlign = TextAlign.Center
         )
@@ -154,7 +153,8 @@ fun QrGeneratorScreen(
 
 @Composable
 private fun QrImage(payloadJson: String) {
-    val foreground = ImpartBackground.toArgb()
+    // Black on Porcelain: the highest contrast a camera can be given.
+    val foreground = ImpartGround.toArgb()
     val background = ImpartTextPrimary.toArgb()
     // Rendered once per payload, off the main thread. Typing a phone number must not stall
     // the keyboard on a 512x512 pixel loop.
@@ -163,7 +163,7 @@ private fun QrImage(payloadJson: String) {
     }
     val current = bitmap
     if (current == null) {
-        CircularProgressIndicator(color = ImpartPanicRed)
+        CircularProgressIndicator(color = ImpartAccentTint)
     } else {
         Image(
             bitmap = current.asImageBitmap(),

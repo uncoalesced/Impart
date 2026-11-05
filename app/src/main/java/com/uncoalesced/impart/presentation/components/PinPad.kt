@@ -31,17 +31,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.uncoalesced.impart.presentation.theme.ImpartMono
 import com.uncoalesced.impart.core.security.DuressManager
 import com.uncoalesced.impart.core.security.PinEntry
-import com.uncoalesced.impart.presentation.theme.ImpartBackground
+import com.uncoalesced.impart.presentation.theme.ImpartSurface
 import com.uncoalesced.impart.presentation.theme.ImpartGround
-import com.uncoalesced.impart.presentation.theme.ImpartPanicRed
-import com.uncoalesced.impart.presentation.theme.ImpartSecondary
+import com.uncoalesced.impart.presentation.theme.ImpartAccentTint
+import com.uncoalesced.impart.presentation.theme.ImpartTextMuted
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 import java.security.SecureRandom
 
@@ -91,7 +91,7 @@ fun PinPad(
                 },
                 modifier = Modifier.size(KEY_SIZE)
             ) {
-                Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "Delete last digit", tint = ImpartSecondary)
+                Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "Delete last digit", tint = ImpartTextMuted)
             }
             PinKey(label = order[9].toString(), description = "digit") {
                 if (entry.push(order[9])) onChanged()
@@ -99,7 +99,7 @@ fun PinPad(
             TextButton(onClick = onSubmit, enabled = submitEnabled, modifier = Modifier.size(KEY_SIZE)) {
                 Text(
                     text = submitLabel,
-                    color = if (submitEnabled) ImpartPanicRed else ImpartSecondary,
+                    color = if (submitEnabled) ImpartAccentTint else ImpartTextMuted,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -116,7 +116,7 @@ private fun PinDots(count: Int, capacity: Int) {
                     .size(14.dp)
                     .clip(CircleShape)
                     .background(if (index < count) ImpartTextPrimary else ImpartGround)
-                    .border(1.dp, ImpartSecondary, CircleShape)
+                    .border(1.dp, ImpartTextMuted, CircleShape)
             )
         }
     }
@@ -129,14 +129,14 @@ private fun PinKey(label: String, description: String, onClick: () -> Unit) {
         modifier = Modifier
             .size(KEY_SIZE)
             .clip(RoundedCornerShape(12.dp))
-            .background(ImpartBackground)
+            .background(ImpartSurface)
             .semantics { contentDescription = "$description $label" }
     ) {
         Text(
             text = label,
             color = ImpartTextPrimary,
             fontSize = 22.sp,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = ImpartMono,
             fontWeight = FontWeight.Bold
         )
     }
