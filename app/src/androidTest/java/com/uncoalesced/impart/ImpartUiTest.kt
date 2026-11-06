@@ -13,6 +13,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import com.uncoalesced.impart.core.security.AppLockManager
 import com.uncoalesced.impart.core.security.DuressManager
+import com.uncoalesced.impart.data.local.db.ImpartDatabase
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.domain.model.LegalDocument
 import com.uncoalesced.impart.domain.repository.ContactRepository
@@ -39,6 +40,7 @@ abstract class ImpartUiTest {
     @Inject lateinit var lock: AppLockManager
     @Inject lateinit var contacts: ContactRepository
     @Inject lateinit var relayManager: RelayManager
+    @Inject lateinit var database: dagger.Lazy<ImpartDatabase>
 
     protected val relay: FakeRelayManager get() = relayManager as FakeRelayManager
     protected val context: Context get() = ApplicationProvider.getApplicationContext()
@@ -64,6 +66,10 @@ abstract class ImpartUiTest {
     @After
     fun closeScenarios() {
         scenarios.forEach { runCatching { it.close() } }
+        // Each test gets its own Hilt component and so its own Room instance. Close it, or
+        // its SQLCipher connection outlives the test and writes the old database (under the
+        // old key) back after the next test's reset has deleted it.
+        runCatching { database.get().close() }
     }
 
     protected fun acceptLegal() = prefs.acceptLegal(LegalDocument.CURRENT_VERSION)
