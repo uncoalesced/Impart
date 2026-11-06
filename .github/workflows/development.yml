@@ -147,7 +147,7 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: timeout 1200 ./gradlew connectedDebugAndroidTest --stacktrace; status=$?; if [ $status -ne 0 ]; then mkdir -p app/build/reports/androidTests/connected; adb logcat -d > app/build/reports/androidTests/connected/logcat.txt; fi; adb emu kill; sleep 20; pkill -9 -f qemu-system || true; pkill -9 -f crashpad_handler || true; exit $status
+          script: timeout 1200 ./gradlew connectedDebugAndroidTest --stacktrace; status=$?; if [ $status -ne 0 ]; then mkdir -p app/build/reports/androidTests/connected; adb logcat -d > app/build/reports/androidTests/connected/logcat.txt; fi; adb emu kill; sleep 20; pkill -9 -f '[q]emu-system' || true; pkill -9 -f '[c]rashpad_handler' || true; exit $status
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
