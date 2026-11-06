@@ -4,6 +4,7 @@ package com.uncoalesced.impart
 import android.Manifest
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -59,8 +60,10 @@ abstract class ImpartUiTest {
         // Every test also starts without Keystore keys, as a fresh install does.
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         keyStore.aliases().toList().forEach { keyStore.deleteEntry(it) }
+        Log.i(TAG, "after reset: " + data.walkTopDown().filter { it.isFile }.map { it.relativeTo(data).path }.toList())
         grantRuntimePermissions()
         hilt.inject()
+        Log.i(TAG, "after inject: database file exists=" + context.getDatabasePath(ImpartDatabase.NAME).exists())
     }
 
     @After
@@ -106,6 +109,7 @@ abstract class ImpartUiTest {
     }
 
     companion object {
+        private const val TAG = "ImpartUiTest"
         const val STANDARD_PIN = "2580"
         const val DURESS_PIN = "7531"
     }
