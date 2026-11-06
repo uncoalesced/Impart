@@ -5,10 +5,21 @@ Fable fills every section before handing back (task T20). Joel builds and tests 
 
 ## 1. Summary
 
-- Branch and head commit: `fable/finish-impart` (head filled in at T20)
+- Branch and head commit: `fable/finish-impart` at HEAD_SHA
 - PR: draft #8, https://github.com/uncoalesced/Impart/pull/8 (PR #7 was merged into `development` before this session started)
-- Latest green CI run:
-- One paragraph on what changed:
+- Latest green CI run: GREEN_DEV (development CI, every job including both emulators) and GREEN_CODEQL (CodeQL)
+- What changed: every task from T00 to T21 is done.
+  - **PINs and lockout.** PINs are never stored, only salted Keystore HMACs. Lockouts cannot be shortened by the clock, a reboot or a force-stop, and an optional hard cap wipes after 20 wrong PINs.
+  - **UI hardening.** Every window and dialog is FLAG_SECURE and refuses obscured touches, and every PIN is typed on the in-app pad.
+  - **Manifest and memory.** The merged manifest carries no network permission, and CI proves it on every build. Decrypted bytes are zeroed after use.
+  - **Wire format v3.** Every alert is exactly 612 characters under a per-pair tag, so a panic cannot be told from an ACK. Every phone must re-pair.
+  - **Duress wipe.** It deletes every file, database, cached preference and Keystore key, silently, and leaves only the decoy flag.
+  - **Supply chain.** Every action, the wrapper and every dependency (SHA-256) is pinned. CodeQL runs on every PR.
+  - **Release.** R8 is on for release builds. Release signing refuses the debug key.
+  - **Features.** Vendor background settings, key rotation, an optional default-SMS-app mode, the spec 09 re-skin and the mark.
+  - **No Google code.** ML Kit and Play Services are replaced by ZXing and `LocationManager`.
+  - **Tests.** Compose UI tests run on API 26 and 34 emulators in CI.
+  - **Docs.** The documentation matches the code, including the community files Joel asked for.
 
 ## 2. How to build and install
 
@@ -40,17 +51,65 @@ RELEASE_KEYSTORE_PATH=/path/to/release.keystore RELEASE_KEYSTORE_PASSWORD=... RE
 
 ## 3. What Joel must test on phones
 
-Point to the phases of `specs/08_FLIGHT_CHECK_PROTOCOL.md`, new phases first. Include the release APK checks from T10.
+Run `specs/08_FLIGHT_CHECK_PROTOCOL.md` on two or three phones. Uninstall every older Impart build first and pair again: wire v3 cannot talk to older builds. Do the phases added on this branch first, because the emulator cannot cover them:
+
+1. Phase 2, the lock: the PIN pad, the lockout surviving a reboot and a clock change, and step 9 (overlay rejection with a screen-filter app).
+2. Phase 8, duress and decoy: the duress PIN shows NODE CORRUPTED with no notification and no icon change; reopen the app and the decoy remains. Optionally turn on the hard cap in Settings and enter 20 wrong PINs on a spare install.
+3. Phase 8a, vendor background settings on a Xiaomi, OPPO, realme, vivo, Huawei, HONOR, OnePlus or Samsung phone if you have one.
+4. Phase 8b, rotate my keys: re-pairing is required, and old-key alerts fail verification.
+5. Phase 8c, SMS app mode: make Impart the default SMS app. Ordinary texts appear in the Texts tab, and alerts never reach the inbox.
+6. Phase 8d, the look and the mark: the Watermelon intrusion screen. The mark is never shown under the Calculator cloak.
+7. Phase 9, the release APK: everything below on an R8 build.
+
+Then the original phases 1, 3, 4, 5, 6 and 7 (first launch, pairing, foreground alert and ACK, replay and misdirection, broadcast, and the deep-sleep test).
 
 Release APK (spec 08 phase 9, T10): handshake both ways, panic and ACK, the lock and the PIN pad, the duress wipe and decoy, and the dead man's switch worker (set one hour, let it fire). These exercise Tink, Room with SQLCipher, Hilt workers and WorkManager, the four places a missing R8 keep rule would show. Read any crash with the `release-mapping` artifact.
 
 ## 4. Security changes, by adversary
 
-One line per attack table row that changed status, with the commit.
+Every row of the spec 03 section 6 table whose status changed on this branch, with the commit that changed it. Hashes are after the identity rewrite.
+
+- A1-1 unlocked phone, open the app: mitigated by the lock on screen off and the 30 s background relock (`c023108`, T04).
+- A1-2 and A1-3 PIN guessing, and skipping the lockout through the clock, a reboot or a force-stop: mitigated (`46d72ea`, T03).
+- A1-4 and A2-3 PINs read from storage or brute-forced offline: mitigated, with salted HMACs under a non-exportable Keystore key (`51ea803`, T02).
+- A1-5 and A4-4 recents preview and screenshots: mitigated (`c023108`, T04).
+- A1-6 fake panic from a stolen phone: partly mitigated, because rotation lets the others re-pair (`8601d2f`, T13).
+- A1-7 and A8-4 update over a debug build, or a fake update: mitigated for release builds (`fef4a59`, T11).
+- A2-4, A6-3 and A6-4 data the wipe missed, and a visible wipe: mitigated (`82915fa`, T08). The cached-preference gap was found by the emulator tests and closed in `690028b`.
+- A2-5 plaintext in memory: partly mitigated (`09fbe83`, T06).
+- A2-6 and A8-7 readable release APK: partly mitigated (`fed2292`, T10).
+- A4-1 and A4-2 inbox copies and telling a panic from an ACK by length: mitigated (`83c9060` T07, `b9b8b77` T14).
+- A4-6 and A8-6 location or telemetry leaving through Google components: mitigated (`e41a8f7` T05, `6e31d12` T21).
+- A5-1 and A5-2 keyboard capture and overlays: mitigated (`c023108`, T04).
+- A5-4 clipboard: mitigated (`c023108`, T04).
+- A5-5 exported components: mitigated (`e41a8f7`, T05).
+- A5-7 inbox readers: partly mitigated (`b9b8b77`, T14).
+- A6-2 locking the app out so the duress PIN cannot be entered: mitigated, because the duress PIN wins during a lockout (`46d72ea`, T03).
+- A7-6 a contact's phone compromised after pairing: mitigated (`8601d2f`, T13).
+- A8-1 tampered dependency: mitigated (`c7e6c19`, T09). An altered checksum fails the build: ALTERED_RUN.
+- A8-2 and A8-3 tampered wrapper or action: mitigated (`5aef0e6`, T09).
+- A8-5 a change that adds a network path: mitigated. The manifest job fails on it: https://github.com/uncoalesced/Impart/actions/runs/41891997330/job/126791540861 (`e41a8f7`, T05).
 
 ## 5. Decisions Joel made, and questions still open
 
-Note on Google Play (T14): with the optional default-SMS-app mode in place, Impart is a candidate for Play's "default SMS handler" exception for the SMS permissions. Submission, the policy declaration and whether to apply at all remain Joel's decision; nothing on this branch touches a store.
+Joel's decisions are in `specs/fable/LEDGER.md` under "Decisions from Joel":
+- PR #8.
+- Hard cap at 20, off by default.
+- Cloak untouched by the wipe.
+- Wire v3 with padding and a per-pair tag.
+- `HIDE_OVERLAY_WINDOWS`.
+- No Google components.
+- The commit identity.
+- The community files.
+- Code scanning.
+
+Open for Joel:
+
+- **Code scanning.** CodeQL analyses every PR, but the upload is refused until code scanning is enabled under Settings, Code security. The SARIF is kept as an artifact meanwhile (section 7).
+- **Commit signatures.** Every commit on this branch is `uncoalesced <mail@uncoalesced.com>`, as Joel asked. GitHub shows them as Unverified because they are unsigned. Adding a GPG or SSH signing key to the account and signing future commits would fix that.
+- **Fable credit line.** The brief mentions a credit line that does not exist anywhere in the repository. None was added.
+- **Google Play (T14).** With the optional default-SMS-app mode in place, Impart is a candidate for Play's "default SMS handler" exception for the SMS permissions. Submission, the policy declaration and whether to apply at all remain Joel's decision; nothing on this branch touches a store.
+- **Release key.** It does not exist yet (section 9).
 
 ## 6. New and changed classes, and the tests that cover them (T18)
 
@@ -90,11 +149,39 @@ Note on Google Play (T14): with the optional default-SMS-app mode in place, Impa
 
 Every job, what it checks, and its latest run.
 
+| Workflow | Job | Checks | Latest run |
+|---|---|---|---|
+| `development.yml` | coding standards | signature line, no emojis, spec 09 palette and no retired colors, Compose only, secret scan | GREEN_DEV |
+| `development.yml` | gradle wrapper validation | the wrapper jar is an official Gradle release | GREEN_DEV |
+| `development.yml` | android debug build + test + lint | `assembleDebug testDebugUnitTest lintDebug`, with every dependency checked against `gradle/verification-metadata.xml` | GREEN_DEV |
+| `development.yml` | merged manifest check | no network permission, no unprotected exported component, no backup, both variants | GREEN_DEV |
+| `development.yml` | android release build (R8, unsigned) | `assembleRelease`, `mapping.txt` kept as an artifact | GREEN_DEV |
+| `development.yml` | instrumented tests (API 26), (API 34) | the 17 Compose UI and migration tests on emulators, with no real SMS | GREEN_DEV |
+| `codeql.yml` | analyze (java-kotlin) | CodeQL over a manual `assembleDebug`; the SARIF upload is tolerated | GREEN_CODEQL |
+| `main.yml` | release build, bundle, versionCode, F-Droid scan, manifest, wrapper, summary | runs on PRs into `main` only; not triggered by this branch | n/a |
+| `deployment.yml` | signed AAB and APK | runs on `deployment` only, needs the four `RELEASE_*` secrets, and fails on a debug-signed output | n/a |
+
+Proof runs: the manifest job failing on a deliberate INTERNET permission, https://github.com/uncoalesced/Impart/actions/runs/41891997330/job/126791540861; dependency verification failing on a deliberately altered checksum, ALTERED_RUN.
+
 CodeQL upload limit (T09): the first CodeQL runs on the PR (for example https://github.com/uncoalesced/Impart/actions/runs/41899056589) analysed the code and then failed with "Code scanning is not enabled for this repository". The upload is now a separate, tolerated step and the SARIF is kept as a workflow artifact (`codeql-sarif`). Joel: enable code scanning under Settings, Code security and analysis; from the next run the results appear in the Security tab with no workflow change. The analysis step itself still fails the job on an analysis error.
 
 ## 8. Known limits and residual risks
 
-Copy the out-of-reach rows from spec 03 so they are in front of Joel.
+These are out of reach of any app. They are written down so nobody believes otherwise (spec 03 section 6):
+
+- A2-8: code running as the app's UID on a rooted or exploited phone while the app is unlocked can read everything the app can.
+- A2-9: a compromised OS or bootloader. Nothing in an app survives that.
+- A4-3: carrier records show that number A texted number B at a given time, in four parts. SMS has no metadata privacy.
+- A5-3: a granted accessibility service can read any window the user can. The PIN pad exposes only the digit count.
+- A5-8: any app with notification permission can post a fake "panic" notification. The real alarm is the full-screen red activity.
+- A6-5: someone who forces the owner to hand over both PINs gets in.
+
+Residual risks, rated partly:
+- Delivery: SMS delivery is not guaranteed, and OEM battery skins can still kill the receiver (spec 08 phase 7).
+- Memory: JVM strings may hold plaintext a little longer than intended (A2-5).
+- Inbox copies: alerts land in the stock inbox unless Impart is the default SMS app (A5-7).
+- Launcher: the launcher reveals the app unless the cloak is on (A4-5).
+- Audit: Impart has not been independently audited.
 
 ## 9. Release key custody (T11)
 
