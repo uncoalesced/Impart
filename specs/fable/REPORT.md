@@ -54,6 +54,38 @@ Note on Google Play (T14): with the optional default-SMS-app mode in place, Impa
 
 ## 6. New and changed classes, and the tests that cover them (T18)
 
+102 main source files were added or changed since `dd2c273`. The list was built by matching every top-level declaration in each file against `app/src/test` and `app/src/androidTest`, and was then checked by hand. Every pure class has a JVM test. Every class that only wraps Android (a receiver, a DI module, a provider, a Compose screen) is driven by an instrumented test or by a named phase of the spec 08 flight check. No class is uncovered.
+
+### 6.1 Logic, tested on the JVM
+
+| Area | Classes | JVM tests |
+|---|---|---|
+| Wire and verification | `AlertWire`, `PairTag`, `AlertEnvelope`, `AlertRecognizer`, `AlertVerifier`, `PanicPayloadCodec`, `CryptoManager`, `SigningIdentity`, `KeyGeneration`, `KeysetSource` | `AlertVerifierTest` (the attack set), `AlertSizeTest`, `PairTagTest`, `AlertRecognizerTest`, `PanicPayloadCodecTest`, `CryptoManagerTest`, `SigningIdentityTest`, `ZeroingTest`, `RotateKeysUseCaseTest` |
+| What the user sees | `AlertNotices` (new in T18; `AlertIntake` only posts its result), `ImpartNotifications` ids | `AlertNoticesTest` |
+| PINs and the lock | `PinVerifier`, `PinHasher` (through `SoftwarePinHasher`), `PinStore`, `PinEntry`, `PinAuthority`, `AppLockManager`, `LockoutPolicy`, `LockoutStore`, `MonotonicClock`, `ObscuredTouchPolicy` | `PinVerifierTest`, `PinEntryTest`, `AppLockManagerTest` (clock moved back, reboot, force-stop, duress mid-lockout, hard cap), `LockoutPolicyTest`, `ObscuredTouchPolicyTest`, `ZeroingTest` |
+| Duress | `DuressManager`, `DuressWiper`, `WipeTargets` and `WipeInventory`, `DecoyFlagStore`, `NodeStateStore`, `KeystorePinHasher.ALIAS` | `DuressManagerTest`, `DuressWiperTest` (every path, alias and cached preference; order; failing steps) |
+| Contacts and rotation | `AddContactUseCase`, `RotateKeysUseCase`, `PanicEligibility`, `Contact`, `ContactEntity`, `ContactMigrations`, `ImpartDatabase` v5 | `AddContactUseCaseTest`, `RotateKeysUseCaseTest`, `RenameContactUseCaseTest`, `ContactMigrationsTest` |
+| SMS app mode | `SmsRouter`, `SmsDeliverDispatcher`, `RoleRequestStrategy` (`DefaultSmsRole`), `MmsNotificationParser`, `SmsStore`, `SmsThread`, `RelayManagerImpl` (no provider writes) | `DefaultSmsModeTest`, `MmsNotificationParserTest` |
+| Device helpers | `OemSettingsTable` and `OemSettingsPolicy`, `QrFrameDecoder`, `LocationPolicy`, `TimeFormat` | `OemSettingsTest`, `QrFrameDecoderTest`, `LocationPolicyTest`, `TimeFormatTest` |
+| UI rules | `WindowHardening`, `SecureDialog`, `PinPad`, every activity and dialog that must use them; `Color.kt` palette; `ImpartMark`, `ImpartMarkCells`; the mark kept off the decoy and cloak | `WindowHardeningSourceTest`, `ContrastTest`, `ImpartMarkTest` |
+| Legal | `LegalDocument` version 3 and the real `TERMS.md` and `PRIVACY.md` | `LegalDocumentParserTest` |
+
+### 6.2 Android wrappers, covered on a device
+
+| Classes | Covered by |
+|---|---|
+| `MainActivity` gate, `LegalAcceptanceScreen`, `PinSetupDialog`, `AppLockScreen`, `Theme.kt`, `Type.kt` | `GateOrderTest`, `LockTest` |
+| `SecurePrefsManager`, `PlainDecoyFlagStore`, `AndroidWipeTargets`, `AndroidWipeSideEffects`, `NodeCorruptedScreen` | `LockTest` (the duress PIN deletes the database and secure preferences and keeps only the decoy flag, on a real data directory) |
+| `ContactRepositoryImpl`, `ContactDao`, `HandshakeViewModel`, `ContactRepository` | `HandshakeTest`, `ContactMigrationTest` (a real v4 database migrated to v5) |
+| `DashboardScreen`, `DashboardViewModel`, `HoldToFireButton`, `SecureTouch` | `DashboardTest` (early release sends nothing, a full hold sends one panic); overlay rejection on hardware in spec 08 phase 2 step 9 |
+| `IntrusionActivity`, `IntrusionScreen` | `IntrusionTest` (sender and time shown, ACK to the stored contact, none to a revoked one) |
+| `RelayModule`, `DatabaseModule`, `RepositoryModule` | Every instrumented test (the Hilt graph is built for each one, with `FakeRelayModule` replacing only `RelayModule`) |
+| `AlertIntake`, `ImpartSmsReceiver` | Their mapping is `AlertNoticesTest`; the receiver itself is the radio path, spec 08 phases 4, 5 and 7 |
+| `SmsDeliverReceiver`, `MmsDeliverReceiver`, `HeadlessSmsSendService`, `TelephonyProviderSmsStore`, `OrdinarySmsSender`, `MessagesViewModel`, `MessagesScreen`, `ComposeSmsActivity` | Routing is `DefaultSmsModeTest`; the role and the Telephony provider need a real default SMS app, spec 08 phase 8c. A JVM test of `MessagesViewModel` would need `kotlinx-coroutines-test`, a new dependency, so it was not added. |
+| `KeystoreHelper`, `KeystorePinHasher`, `InstalledSignature`, `SystemMonotonicClock`, `SensitiveClipboard` | Every instrumented test runs them against the real Keystore and clock; the signing check is spec 08 phase 9 |
+| `LocationHelper`, `QrScannerScreen`, `QrGeneratorScreen`, `OemSettingsResolver`, `NodeReadinessChecker` | Their rules are `LocationPolicyTest`, `QrFrameDecoderTest` and `OemSettingsTest`; the camera, GPS and vendor screens are spec 08 phases 3, 4 and 8a |
+| `ContactMatrixScreen`, `SettingsScreen`, `SettingsViewModel`, `ChangePinsFlow`, `SecurityAuthDialog`, `LegalDocumentScreen` | `WindowHardeningSourceTest` for the dialogs and the PIN pad; behaviour in spec 08 phases 2, 8 and 8b |
+
 ## 7. CI jobs
 
 Every job, what it checks, and its latest run.

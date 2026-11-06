@@ -149,7 +149,7 @@ Added 2026-11-04 after the T05 audit; Joel approved in chat. Task file `specs/fa
 
 ## T18: JVM tests for everything new
 
-- [ ] Coverage list in REPORT.md with no class uncovered.
+- [x] Coverage list in REPORT.md with no class uncovered. (REPORT section 6: 102 added or changed main files; logic in 6.1 with its JVM tests, Android wrappers in 6.2 with the instrumented test or spec 08 phase that drives them. Gap closed: `AlertNotices` and `AlertNoticesTest`)
 - [ ] All JVM tests green in CI.
 
 ## T19: Docs match the code
