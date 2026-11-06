@@ -5,9 +5,9 @@ Fable fills every section before handing back (task T20). Joel builds and tests 
 
 ## 1. Summary
 
-- Branch and head commit: `fable/finish-impart` at HEAD_SHA
+- Branch and head commit: `fable/finish-impart`. The last code change is `9e342f7`; the commits after it touch only this report and the ledger
 - PR: draft #8, https://github.com/uncoalesced/Impart/pull/8 (PR #7 was merged into `development` before this session started)
-- Latest green CI run: GREEN_DEV (development CI, every job including both emulators) and GREEN_CODEQL (CodeQL)
+- Latest green CI run: https://github.com/uncoalesced/Impart/actions/runs/42236994818 (development CI, every job, both emulators with all 17 tests) and https://github.com/uncoalesced/Impart/actions/runs/42236994746 (CodeQL, results uploaded to code scanning), both on `9e342f7`
 - What changed: every task from T00 to T21 is done.
   - **PINs and lockout.** PINs are never stored, only salted Keystore HMACs. Lockouts cannot be shortened by the clock, a reboot or a force-stop, and an optional hard cap wipes after 20 wrong PINs.
   - **UI hardening.** Every window and dialog is FLAG_SECURE and refuses obscured touches, and every PIN is typed on the in-app pad.
@@ -150,17 +150,24 @@ Every job, what it checks, and its latest run.
 
 | Workflow | Job | Checks | Latest run |
 |---|---|---|---|
-| `development.yml` | coding standards | signature line, no emojis, spec 09 palette and no retired colors, Compose only, secret scan | GREEN_DEV |
-| `development.yml` | gradle wrapper validation | the wrapper jar is an official Gradle release | GREEN_DEV |
-| `development.yml` | android debug build + test + lint | `assembleDebug testDebugUnitTest lintDebug`, with every dependency checked against `gradle/verification-metadata.xml` | GREEN_DEV |
-| `development.yml` | merged manifest check | no network permission, no unprotected exported component, no backup, both variants | GREEN_DEV |
-| `development.yml` | android release build (R8, unsigned) | `assembleRelease`, `mapping.txt` kept as an artifact | GREEN_DEV |
-| `development.yml` | instrumented tests (API 26), (API 34) | the 17 Compose UI and migration tests on emulators, with no real SMS | GREEN_DEV |
-| `codeql.yml` | analyze (java-kotlin) | CodeQL over a manual `assembleDebug`; results upload to code scanning, and the SARIF is kept as an artifact | GREEN_CODEQL |
+| `development.yml` | coding standards | signature line, no emojis, spec 09 palette and no retired colors, Compose only, secret scan | https://github.com/uncoalesced/Impart/actions/runs/42236994818 |
+| `development.yml` | gradle wrapper validation | the wrapper jar is an official Gradle release | https://github.com/uncoalesced/Impart/actions/runs/42236994818 |
+| `development.yml` | android debug build + test + lint | `assembleDebug testDebugUnitTest lintDebug`, with every dependency checked against `gradle/verification-metadata.xml` | https://github.com/uncoalesced/Impart/actions/runs/42236994818 |
+| `development.yml` | merged manifest check | no network permission, no unprotected exported component, no backup, both variants | https://github.com/uncoalesced/Impart/actions/runs/42236994818 |
+| `development.yml` | android release build (R8, unsigned) | `assembleRelease`, `mapping.txt` kept as an artifact | https://github.com/uncoalesced/Impart/actions/runs/42236994818 |
+| `development.yml` | instrumented tests (API 26), (API 34) | the 17 Compose UI and migration tests on emulators, with no real SMS | https://github.com/uncoalesced/Impart/actions/runs/42236994818 |
+| `codeql.yml` | analyze (java-kotlin) | CodeQL over a manual `assembleDebug`; results upload to code scanning, and the SARIF is kept as an artifact | https://github.com/uncoalesced/Impart/actions/runs/42236994746 |
 | `main.yml` | release build, bundle, versionCode, F-Droid scan, manifest, wrapper, summary | runs on PRs into `main` only; not triggered by this branch | n/a |
 | `deployment.yml` | signed AAB and APK | runs on `deployment` only, needs the four `RELEASE_*` secrets, and fails on a debug-signed output | n/a |
 
 Proof runs: the manifest job failing on a deliberate INTERNET permission, https://github.com/uncoalesced/Impart/actions/runs/41891997330/job/126791540861; dependency verification failing on a deliberately altered checksum, https://github.com/uncoalesced/Impart/actions/runs/42224516669/job/127914603769.
+
+Emulator job (T17): the first emulator runs found three harness problems.
+- The test reset left cached preferences in memory. That was also a duress wipe gap, fixed in `690028b`.
+- An unfinished lazy database open could cross into the next test (`f58aadb`, `2a51db7`).
+- On API 26 the emulator came up half booted from its cached snapshot and then kept the step open after the tests had finished (`55312eb`, `4af84e4`, `9e342f7`).
+
+The test run now cold-boots, a stuck Gradle run is stopped after 20 minutes, logcat is saved when tests fail, and the script stops the emulator itself.
 
 CodeQL upload (T09): the first CodeQL runs on the PR, for example https://github.com/uncoalesced/Impart/actions/runs/41899056589, analysed the code and then failed with "Code scanning is not enabled for this repository". The upload was tolerated until Joel enabled code scanning on 2026-11-06. Run https://github.com/uncoalesced/Impart/actions/runs/42221049979 uploaded, and the upload step is strict again.
 

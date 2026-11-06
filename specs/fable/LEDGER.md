@@ -143,7 +143,7 @@ Added 2026-11-04 after the T05 audit; Joel approved in chat. Task file `specs/fa
 
 ## T17: Instrumented Compose tests and an emulator CI job
 
-- [x] Emulator job green on API 26 and 34. (all 17 tests on both: https://github.com/uncoalesced/Impart/actions/runs/42219784065; two harness bugs fixed first, 690028b and f58aadb, one of which was also a duress wipe gap, see REPORT section 4)
+- [x] Emulator job green on API 26 and 34. (all 17 tests on both: https://github.com/uncoalesced/Impart/actions/runs/42219784065 and, on the final code, https://github.com/uncoalesced/Impart/actions/runs/42236994818; two harness bugs fixed first, 690028b and f58aadb, one of which was also a duress wipe gap, see REPORT section 4)
 - [x] Every flow above has at least one test. (gate order: `GateOrderTest`; lock, lockout and duress: `LockTest`; handshake and key change: `HandshakeTest`; hold-to-fire: `DashboardTest`; intrusion and ACK: `IntrusionTest`; Room 4 to 5: `ContactMigrationTest`)
 - [x] No real SMS in tests. (`FakeRelayModule` replaces `RelayModule` in every instrumented test and records panics and ACKs; nothing reaches `SmsManager`)
 
@@ -161,9 +161,9 @@ Added 2026-11-04 after the T05 audit; Joel approved in chat. Task file `specs/fa
 
 ## T20: Hand back to Joel
 
-- [ ] REPORT.md complete.
-- [ ] Ledger complete.
-- [ ] PR still draft, summary comment posted.
+- [x] REPORT.md complete. (sections 1 to 10 filled; no placeholder left)
+- [x] Ledger complete. (every gate ticked with a commit or run; decisions dated below)
+- [x] PR still draft, summary comment posted. (PR #8 is a draft; the summary comment links REPORT.md)
 
 ## CI evidence
 
@@ -171,11 +171,25 @@ Added 2026-11-04 after the T05 audit; Joel approved in chat. Task file `specs/fa
 
 ## Definition of done (brief section 8)
 
-- [ ] Every gate above ticked
-- [ ] Every CI job green on the PR head, including the new jobs
-- [ ] Spec 03 attack table complete for A1 to A8
-- [ ] REPORT.md complete
-- [ ] No inviolable rule broken (searches and results recorded below)
+- [x] Every gate above ticked
+- [x] Every CI job green on the PR head, including the new jobs (https://github.com/uncoalesced/Impart/actions/runs/42236994818: coding standards, wrapper validation, debug build + test + lint, merged manifest check, R8 release build, instrumented tests on API 26 and 34; https://github.com/uncoalesced/Impart/actions/runs/42236994746: CodeQL. Commits after `9e342f7` change only REPORT.md and this ledger, and their runs are linked in the PR)
+- [x] Spec 03 attack table complete for A1 to A8 (section 6: every row has a status, a defense, a test or reason and an owner; no row is open)
+- [x] REPORT.md complete
+- [x] No inviolable rule broken (searches and results recorded below)
+
+Searches over the final tree (2026-11-06):
+
+- Network: the merged debug and release manifests carry no `INTERNET` or `ACCESS_NETWORK_STATE` (`manifest-check.sh` PASS). The only mentions in the source manifest are the `tools:node="remove"` directives.
+- Google components: no `gms`, `firebase` or `mlkit` in `app/build.gradle.kts` or the version catalog, and the F-Droid scan in `main.yml` fails if one returns.
+- Sign then encrypt: `AlertEnvelope.seal` signs the payload, then HPKE-encrypts to the stored key. ACKs go to `contactRepository.findActiveByUuid(contactUuid)`, never to an address from the alert.
+- Fail loud: `AlertNoticesTest` proves every verdict is visible. `printStackTrace` appears 0 times.
+- Logs: no `Log.` call names a phone number, nickname, display name or payload without `Redact`.
+- Duress: silent, with no log, and every inventory file, cached preference and alias is removed (`DuressWiperTest`, `LockTest`).
+- Backups: `allowBackup="false"`, plus `data_extraction_rules.xml`.
+- Wire format: v3 is unchanged since Joel's approval (`AlertSizeTest`).
+- Colors and standards: `standards-check.sh` PASS (signature line, no emojis, spec 09 palette, no retired colors, Compose only, secret scan).
+- Pinned dependencies: every action is SHA-pinned, the wrapper checksum is pinned, and every artifact is checked against `gradle/verification-metadata.xml`.
+- Honesty: the T19 claim search and the CI evidence above.
 
 ## Decisions from Joel
 
