@@ -7,6 +7,10 @@ import java.io.File
 interface WipeSideEffects {
     fun cancelAllWork()
     fun closeDatabase()
+    // Empties the process's cached copy of a preferences file. Android keeps every
+    // SharedPreferences in memory for the life of the process, so deleting the file alone
+    // leaves its values readable, and the next write to that instance would put them back.
+    fun clearPreferences(name: String)
     fun deleteKeystoreAlias(alias: String)
     fun cancelAllNotifications()
 }
@@ -25,7 +29,10 @@ class DuressWiper(
         targets.databaseFiles.forEach { database ->
             WipeInventory.DATABASE_SIDECARS.forEach { suffix -> runQuietly { File(database.path + suffix).delete() } }
         }
-        targets.preferenceFiles.forEach { runQuietly { it.delete() } }
+        targets.preferenceFiles.forEach { file ->
+            runQuietly { sideEffects.clearPreferences(file.nameWithoutExtension) }
+            runQuietly { file.delete() }
+        }
         targets.directories.forEach { directory -> runQuietly { deleteContents(directory) } }
         targets.keystoreAliases.forEach { alias -> runQuietly { sideEffects.deleteKeystoreAlias(alias) } }
         runQuietly { sideEffects.cancelAllNotifications() }

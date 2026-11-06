@@ -22,6 +22,7 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import java.io.File
+import java.security.KeyStore
 import javax.inject.Inject
 
 // Shared set-up for the instrumented suite. Every test starts from an empty data directory,
@@ -46,7 +47,16 @@ abstract class ImpartUiTest {
     @Before
     fun resetAndInject() {
         val data = context.dataDir
+        // Android caches every SharedPreferences in memory for the life of the process, and
+        // the whole suite runs in one process: clear each cached copy before deleting its
+        // file, or the next test reads the previous test's keysets and PIN records.
+        File(data, "shared_prefs").listFiles()?.filter { it.name.endsWith(".xml") }?.forEach {
+            context.getSharedPreferences(it.name.removeSuffix(".xml"), Context.MODE_PRIVATE).edit().clear().commit()
+        }
         listOf("shared_prefs", "databases", "files", "no_backup", "cache").forEach { File(data, it).deleteRecursively() }
+        // Every test also starts without Keystore keys, as a fresh install does.
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        keyStore.aliases().toList().forEach { keyStore.deleteEntry(it) }
         grantRuntimePermissions()
         hilt.inject()
     }

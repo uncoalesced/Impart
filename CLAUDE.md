@@ -133,7 +133,7 @@ Details, and the attack table keyed by adversary A1 to A8, are in `specs/03_SECU
 - The wipe, `executeNuclearWipe`, is silent and runs in this order:
   1. Commit the plain decoy flag (`shared_prefs/impart_decoy.xml`) so a crash at any later step still shows the decoy.
   2. Clear the encrypted preferences and drop the in-memory keysets.
-  3. `DuressWiper`: cancel all WorkManager work, close the database, delete every database with its sidecars, every preferences file, the contents of `files`, `cache`, `code_cache` and `no_backup`, every Keystore alias in `WipeInventory`, and finally every notification.
+  3. `DuressWiper`: cancel all WorkManager work, close the database, delete every database with its sidecars, every preferences file (each cleared in the process cache first, since Android keeps preferences in memory until the process dies), the contents of `files`, `cache`, `code_cache` and `no_backup`, every Keystore alias in `WipeInventory`, and finally every notification.
 
   `isCorrupted` flips and `MainActivity` shows the decoy. Nothing announces the wipe, nothing is logged, and the launcher cloak is left as it was.
 - `CloakManager` toggles the Calculator launcher alias. State is read back from `PackageManager`. Under the cloak the mark is never shown.

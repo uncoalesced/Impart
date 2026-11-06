@@ -24,6 +24,10 @@ class AndroidWipeSideEffects @Inject constructor(
         database.get().close()
     }
 
+    override fun clearPreferences(name: String) {
+        context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear().commit()
+    }
+
     override fun deleteKeystoreAlias(alias: String) {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         if (keyStore.containsAlias(alias)) keyStore.deleteEntry(alias)

@@ -49,6 +49,8 @@ class FakeWipeWorld(root: File) : WipeTargets, WipeSideEffects {
 
     override fun cancelAllWork() { events += "cancelAllWork" }
     override fun closeDatabase() { events += "closeDatabase" }
+    val clearedPreferences = mutableListOf<String>()
+    override fun clearPreferences(name: String) { clearedPreferences += name; events += "clearPreferences:$name" }
     override fun deleteKeystoreAlias(alias: String) { aliases.remove(alias); events += "deleteAlias:$alias" }
     override fun cancelAllNotifications() { events += "cancelAllNotifications" }
 }

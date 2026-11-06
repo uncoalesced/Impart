@@ -10,6 +10,8 @@ import java.io.File
 
 // T08: after the wipe, nothing of Impart's is left on disk except the decoy flag, every
 // Keystore alias in the inventory is gone, and the side effects ran in the specified order.
+private const val DECOY_FLAG_PREFERENCES = "impart_decoy"
+
 class DuressWiperTest {
 
     @get:Rule
@@ -56,6 +58,15 @@ class DuressWiperTest {
         assertEquals("cancelAllWork", world.events.first())
         assertEquals("closeDatabase", world.events[1])
         assertEquals("cancelAllNotifications", world.events.last())
+    }
+
+    @Test
+    fun `every preferences file is cleared in memory before its file is deleted`() {
+        val world = FakeWipeWorld(temp.root)
+        world.populate()
+        DuressWiper(world, world).wipe()
+        assertEquals(WipeInventory.PREFERENCE_NAMES, world.clearedPreferences)
+        assertTrue(DECOY_FLAG_PREFERENCES !in world.clearedPreferences)
     }
 
     @Test
