@@ -86,7 +86,7 @@ Every row of the spec 03 section 6 table whose status changed on this branch, wi
 - A5-7 inbox readers: partly mitigated (`b9b8b77`, T14).
 - A6-2 locking the app out so the duress PIN cannot be entered: mitigated, because the duress PIN wins during a lockout (`46d72ea`, T03).
 - A7-6 a contact's phone compromised after pairing: mitigated (`8601d2f`, T13).
-- A8-1 tampered dependency: mitigated (`c7e6c19`, T09). An altered checksum fails the build: ALTERED_RUN.
+- A8-1 tampered dependency: mitigated (`c7e6c19`, T09). An altered checksum fails the build: https://github.com/uncoalesced/Impart/actions/runs/42224516669/job/127914603769.
 - A8-2 and A8-3 tampered wrapper or action: mitigated (`5aef0e6`, T09).
 - A8-5 a change that adds a network path: mitigated. The manifest job fails on it: https://github.com/uncoalesced/Impart/actions/runs/41891997330/job/126791540861 (`e41a8f7`, T05).
 
@@ -101,11 +101,10 @@ Joel's decisions are in `specs/fable/LEDGER.md` under "Decisions from Joel":
 - No Google components.
 - The commit identity.
 - The community files.
-- Code scanning.
+- Code scanning, now enabled (2026-11-06); the upload is strict again.
 
 Open for Joel:
 
-- **Code scanning.** CodeQL analyses every PR, but the upload is refused until code scanning is enabled under Settings, Code security. The SARIF is kept as an artifact meanwhile (section 7).
 - **Commit signatures.** Every commit on this branch is `uncoalesced <mail@uncoalesced.com>`, as Joel asked. GitHub shows them as Unverified because they are unsigned. Adding a GPG or SSH signing key to the account and signing future commits would fix that.
 - **Fable credit line.** The brief mentions a credit line that does not exist anywhere in the repository. None was added.
 - **Google Play (T14).** With the optional default-SMS-app mode in place, Impart is a candidate for Play's "default SMS handler" exception for the SMS permissions. Submission, the policy declaration and whether to apply at all remain Joel's decision; nothing on this branch touches a store.
@@ -157,13 +156,13 @@ Every job, what it checks, and its latest run.
 | `development.yml` | merged manifest check | no network permission, no unprotected exported component, no backup, both variants | GREEN_DEV |
 | `development.yml` | android release build (R8, unsigned) | `assembleRelease`, `mapping.txt` kept as an artifact | GREEN_DEV |
 | `development.yml` | instrumented tests (API 26), (API 34) | the 17 Compose UI and migration tests on emulators, with no real SMS | GREEN_DEV |
-| `codeql.yml` | analyze (java-kotlin) | CodeQL over a manual `assembleDebug`; the SARIF upload is tolerated | GREEN_CODEQL |
+| `codeql.yml` | analyze (java-kotlin) | CodeQL over a manual `assembleDebug`; results upload to code scanning, and the SARIF is kept as an artifact | GREEN_CODEQL |
 | `main.yml` | release build, bundle, versionCode, F-Droid scan, manifest, wrapper, summary | runs on PRs into `main` only; not triggered by this branch | n/a |
 | `deployment.yml` | signed AAB and APK | runs on `deployment` only, needs the four `RELEASE_*` secrets, and fails on a debug-signed output | n/a |
 
-Proof runs: the manifest job failing on a deliberate INTERNET permission, https://github.com/uncoalesced/Impart/actions/runs/41891997330/job/126791540861; dependency verification failing on a deliberately altered checksum, ALTERED_RUN.
+Proof runs: the manifest job failing on a deliberate INTERNET permission, https://github.com/uncoalesced/Impart/actions/runs/41891997330/job/126791540861; dependency verification failing on a deliberately altered checksum, https://github.com/uncoalesced/Impart/actions/runs/42224516669/job/127914603769.
 
-CodeQL upload limit (T09): the first CodeQL runs on the PR (for example https://github.com/uncoalesced/Impart/actions/runs/41899056589) analysed the code and then failed with "Code scanning is not enabled for this repository". The upload is now a separate, tolerated step and the SARIF is kept as a workflow artifact (`codeql-sarif`). Joel: enable code scanning under Settings, Code security and analysis; from the next run the results appear in the Security tab with no workflow change. The analysis step itself still fails the job on an analysis error.
+CodeQL upload (T09): the first CodeQL runs on the PR, for example https://github.com/uncoalesced/Impart/actions/runs/41899056589, analysed the code and then failed with "Code scanning is not enabled for this repository". The upload was tolerated until Joel enabled code scanning on 2026-11-06. Run https://github.com/uncoalesced/Impart/actions/runs/42221049979 uploaded, and the upload step is strict again.
 
 ## 8. Known limits and residual risks
 

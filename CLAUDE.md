@@ -39,7 +39,7 @@ There is no backend and no `functions/` directory. `namespace` and `applicationI
 `development` -> `main` -> `deployment`. Stores pull from `deployment`. Every action in every workflow is pinned to a full commit SHA with the version in a comment, and every workflow runs with `contents: read`. Workflows in `.github/workflows/`:
 
 - `development.yml` (push or PR to `development`), the gate for feature branches: coding standards; Gradle wrapper validation; `assembleDebug testDebugUnitTest lintDebug`; the merged-manifest check (`manifest-check.sh`, both variants); the unsigned R8 release build with `mapping.txt` uploaded; the instrumented Compose tests on API 26 and API 34 emulators.
-- `codeql.yml` (PR or push to `development` and `main`): CodeQL for java-kotlin with a manual `assembleDebug`. The upload to code scanning tolerates refusal until code scanning is enabled on the repository; the SARIF is kept as an artifact.
+- `codeql.yml` (PR or push to `development` and `main`): CodeQL for java-kotlin with a manual `assembleDebug`. Results upload to code scanning (enabled on the repository) and the SARIF is also kept as an artifact.
 - `main.yml` (push or PR to `main`): the release build with unit tests and lint and the mapping, `bundleRelease`, a `versionCode` check, the F-Droid scan (fails if Play Services, Firebase or ML Kit return), the manifest check, wrapper validation, and a summary job.
 - `deployment.yml` (push to `deployment` or manual): signed AAB and APK as artifacts, with their mappings. It fails without all four `RELEASE_*` secrets and fails on any output signed with the debug key (`verify-release-signature.sh`). It never auto-publishes.
 

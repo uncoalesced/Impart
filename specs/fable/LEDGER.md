@@ -80,8 +80,8 @@ Design change: the decoy flag moved out of the encrypted preferences into `share
 
 ## T09: Supply chain: verified dependencies and CI scanning
 
-- [ ] Verification metadata committed, and an altered checksum fails the build (link the run, then revert). (deferred until after T17 per the task, because T17 adds androidTest dependencies)
-- [x] Wrapper validation green; CodeQL green or its upload limit recorded in REPORT.md. (wrapper validation green on https://github.com/uncoalesced/Impart/actions/runs/41897076643; CodeQL analysed the code but its upload was refused because code scanning is not enabled on the repository, run https://github.com/uncoalesced/Impart/actions/runs/41899056589, recorded in REPORT.md section 7; the upload is now a tolerated separate step and the SARIF is a workflow artifact)
+- [x] Verification metadata committed, and an altered checksum fails the build (link the run, then revert). (`gradle/verification-metadata.xml`, SHA-256 for 521 components, recorded by every CI job of https://github.com/uncoalesced/Impart/actions/runs/42219784065 plus the macOS and Windows aapt2 jars, commits c7e6c19, 17a096c and c90a139; the altered kotlin-stdlib checksum in db877b5 failed the build with "Dependency verification failed ... kotlin-stdlib-2.0.21.jar": https://github.com/uncoalesced/Impart/actions/runs/42224516669/job/127914603769; reverted by the next commit. Regenerate after any dependency change, as CONTRIBUTING.md says)
+- [x] Wrapper validation green; CodeQL green or its upload limit recorded in REPORT.md. (wrapper validation green on https://github.com/uncoalesced/Impart/actions/runs/41897076643; CodeQL analysed the code but its upload was refused because code scanning is not enabled on the repository, run https://github.com/uncoalesced/Impart/actions/runs/41899056589, recorded in REPORT.md section 7; the upload was a tolerated separate step until Joel enabled code scanning on 2026-11-06; run https://github.com/uncoalesced/Impart/actions/runs/42221049979 uploaded, and the step is strict again)
 - [x] Every action SHA-pinned. (every `uses:` in all four workflows carries a full commit SHA with the version in a comment, resolved with `git ls-remote --tags`; `permissions: contents: read` at the top of each, `security-events: write` only on the CodeQL job; T09 commit)
 
 ## T10: R8 on for release builds
@@ -143,14 +143,14 @@ Added 2026-11-04 after the T05 audit; Joel approved in chat. Task file `specs/fa
 
 ## T17: Instrumented Compose tests and an emulator CI job
 
-- [ ] Emulator job green on API 26 and 34.
-- [ ] Every flow above has at least one test.
-- [ ] No real SMS in tests.
+- [x] Emulator job green on API 26 and 34. (all 17 tests on both: https://github.com/uncoalesced/Impart/actions/runs/42219784065; two harness bugs fixed first, 690028b and f58aadb, one of which was also a duress wipe gap, see REPORT section 4)
+- [x] Every flow above has at least one test. (gate order: `GateOrderTest`; lock, lockout and duress: `LockTest`; handshake and key change: `HandshakeTest`; hold-to-fire: `DashboardTest`; intrusion and ACK: `IntrusionTest`; Room 4 to 5: `ContactMigrationTest`)
+- [x] No real SMS in tests. (`FakeRelayModule` replaces `RelayModule` in every instrumented test and records panics and ACKs; nothing reaches `SmsManager`)
 
 ## T18: JVM tests for everything new
 
 - [x] Coverage list in REPORT.md with no class uncovered. (REPORT section 6: 102 added or changed main files; logic in 6.1 with its JVM tests, Android wrappers in 6.2 with the instrumented test or spec 08 phase that drives them. Gap closed: `AlertNotices` and `AlertNoticesTest`)
-- [ ] All JVM tests green in CI.
+- [x] All JVM tests green in CI. (`testDebugUnitTest` in the build job of https://github.com/uncoalesced/Impart/actions/runs/42219784065, including `AlertNoticesTest`)
 
 ## T19: Docs match the code
 
@@ -190,3 +190,4 @@ Record each question asked and Joel's answer, with the date.
 - 2026-11-05, commit identity (Joel, PR #8 comment and chat): every commit is `uncoalesced <mail@uncoalesced.com>`, with no Gmail or Anthropic address and no `Co-Authored-By` trailer. The 21 commits after `dd2c273` were rewritten with an identical tree and force-pushed with a lease (old head `b64c4a1`, new head `f0feb47`). CI run links recorded before that point still name the old hashes.
 - 2026-11-05, community files (Joel, PR #8 comment): add SECURITY.md, CODE_OF_CONDUCT.md, CONTRIBUTING.md and the other standard repository files. Done in T19.
 - 2026-11-04, T09 CodeQL: Joel will enable GitHub code scanning on the repository, so the upload step is strict. If the first run still refuses the upload, make it tolerant and tell him.
+- 2026-11-06, code scanning: Joel enabled it (the bot noted it on PR #8); run https://github.com/uncoalesced/Impart/actions/runs/42221049979 uploaded, and the CodeQL upload step is strict again.

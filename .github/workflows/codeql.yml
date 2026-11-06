@@ -2,10 +2,9 @@ name: codeql
 
 # Static analysis of the Kotlin sources on every PR into development and main (T09, A8).
 # The build is manual so CodeQL sees the same Gradle invocation CI uses. The analysis step
-# fails the job on an analysis error. The upload to code scanning is a separate step that
-# tolerates refusal: the first run showed "Code scanning is not enabled for this repository"
-# (REPORT.md section 7). Once Joel enables it in Settings, Code security, results appear
-# without a workflow change.
+# fails the job on an analysis error, and so does a refused upload to code scanning: Joel
+# enabled code scanning on 2026-11-06 (run 42221049979 uploaded), so the upload is strict
+# again, as he asked on 2026-11-04. The SARIF is also kept as an artifact.
 on:
   pull_request:
     branches: [development, main]
@@ -45,13 +44,12 @@ jobs:
           category: "/language:java-kotlin"
           upload: never
           output: codeql-results
-      - name: Upload results to code scanning (tolerated until code scanning is enabled)
-        continue-on-error: true
+      - name: Upload results to code scanning
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: codeql-results
           category: "/language:java-kotlin"
-      - name: Keep the SARIF as an artifact so the findings are readable either way
+      - name: Keep the SARIF as an artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: codeql-sarif
