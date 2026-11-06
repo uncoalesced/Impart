@@ -28,7 +28,7 @@ bash .github/scripts/manifest-check.sh    # after processDebugManifest processRe
 
 Run one test class: `./gradlew test --tests "com.uncoalesced.impart.core.security.AlertVerifierTest"`.
 
-Required local setup: `debug.keystore` at the repo root (password `android`) for the `debugConfig` signing config. JDK 17, compileSdk and targetSdk 35, minSdk 26, Kotlin 2.0.21, AGP 8.8.2. Every dependency is declared in `gradle/libs.versions.toml`; do not add coordinates inline in `app/build.gradle.kts`. The app builds from a clean checkout with nothing else.
+Required local setup: `debug.keystore` at the repo root (password `android`) for the `debugConfig` signing config. JDK 17, compileSdk and targetSdk 35, minSdk 26, Kotlin 2.0.21, AGP 8.8.2. Every dependency is declared in `gradle/libs.versions.toml`; do not add coordinates inline in `app/build.gradle.kts`. Gradle checks every downloaded artifact against `gradle/verification-metadata.xml` (SHA-256). After adding or bumping a dependency, regenerate it with `./gradlew --write-verification-metadata sha256 help assembleDebug assembleRelease bundleRelease testDebugUnitTest lintDebug assembleDebugAndroidTest`, read the diff, and keep the hand-added macOS and Windows `aapt2` entries. The app builds from a clean checkout with nothing else.
 
 `app/build.gradle.kts` also registers a `CopyLegalDocuments` task per variant. It copies the root `TERMS.md`, `PRIVACY.md` and `LICENSE` into `assets/legal/` through `variant.sources.assets.addGeneratedSourceDirectory`. Edit the root files, never a copy.
 

@@ -20,7 +20,7 @@ A pull request that breaks one of these is not merged, whatever else it does:
 5. Silent duress. The duress PIN wipes without a sound, toast, vibration, notification or visible delay, and works during a lockout.
 6. No backups. `allowBackup` stays false and the extraction rules exclude everything.
 7. The wire format is frozen. Changing it forces every phone to re-pair and needs the maintainer's approval first.
-8. No Google Play services, Firebase or ML Kit. Every dependency is pinned in `gradle/libs.versions.toml`, and every new one is justified in the commit message. Prefer none.
+8. No Google Play services, Firebase or ML Kit. Every dependency is pinned in `gradle/libs.versions.toml`, and every new one is justified in the commit message. Prefer none. Gradle checks every downloaded artifact against `gradle/verification-metadata.xml` (SHA-256). After adding or bumping a dependency, regenerate it with `./gradlew --write-verification-metadata sha256 help assembleDebug assembleRelease bundleRelease testDebugUnitTest lintDebug assembleDebugAndroidTest`, read the diff, and keep the hand-added macOS and Windows `aapt2` entries.
 9. Honesty. Never describe Impart as unbreakable or untraceable. Write what it resists and what it does not.
 
 Ask before you change any of these: the wire format, a permission, `targetSdk`, `minSdk`, AGP, Kotlin or the Gradle wrapper, or anything that removes or weakens a check.
