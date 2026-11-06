@@ -130,6 +130,9 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: false
           script: echo "AVD snapshot created"
+      # The test run cold-boots (-no-snapshot): restoring the cached API 26 snapshot came up
+      # with system services missing ("Can't find service: settings") and the runner then
+      # hung on shutdown (runs 42221050016, 42226268110, 42228442380).
       # The Compose tests drive the real activities on the emulator. RelayManager is replaced
       # by FakeRelayManager in every test, so no test sends an SMS.
       - name: Run instrumented tests
@@ -139,7 +142,7 @@ jobs:
           target: ${{ matrix.target }}
           arch: x86_64
           force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: timeout 1200 ./gradlew connectedDebugAndroidTest --stacktrace || (mkdir -p app/build/reports/androidTests/connected && adb logcat -d > app/build/reports/androidTests/connected/logcat.txt; exit 1)
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
