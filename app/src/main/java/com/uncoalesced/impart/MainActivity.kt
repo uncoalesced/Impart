@@ -2,10 +2,11 @@
 package com.uncoalesced.impart
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
+import android.os.PowerManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,11 +20,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -42,17 +43,27 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.uncoalesced.impart.presentation.theme.ImpartSurfaceRaised
+import com.uncoalesced.impart.presentation.theme.ImpartMono
 import com.uncoalesced.impart.core.security.AppLockManager
+import com.uncoalesced.impart.core.security.CloakManager
 import com.uncoalesced.impart.core.security.DuressManager
+import com.uncoalesced.impart.core.sms.DefaultSmsRole
+import com.uncoalesced.impart.presentation.messages.MessagesScreen
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import com.uncoalesced.impart.core.util.WindowHardening
 import com.uncoalesced.impart.data.local.prefs.SecurePrefsManager
 import com.uncoalesced.impart.domain.model.LegalDocument
 import com.uncoalesced.impart.domain.model.displayName
+import com.uncoalesced.impart.presentation.components.SecureAlertDialog
+import com.uncoalesced.impart.presentation.components.rejectObscuredTouches
+import com.uncoalesced.impart.presentation.components.rememberObscuredTouchNotifier
 import com.uncoalesced.impart.presentation.contacts.ContactMatrixScreen
 import com.uncoalesced.impart.presentation.dashboard.DashboardScreen
 import com.uncoalesced.impart.presentation.decoy.NodeCorruptedScreen
@@ -64,11 +75,10 @@ import com.uncoalesced.impart.presentation.legal.LegalAcceptanceScreen
 import com.uncoalesced.impart.presentation.security.AppLockScreen
 import com.uncoalesced.impart.presentation.security.PinSetupDialog
 import com.uncoalesced.impart.presentation.settings.SettingsScreen
-import com.uncoalesced.impart.presentation.theme.ImpartAmber
-import com.uncoalesced.impart.presentation.theme.ImpartBackground
+import com.uncoalesced.impart.presentation.theme.ImpartWarning
 import com.uncoalesced.impart.presentation.theme.ImpartGround
-import com.uncoalesced.impart.presentation.theme.ImpartPanicRed
-import com.uncoalesced.impart.presentation.theme.ImpartSecondary
+import com.uncoalesced.impart.presentation.theme.ImpartAccentTint
+import com.uncoalesced.impart.presentation.theme.ImpartTextMuted
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 import com.uncoalesced.impart.presentation.theme.ImpartTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -76,6 +86,12 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        // From ComposeSmsActivity (default SMS mode): open the Texts tab on this number.
+        const val EXTRA_COMPOSE_TO = "composeTo"
+        const val EXTRA_COMPOSE_BODY = "composeBody"
+    }
 
     @Inject
     lateinit var duressManager: DuressManager
@@ -86,6 +102,17 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var securePrefsManager: SecurePrefsManager
 
+    @Inject
+    lateinit var defaultSmsRole: DefaultSmsRole
+
+    @Inject
+    lateinit var cloakManager: CloakManager
+
+    // Who holds the SMS role can change in system settings while the app is away, so it is
+    // re-read on every resume. The Texts tab exists only while Impart holds it.
+    private val isDefaultSmsApp = MutableStateFlow(false)
+    private val composeRequest = MutableStateFlow<Pair<String?, String?>?>(null)
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { }
@@ -94,7 +121,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Keeps the QR, contacts and fingerprints out of screenshots, screen recorders and
         // the recent-apps preview.
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        WindowHardening.harden(this)
 
         setContent {
             ImpartTheme {
@@ -102,6 +129,8 @@ class MainActivity : ComponentActivity() {
                 val acceptedLegal by securePrefsManager.acceptedLegalVersion.collectAsStateWithLifecycle()
                 val pinsChosen by securePrefsManager.hasCustomPins.collectAsStateWithLifecycle()
                 val unlocked by appLockManager.isUnlocked.collectAsStateWithLifecycle()
+                val shufflePad by securePrefsManager.shufflePinPad.collectAsStateWithLifecycle()
+                val cloaked by cloakManager.isCloaked.collectAsStateWithLifecycle()
 
                 // Order matters. The decoy wins over everything once the duress PIN has fired.
                 // Then the terms (first run, or after they change), then choosing PINs, then
@@ -110,10 +139,12 @@ class MainActivity : ComponentActivity() {
                     corrupted -> NodeCorruptedScreen()
                     acceptedLegal < LegalDocument.CURRENT_VERSION -> LegalAcceptanceScreen(
                         viewModel = hiltViewModel(),
-                        onDecline = { finish() }
+                        onDecline = { finish() },
+                        showMark = !cloaked
                     )
                     !pinsChosen -> Box(modifier = Modifier.fillMaxSize().background(ImpartGround)) {
                         PinSetupDialog(
+                            shufflePad = shufflePad,
                             required = true,
                             onDismiss = {},
                             onSave = { standard, duress ->
@@ -121,10 +152,16 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     }
-                    !unlocked -> AppLockScreen(onSubmit = appLockManager::submitPin)
+                    !unlocked -> AppLockScreen(shufflePad = shufflePad, showMark = !cloaked, onSubmit = appLockManager::submitPin)
                     else -> {
                         LaunchedEffect(Unit) { requestMissingPermissions() }
-                        MainAppScreen()
+                        val smsDefault by isDefaultSmsApp.collectAsStateWithLifecycle()
+                        val compose by composeRequest.collectAsStateWithLifecycle()
+                        MainAppScreen(
+                            isDefaultSmsApp = smsDefault,
+                            composeRequest = compose,
+                            onComposeHandled = { composeRequest.value = null }
+                        )
                     }
                 }
             }
@@ -136,8 +173,33 @@ class MainActivity : ComponentActivity() {
         appLockManager.onForegrounded()
     }
 
+    override fun onResume() {
+        super.onResume()
+        isDefaultSmsApp.value = defaultSmsRole.isDefault()
+        readComposeRequest(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        readComposeRequest(intent)
+    }
+
+    private fun readComposeRequest(intent: Intent?) {
+        val to = intent?.getStringExtra(EXTRA_COMPOSE_TO) ?: return
+        composeRequest.value = to to intent.getStringExtra(EXTRA_COMPOSE_BODY)
+        intent.removeExtra(EXTRA_COMPOSE_TO)
+        intent.removeExtra(EXTRA_COMPOSE_BODY)
+    }
+
+    // Screen off locks at once. Anything else (a Settings page, a permission prompt) gets the
+    // 30 s grace period before the lock comes back.
     override fun onStop() {
-        appLockManager.onBackgrounded()
+        if (getSystemService(PowerManager::class.java)?.isInteractive == false) {
+            appLockManager.lock()
+        } else {
+            appLockManager.onBackgrounded()
+        }
         super.onStop()
     }
 
@@ -166,6 +228,7 @@ private const val TAB_MY_QR = 1
 private const val TAB_SCAN = 2
 private const val TAB_CONTACTS = 3
 private const val TAB_SETTINGS = 4
+private const val TAB_TEXTS = 5
 
 private data class Tab(val index: Int, val label: String, val icon: ImageVector)
 
@@ -176,10 +239,20 @@ private val TABS = listOf(
     Tab(TAB_CONTACTS, "Contacts", Icons.Default.People),
     Tab(TAB_SETTINGS, "Settings", Icons.Default.Settings)
 )
+private val TEXTS_TAB = Tab(TAB_TEXTS, "Texts", Icons.Default.Message)
 
 @Composable
-fun MainAppScreen() {
+fun MainAppScreen(
+    isDefaultSmsApp: Boolean = false,
+    composeRequest: Pair<String?, String?>? = null,
+    onComposeHandled: () -> Unit = {}
+) {
     var selectedTab by rememberSaveable { mutableIntStateOf(TAB_DASHBOARD) }
+    val tabs = if (isDefaultSmsApp) TABS + TEXTS_TAB else TABS
+    if (!isDefaultSmsApp && selectedTab == TAB_TEXTS) selectedTab = TAB_DASHBOARD
+    LaunchedEffect(composeRequest) {
+        if (composeRequest != null && isDefaultSmsApp) selectedTab = TAB_TEXTS
+    }
     var scanGeneration by remember { mutableIntStateOf(0) }
     var pendingKeyChange by remember { mutableStateOf<ScanResult.ConfirmKeyChange?>(null) }
     val context = LocalContext.current
@@ -223,15 +296,15 @@ fun MainAppScreen() {
     Scaffold(
         containerColor = ImpartGround,
         bottomBar = {
-            NavigationBar(containerColor = ImpartBackground, contentColor = ImpartTextPrimary) {
+            NavigationBar(containerColor = ImpartSurfaceRaised, contentColor = ImpartTextPrimary) {
                 val navColors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = ImpartPanicRed,
-                    selectedTextColor = ImpartPanicRed,
-                    unselectedIconColor = ImpartSecondary,
-                    unselectedTextColor = ImpartSecondary,
-                    indicatorColor = ImpartBackground
+                    selectedIconColor = ImpartAccentTint,
+                    selectedTextColor = ImpartAccentTint,
+                    unselectedIconColor = ImpartTextMuted,
+                    unselectedTextColor = ImpartTextMuted,
+                    indicatorColor = ImpartSurfaceRaised
                 )
-                TABS.forEach { tab ->
+                tabs.forEach { tab ->
                     NavigationBarItem(
                         selected = selectedTab == tab.index,
                         onClick = { selectedTab = tab.index },
@@ -272,6 +345,14 @@ fun MainAppScreen() {
                     settingsViewModel = hiltViewModel(),
                     legalViewModel = hiltViewModel()
                 )
+                TAB_TEXTS -> {
+                    MessagesScreen(
+                        viewModel = hiltViewModel(),
+                        composeTo = composeRequest?.first,
+                        composeBody = composeRequest?.second
+                    )
+                    LaunchedEffect(composeRequest) { if (composeRequest != null) onComposeHandled() }
+                }
             }
         }
     }
@@ -286,26 +367,27 @@ private fun KeyChangeDialog(
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
-    AlertDialog(
+    val rejectNotifier = rememberObscuredTouchNotifier()
+    SecureAlertDialog(
         onDismissRequest = onReject,
-        containerColor = ImpartBackground,
+        containerColor = ImpartSurfaceRaised,
         titleContentColor = ImpartTextPrimary,
-        textContentColor = ImpartSecondary,
+        textContentColor = ImpartTextMuted,
         title = { Text("KEYS CHANGED FOR ${change.existing.displayName}") },
         text = {
             Column {
                 Text("This QR claims to be ${change.existing.displayName} but carries different keys. Only accept if you are standing with them and they reinstalled Impart.")
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("OLD KEY", color = ImpartSecondary, fontWeight = FontWeight.Bold)
-                Text(change.oldFingerprint, color = ImpartTextPrimary, fontFamily = FontFamily.Monospace)
+                Text("OLD KEY", color = ImpartTextMuted, fontWeight = FontWeight.Bold)
+                Text(change.oldFingerprint, color = ImpartTextPrimary, fontFamily = ImpartMono)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("NEW KEY", color = ImpartAmber, fontWeight = FontWeight.Bold)
-                Text(change.newFingerprint, color = ImpartTextPrimary, fontFamily = FontFamily.Monospace)
+                Text("NEW KEY", color = ImpartWarning, fontWeight = FontWeight.Bold)
+                Text(change.newFingerprint, color = ImpartTextPrimary, fontFamily = ImpartMono)
             }
         },
         confirmButton = {
-            TextButton(onClick = onAccept) {
-                Text("ACCEPT NEW KEYS", color = ImpartAmber, fontWeight = FontWeight.Bold)
+            TextButton(onClick = onAccept, modifier = Modifier.rejectObscuredTouches(rejectNotifier)) {
+                Text("ACCEPT NEW KEYS", color = ImpartWarning, fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {

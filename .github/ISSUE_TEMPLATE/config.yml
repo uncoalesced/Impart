@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/uncoalesced/Impart/blob/development/SECURITY.md
+    about: Do not open a public issue for a security problem. Follow SECURITY.md.
+  - name: Someone is in danger
+    url: https://github.com/uncoalesced/Impart/blob/development/SUPPORT.md
+    about: Impart is not an emergency service. Call your local emergency number first.

@@ -133,7 +133,7 @@ class AlertVerifierTest {
     @Test
     fun `signed envelope with a broken payload is malformed`() {
         val signature = alice.crypto.sign("{}".toByteArray())
-        val ciphertext = alice.crypto.encrypt(PanicPayloadCodec.seal(SignedAlert(signature, """{"v":2,"t":"P"}""")), bob.crypto.getPublicKey())
+        val ciphertext = alice.crypto.encrypt(PanicPayloadCodec.seal(SignedAlert(signature, """{"v":3,"t":"P"}""")), bob.crypto.getPublicKey())
         assertEquals(AlertVerdict.Malformed, verify(ciphertext))
     }
 
@@ -178,8 +178,52 @@ class AlertVerifierTest {
     @Test
     fun `worst case panic fits in four SMS parts`() {
         val worst = PanicPayload.Panic(alice.uuid, bob.uuid, PanicPayloadCodec.newMessageId(), now, -89.12345678901234, -179.12345678901234)
-        val smsBody = IMPART_ALERT_PREFIX + AlertEnvelope.seal(alice.crypto, worst, bob.crypto.getPublicKey())
+        val smsBody = AlertEnvelope.body(alice.crypto, worst, bob.crypto.getPublicKey())
 
         assertTrue("SMS body is ${smsBody.length} chars", smsBody.length <= 4 * 153)
+    }
+
+    // v3: the tag in front of the ciphertext must be the tag of the pair the signed payload
+    // names. Mallory, paired with Bob, cannot wrap Alice's genuine alert in her own tag.
+    @Test
+    fun `alert under another pair's tag is rejected`() = runBlocking {
+        bobsContacts.addContact(mallory.asContact("Mallory"))
+        val ciphertext = AlertEnvelope.seal(alice.crypto, panicFromAlice(), bob.crypto.getPublicKey())
+        val malloryTag = PairTag.of(bob.crypto.getPublicKey(), mallory.crypto.getPublicKey())
+
+        val verdict = bobVerifier.verify(ciphertext, bob.uuid, malloryTag)
+
+        assertTrue(verdict is AlertVerdict.TagMismatch)
+        assertEquals(alice.uuid, (verdict as AlertVerdict.TagMismatch).sender.uuid)
+        assertTrue(seen.ids.isEmpty())
+    }
+
+    @Test
+    fun `alert under the right pair's tag is accepted`() = runBlocking {
+        val ciphertext = AlertEnvelope.seal(alice.crypto, panicFromAlice(), bob.crypto.getPublicKey())
+        val tag = PairTag.of(alice.crypto.getPublicKey(), bob.crypto.getPublicKey())
+        assertTrue(bobVerifier.verify(ciphertext, bob.uuid, tag) is AlertVerdict.Accepted)
+    }
+
+    @Test
+    fun `padding is covered by the signature and ignored by the decoder`() {
+        val panic = panicFromAlice()
+        val json = PanicPayloadCodec.encode(panic, paddedTo = 300)
+        assertEquals(300, json.length)
+        assertTrue(json.contains("\"p\":\""))
+        assertEquals(panic, PanicPayloadCodec.decode(json).getOrThrow())
+
+        val signature = alice.crypto.sign(json.toByteArray(Charsets.UTF_8))
+        val repadded = json.replaceRange(json.length - 3, json.length - 2, "x")
+        val ciphertext = alice.crypto.encrypt(PanicPayloadCodec.seal(SignedAlert(signature, repadded)), bob.crypto.getPublicKey())
+        assertTrue(verify(ciphertext) is AlertVerdict.BadSignature)
+    }
+
+    @Test
+    fun `v2 payload inside a v3 envelope is outdated`() {
+        val json = """{"v":2,"t":"P","from":"${alice.uuid}","to":"${bob.uuid}","id":"x","ts":$now}"""
+        val signature = alice.crypto.sign(json.toByteArray(Charsets.UTF_8))
+        val ciphertext = alice.crypto.encrypt(PanicPayloadCodec.seal(SignedAlert(signature, json)), bob.crypto.getPublicKey())
+        assertEquals(AlertVerdict.Outdated, verify(ciphertext))
     }
 }

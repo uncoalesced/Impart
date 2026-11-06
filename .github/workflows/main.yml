@@ -3,6 +3,7 @@ name: main deploy gate
 # Stronger gate than development CI. Passing here means the tree is ready to be
 # promoted to the deployment branch (from which Google Play and F-Droid pull).
 # Adds: release-level build, Play Store bundle check, F-Droid readiness scan.
+# Every action is pinned to a full commit SHA (T09, A8-3); the version is in the comment.
 on:
   push:
     branches: [main]
@@ -21,34 +22,47 @@ jobs:
     name: coding standards
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: bash .github/scripts/standards-check.sh
+
+  wrapper-validation:
+    name: gradle wrapper validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: gradle/actions/wrapper-validation@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
 
   android-release:
     name: android release build + test + lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
       - run: chmod +x gradlew
       # Unsigned release build - proves the release variant compiles and lints
       # clean. Signing happens only on the deployment branch (deployment.yml).
       - run: ./gradlew assembleRelease testReleaseUnitTest lintRelease --stacktrace
+      # The R8 mapping for this build. Needed to read a stack trace from a tester.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
 
   play-store-readiness:
     name: play store bundle check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
       - run: chmod +x gradlew
       # Play requires an AAB. Build it unsigned here just to confirm bundling
       # works; the signed, uploadable bundle is produced in deployment.yml.
@@ -64,26 +78,37 @@ jobs:
     name: f-droid readiness scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      # F-Droid's main repo builds from source and rejects non-free
-      # dependencies. Transport is now SMS-only (no Firebase), but the app still
-      # depends on Google Play Services (location) and ML Kit (barcode), which are
-      # proprietary. Report them so promotion is a conscious decision, not a
-      # surprise rejection. Warn (do not fail) - a GMS build can still ship via
-      # IzzyOnDroid or a Play-only release.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # F-Droid's main repo builds from source and rejects non-free dependencies, and
+      # brief rule 10 forbids Play Services, Firebase and ML Kit outright. T21 removed the
+      # last of them, so a return is a failure, not a warning.
       - name: Scan for non-free dependencies
         run: |
-          hits=$(grep -nE 'firebase|play-services|com\.google\.mlkit|gms' app/build.gradle.kts || true)
+          hits=$(grep -rnE 'firebase|play-services|com\.google\.mlkit|com\.google\.android\.gms|datatransport' app/build.gradle.kts gradle/libs.versions.toml || true)
           if [ -n "$hits" ]; then
             echo "$hits"
-            echo "::warning::proprietary Google dependencies present - blocks F-Droid main repo inclusion (OK for IzzyOnDroid / Play). See specs/06 roadmap."
-          else
-            echo "no proprietary Google dependencies detected"
+            echo "::error::a proprietary Google dependency is back. Impart ships none (brief rule 10, T21)."
+            exit 1
           fi
+          echo "no proprietary Google dependencies detected"
+
+  manifest:
+    name: merged manifest check (no network, no unprotected exports)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+      - run: chmod +x gradlew
+      - run: ./gradlew processDebugManifest processReleaseManifest --stacktrace
+      - run: bash .github/scripts/manifest-check.sh
 
   deploy-gate:
     name: deploy gate (all checks green)
     runs-on: ubuntu-latest
-    needs: [standards, android-release, play-store-readiness, fdroid-readiness]
+    needs: [standards, wrapper-validation, android-release, play-store-readiness, fdroid-readiness, manifest]
     steps:
       - run: echo "All promotion checks passed - main is ready for the deployment branch."

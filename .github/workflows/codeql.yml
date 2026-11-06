@@ -1,0 +1,57 @@
+name: codeql
+
+# Static analysis of the Kotlin sources on every PR into development and main (T09, A8).
+# The build is manual so CodeQL sees the same Gradle invocation CI uses. The analysis step
+# fails the job on an analysis error, and so does a refused upload to code scanning: Joel
+# enabled code scanning on 2026-11-06 (run 42221049979 uploaded), so the upload is strict
+# again, as he asked on 2026-11-04. The SARIF is also kept as an artifact.
+on:
+  pull_request:
+    branches: [development, main]
+  push:
+    branches: [development, main]
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: codeql (java-kotlin)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: java-kotlin
+          build-mode: manual
+      - run: chmod +x gradlew
+      - run: ./gradlew assembleDebug --stacktrace
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: "/language:java-kotlin"
+          upload: never
+          output: codeql-results
+      - name: Upload results to code scanning
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: codeql-results
+          category: "/language:java-kotlin"
+      - name: Keep the SARIF as an artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: codeql-sarif
+          path: codeql-results
+          if-no-files-found: warn

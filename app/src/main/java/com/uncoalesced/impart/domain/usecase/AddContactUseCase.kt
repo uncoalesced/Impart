@@ -52,7 +52,8 @@ class AddContactUseCase @Inject constructor(
                 existing.signingKeyBase64 != candidate.signingKeyBase64 ->
                 AddContactResult.KeyChanged(existing, candidate)
             else -> {
-                val refreshed = existing.copy(phoneNumber = phone, revoked = false)
+                // A fresh handshake also clears the flag a key rotation set.
+                val refreshed = existing.copy(phoneNumber = phone, revoked = false, needsRepair = false)
                 contactRepository.addContact(refreshed)
                 AddContactResult.Refreshed(refreshed)
             }
@@ -62,7 +63,7 @@ class AddContactUseCase @Inject constructor(
 
     // Called only after the user has seen both fingerprints and confirmed in person.
     suspend fun confirmKeyChange(existing: Contact, candidate: Contact): Contact {
-        val replaced = candidate.copy(nickname = existing.nickname, revoked = false)
+        val replaced = candidate.copy(nickname = existing.nickname, revoked = false, needsRepair = false)
         contactRepository.addContact(replaced)
         return replaced
     }

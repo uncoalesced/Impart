@@ -36,9 +36,9 @@ class PanicPayloadCodecTest {
     }
 
     @Test
-    fun `wire keys are the short v2 set and carry no phone number or key`() {
+    fun `wire keys are the short v3 set and carry no phone number or key`() {
         val json = JSONObject(PanicPayloadCodec.encode(panic))
-        assertEquals(2, json.getInt("v"))
+        assertEquals(3, json.getInt("v"))
         assertEquals("P", json.getString("t"))
         assertEquals("a-uuid", json.getString("from"))
         assertEquals("b-uuid", json.getString("to"))
@@ -56,19 +56,19 @@ class PanicPayloadCodecTest {
 
     @Test
     fun `missing identity fields are rejected`() {
-        assertTrue(PanicPayloadCodec.decode("""{"v":2,"t":"P","to":"b","id":"x","ts":1}""").isFailure)
-        assertTrue(PanicPayloadCodec.decode("""{"v":2,"t":"P","from":"","to":"b","id":"x","ts":1}""").isFailure)
+        assertTrue(PanicPayloadCodec.decode("""{"v":3,"t":"P","to":"b","id":"x","ts":1}""").isFailure)
+        assertTrue(PanicPayloadCodec.decode("""{"v":3,"t":"P","from":"","to":"b","id":"x","ts":1}""").isFailure)
     }
 
     @Test
     fun `unknown type and non json are rejected`() {
-        assertTrue(PanicPayloadCodec.decode("""{"v":2,"t":"Z","from":"a","to":"b","id":"x","ts":1}""").isFailure)
+        assertTrue(PanicPayloadCodec.decode("""{"v":3,"t":"Z","from":"a","to":"b","id":"x","ts":1}""").isFailure)
         assertTrue(PanicPayloadCodec.decode("garbage").isFailure)
     }
 
     @Test
     fun `lone latitude is ignored rather than half applied`() {
-        val decoded = PanicPayloadCodec.decode("""{"v":2,"t":"P","from":"a","to":"b","id":"x","ts":1,"lat":1.0}""").getOrThrow()
+        val decoded = PanicPayloadCodec.decode("""{"v":3,"t":"P","from":"a","to":"b","id":"x","ts":1,"lat":1.0}""").getOrThrow()
         assertNull((decoded as PanicPayload.Panic).lat)
         assertNull(decoded.lng)
     }

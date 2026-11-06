@@ -3,8 +3,10 @@ name: deployment release
 # Runs when code lands on the deployment branch - the branch Google Play and
 # F-Droid pull from. Produces signed, store-ready artifacts and uploads them as
 # workflow artifacts. It does NOT auto-publish to any store; upload is a
-# deliberate manual step. Signing requires the release secrets below; without
-# them the build is skipped rather than shipping an unsigned artifact.
+# deliberate manual step. Signing requires the four release secrets; without
+# every one of them the workflow fails outright (T11). An output signed with the
+# public debug key also fails: that key is in the repository and anyone can use it.
+# Every action is pinned to a full commit SHA (T09); the version is in the comment.
 on:
   push:
     branches: [deployment]
@@ -22,21 +24,19 @@ jobs:
     name: play store bundle (AAB)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Check release secrets present
-        id: secrets
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Require every release secret
         env:
           KS: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-        run: |
-          if [ -z "$KS" ]; then
-            echo "::error::RELEASE_KEYSTORE_BASE64 not set - cannot produce a signed release. Configure release signing secrets before deploying."
-            exit 1
-          fi
-      - uses: actions/setup-java@v4
+          KSP: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KP: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: bash .github/scripts/require-release-secrets.sh
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
       - name: Decode release keystore
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
@@ -49,30 +49,36 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew bundleRelease --stacktrace
-      - uses: actions/upload-artifact@v4
+      - name: Verify the AAB is signed and not with the debug key
+        run: bash .github/scripts/verify-release-signature.sh app/build/outputs/bundle/release/*.aab
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: play-store-aab
           path: app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-mapping-aab
+          path: app/build/outputs/mapping/release/mapping.txt
           if-no-files-found: error
 
   fdroid:
     name: f-droid / direct-install APK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Check release secrets present
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Require every release secret
         env:
           KS: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-        run: |
-          if [ -z "$KS" ]; then
-            echo "::error::RELEASE_KEYSTORE_BASE64 not set - cannot produce a signed release."
-            exit 1
-          fi
-      - uses: actions/setup-java@v4
+          KSP: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KA: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KP: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: bash .github/scripts/require-release-secrets.sh
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
       - name: Decode release keystore
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
@@ -85,11 +91,18 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew assembleRelease --stacktrace
-      - uses: actions/upload-artifact@v4
+      - name: Verify the APK is signed (v2 and v3) and not with the debug key
+        run: bash .github/scripts/verify-release-signature.sh app/build/outputs/apk/release/*.apk
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
-      # NOTE: F-Droid's main repo builds from source and rejects the Google Play
-      # Services / ML Kit deps this app still uses. This APK suits IzzyOnDroid or
-      # direct install; true F-Droid inclusion needs those deps removed first.
+      # Keep the mapping with the signed build it belongs to.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-mapping
+          path: app/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+      # No Google Play services, Firebase or ML Kit since T21, so the same sources can be
+      # built by F-Droid; this signed APK suits direct install or IzzyOnDroid.

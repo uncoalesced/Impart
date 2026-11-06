@@ -7,6 +7,7 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import androidx.core.app.NotificationCompat
+import com.uncoalesced.impart.R
 
 // Single owner of every channel and notification id. Channels are created once in
 // ImpartApplication.onCreate, which also runs when an SMS cold-starts the process.
@@ -14,6 +15,7 @@ object ImpartNotifications {
     const val CHANNEL_PANIC = "impart_panic_channel"
     const val CHANNEL_ACK = "impart_ack_channel"
     const val CHANNEL_STATUS = "impart_status_channel"
+    const val CHANNEL_MESSAGES = "impart_messages_channel"
 
     const val ID_PANIC = 1001
     const val ID_ACK = 1002
@@ -24,6 +26,9 @@ object ImpartNotifications {
     const val ID_DMS_REPORT = 1007
     const val ID_SECURITY = 1008
     const val ID_STALE = 1009
+    const val ID_SMS_STORE_FAILED = 1010
+    // Ordinary texts in default-SMS mode: one notification per sender, ids from this base.
+    const val ID_MESSAGE_BASE = 2000
 
     private const val LEGACY_CHANNEL_DMS_WARNING = "impart_dms_warning"
 
@@ -49,7 +54,10 @@ object ImpartNotifications {
         val status = NotificationChannel(CHANNEL_STATUS, "Node status", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "Delivery failures, unreadable alerts and dead man's switch warnings"
         }
-        manager.createNotificationChannels(listOf(panic, ack, status))
+        val messages = NotificationChannel(CHANNEL_MESSAGES, "Text messages", NotificationManager.IMPORTANCE_DEFAULT).apply {
+            description = "Ordinary texts, only while Impart is your SMS app"
+        }
+        manager.createNotificationChannels(listOf(panic, ack, status, messages))
         manager.deleteNotificationChannel(LEGACY_CHANNEL_DMS_WARNING)
     }
 
@@ -61,7 +69,7 @@ object ImpartNotifications {
         text: String
     ) {
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setSmallIcon(R.drawable.ic_stat_impart)
             .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
@@ -70,6 +78,29 @@ object ImpartNotifications {
             .setAutoCancel(true)
             .build()
         context.getSystemService(NotificationManager::class.java).notify(notificationId, notification)
+    }
+
+    // An ordinary text arrived while Impart is the default SMS app. The number is shown, the
+    // body is not: the lock screen must not read texts aloud for anyone who picks up the phone.
+    fun notifyMessage(context: Context, address: String) {
+        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        val builder = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
+            .setSmallIcon(R.drawable.ic_stat_impart)
+            .setContentTitle("New text message")
+            .setContentText("From $address. Unlock Impart to read it.")
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setAutoCancel(true)
+        if (launch != null) {
+            builder.setContentIntent(
+                android.app.PendingIntent.getActivity(
+                    context, 0, launch,
+                    android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+        }
+        context.getSystemService(NotificationManager::class.java)
+            .notify(ID_MESSAGE_BASE + (address.hashCode() and 0xFFFF), builder.build())
     }
 
     fun cancel(context: Context, notificationId: Int) {

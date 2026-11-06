@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.uncoalesced.impart.core.services.ImpartNotifications
+import com.uncoalesced.impart.core.util.WindowHardening
 import com.uncoalesced.impart.domain.repository.ContactRepository
 import com.uncoalesced.impart.domain.repository.RelayManager
 import com.uncoalesced.impart.presentation.theme.ImpartTheme
@@ -52,7 +53,7 @@ class IntrusionActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        WindowHardening.harden(this)
 
         // setShowWhenLocked/setTurnScreenOn are API 27+; minSdk is 26, so API 26 uses the
         // equivalent window flags or the intrusion screen crashes before it renders.

@@ -12,12 +12,13 @@ androidxHilt = "1.2.0"
 tink = "1.12.0"
 zxing = "3.5.3"
 camerax = "1.4.1"
-mlkitBarcode = "17.3.0"
-playServicesLocation = "21.3.0"
 workManager = "2.9.0"
 securityCrypto = "1.1.0-alpha06"
 sqlcipher = "4.17.0"
 junit = "4.13.2"
+androidxTestRunner = "1.6.2"
+androidxTestExtJunit = "1.2.1"
+androidxTestCore = "1.6.1"
 orgJson = "20240303"
 
 [libraries]
@@ -59,13 +60,16 @@ camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = 
 camerax-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
 camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
 camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
-mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcode" }
-
-# Location
-play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
 
 # Tests
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+# Instrumented tests (T17). No ui-test-manifest: it adds an exported activity to the debug
+# manifest, which manifest-check.sh refuses. Tests launch Impart's own activities instead.
+androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
+androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
+androidx-test-core = { group = "androidx.test", name = "core", version.ref = "androidxTestCore" }
+androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+hilt-android-testing = { group = "com.google.dagger", name = "hilt-android-testing", version.ref = "hilt" }
 org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 
 [plugins]

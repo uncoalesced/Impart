@@ -3,14 +3,12 @@ package com.uncoalesced.impart.core.security
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.util.Log
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.hybrid.HybridConfig
 import com.google.crypto.tink.integration.android.AndroidKeysetManager
 import com.google.crypto.tink.signature.SignatureConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.security.KeyStore
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,37 +44,39 @@ class KeystoreHelper @Inject constructor(
             .build()
             .keysetHandle
 
-    // Both keysets live in the same prefs file, so one clear() removes both.
-    @SuppressLint("ApplySharedPref")
-    fun purgeKeys() {
+    // Drops the in-memory handles. The preferences file and the master key alias are deleted
+    // by DuressWiper from WipeInventory, which is the single list of what the wipe removes.
+    override fun forgetKeys() {
         synchronized(this) {
             hybrid = null
             signing = null
-            try {
-                context.getSharedPreferences(PREF_FILE_NAME, Context.MODE_PRIVATE).edit().clear().commit()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to clear the Tink keyset preferences", e)
-            }
-            try {
-                val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
-                keyStore.load(null)
-                if (keyStore.containsAlias(MASTER_KEY_ALIAS)) {
-                    keyStore.deleteEntry(MASTER_KEY_ALIAS)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to delete the Keystore master key", e)
-            }
+        }
+    }
+
+    // Both stored keysets are removed in one commit, then regenerated at once. There is no
+    // moment where one keyset is new and the other old on disk; a crash between the commit
+    // and the regeneration leaves no keysets, and the next load generates fresh ones.
+    @SuppressLint("ApplySharedPref")
+    override fun rotateKeys() {
+        synchronized(this) {
+            hybrid = null
+            signing = null
+            val committed = context.getSharedPreferences(PREF_FILE_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .remove(HYBRID_KEYSET_NAME)
+                .remove(SIGNING_KEYSET_NAME)
+                .commit()
+            if (!committed) throw IllegalStateException("Could not remove the old keysets.")
+            hybrid = load(HYBRID_KEYSET_NAME, HYBRID_KEY_TEMPLATE)
+            signing = load(SIGNING_KEYSET_NAME, SIGNING_KEY_TEMPLATE)
         }
     }
 
     companion object {
-        private const val TAG = "KeystoreHelper"
         private const val HYBRID_KEYSET_NAME = "impart_keyset"
         private const val SIGNING_KEYSET_NAME = "impart_signing_keyset"
-        private const val PREF_FILE_NAME = "impart_key_prefs"
-        private const val ANDROID_KEYSTORE = "AndroidKeyStore"
-        private const val MASTER_KEY_ALIAS = "impart_master_key"
-        private const val MASTER_KEY_URI = "android-keystore://$MASTER_KEY_ALIAS"
+        private const val PREF_FILE_NAME = WipeInventory.TINK_KEYSET_PREFS
+        private const val MASTER_KEY_URI = "android-keystore://${WipeInventory.TINK_MASTER_KEY_ALIAS}"
         const val HYBRID_KEY_TEMPLATE = "DHKEM_X25519_HKDF_SHA256_HKDF_SHA256_AES_256_GCM"
         const val SIGNING_KEY_TEMPLATE = "ED25519"
     }

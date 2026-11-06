@@ -1,6 +1,7 @@
 // Engineered by uncoalesced
 package com.uncoalesced.impart.data.local.db.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.uncoalesced.impart.domain.model.Contact
@@ -13,7 +14,8 @@ data class ContactEntity(
     val nickname: String?,
     val phoneNumber: String?,
     val addedAt: Long,
-    val revoked: Boolean
+    val revoked: Boolean,
+    @ColumnInfo(defaultValue = "0") val needsRepair: Boolean = false
 ) {
     fun toDomain() = Contact(
         uuid = uuid,
@@ -22,7 +24,8 @@ data class ContactEntity(
         nickname = nickname,
         phoneNumber = phoneNumber,
         addedAt = addedAt,
-        revoked = revoked
+        revoked = revoked,
+        needsRepair = needsRepair
     )
 
     companion object {
@@ -33,7 +36,8 @@ data class ContactEntity(
             nickname = contact.nickname,
             phoneNumber = contact.phoneNumber,
             addedAt = contact.addedAt,
-            revoked = contact.revoked
+            revoked = contact.revoked,
+            needsRepair = contact.needsRepair
         )
     }
 }

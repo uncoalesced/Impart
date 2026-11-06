@@ -69,6 +69,18 @@ Moss `#B28F4B` is texture only and has no role in the app UI.
 | Porcelain on Watermelon | 4.03 | 24sp bold only |
 | Sandy Brown on `#262626` | 6.39 | pass |
 | Palm Leaf tint on `#262626` | 6.83 | pass |
+| Muted on black | 7.52 | pass |
+| Accent tint on black | 7.84 | pass |
+| Porcelain on accent shade (broadcast panic button) | 6.36 | pass |
+| Sandy Brown on black | 8.87 | pass |
+| Sandy Brown on `#333333` | 5.34 | pass |
+| Black on Sandy Brown (revoke button) | 8.87 | pass |
+| Palm Leaf tint on black | 9.48 | pass |
+| Palm Leaf tint on `#333333` | 5.71 | pass |
+| Black on Porcelain (QR code, maps button) | 20.89 | pass |
+| Watermelon switch track on `#333333` | 3.1 | graphic only |
+
+Added with T15. `ContrastTest` computes every row and fails below 4.5:1 for body text and 3:1 for large text and graphics.
 
 Every new color pairing gets a ratio in this table and a JVM test that computes it.
 

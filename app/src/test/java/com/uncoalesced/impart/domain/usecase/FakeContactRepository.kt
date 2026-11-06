@@ -30,4 +30,10 @@ class FakeContactRepository : ContactRepository {
     override suspend fun revokeContact(uuid: String) {
         store.value[uuid]?.let { store.value = store.value + (uuid to it.copy(revoked = true)) }
     }
+
+    override suspend fun markAllNeedRepair(): Int {
+        val active = store.value.values.filterNot { it.revoked }
+        store.value = store.value + active.associate { it.uuid to it.copy(needsRepair = true) }
+        return active.size
+    }
 }

@@ -10,11 +10,15 @@ import java.util.UUID
 
 // An in-memory node for JVM tests: real Tink keysets, no Android Keystore.
 class TestNode(val uuid: String = UUID.randomUUID().toString(), val phone: String = "+15550000000") {
-    private val keys = object : KeysetSource {
-        private val hybrid = KeysetHandle.generateNew(KeyTemplates.get(KeystoreHelper.HYBRID_KEY_TEMPLATE))
-        private val signing = KeysetHandle.generateNew(KeyTemplates.get(KeystoreHelper.SIGNING_KEY_TEMPLATE))
+    val keys = object : KeysetSource {
+        private var hybrid = KeysetHandle.generateNew(KeyTemplates.get(KeystoreHelper.HYBRID_KEY_TEMPLATE))
+        private var signing = KeysetHandle.generateNew(KeyTemplates.get(KeystoreHelper.SIGNING_KEY_TEMPLATE))
         override fun keysetHandle(): KeysetHandle = hybrid
         override fun signingKeysetHandle(): KeysetHandle = signing
+        override fun rotateKeys() {
+            hybrid = KeysetHandle.generateNew(KeyTemplates.get(KeystoreHelper.HYBRID_KEY_TEMPLATE))
+            signing = KeysetHandle.generateNew(KeyTemplates.get(KeystoreHelper.SIGNING_KEY_TEMPLATE))
+        }
     }
 
     val crypto = CryptoManager(keys)

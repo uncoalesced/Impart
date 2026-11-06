@@ -7,144 +7,201 @@ Format: `- [x] gate text (abc1234)` or `- [x] gate text (CI run URL)`.
 
 ## T00: Orientation and a green baseline
 
-- [ ] CI green on the unchanged branch head, run linked in the ledger.
-- [ ] Pipeline call map written in REPORT.md.
-- [ ] Spec-versus-code disagreements listed.
+- [x] CI green on the unchanged branch head, run linked in the ledger. (dd2c273, https://github.com/uncoalesced/Impart/actions/runs/41830268761)
+- [x] Pipeline call map written in REPORT.md. (T00 commit)
+- [x] Spec-versus-code disagreements listed. (T00 commit, below)
+
+Disagreements found during orientation, each owned by a later task:
+
+- Spec 03 section 2 describes the Tink keysets but not the SQLCipher key or the PINs, which `SecurePrefsManager` stores as plaintext strings inside EncryptedSharedPreferences. Owner: T02 (PINs), T08 (inventory), T19.
+- Spec 05 section 4 and the CLAUDE.md color bullets describe the navy palette; spec 09 supersedes them (brief rule 8). Owner: T15.
+- Spec 03 section 6 says `FLAG_SECURE` is set "on both activities"; Compose `Dialog` windows (PIN setup, auth, key change) are separate windows without it. Owner: T04.
+- `AppLockScreen` and `ChangePinsFlow` read `System.currentTimeMillis()` directly instead of the injected `WallClock`, and the lockout deadline is a wall-clock instant that a clock change shortens. Owner: T03.
+- Spec 03 section 6 lists R8, key rotation, OEM links and instrumented tests as open roadmap items in spec 06. Owner: T10, T13, T12, T17, T19.
+- `app/build.gradle.kts` references `proguard-rules.pro`, which does not exist. Harmless while minify is off. Owner: T10.
+- `deployment.yml` and the main workflow describe Play Services and ML Kit as present. True (location, barcode); keep the F-Droid note honest. Owner: T19.
+- PRIVACY.md says alert copies land in the stock Messages app and nothing else reads SMS; T14 changes both. Owner: T14, T19.
+- Draft PR #7 was merged into `development` before this session started, so the brief's instruction to use it cannot be followed. Replacement draft PR recorded below. Owner: T00.
 
 ## T01: Adversarial audit and the attack table
 
-- [ ] Spec 03 section 6 has rows for all eight adversaries, each with status, defense, test and owner task.
-- [ ] Every open row maps to a task ID.
-- [ ] Any new task files are listed in the ledger.
+- [x] Spec 03 section 6 has rows for all eight adversaries, each with status, defense, test and owner task. (T01 commit: 60 rows, A1-1 to A8-7)
+- [x] Every open row maps to a task ID. (T01 commit: open rows map to T02, T03, T04, T05, T07, T08, T09, T10, T11, T14)
+- [x] Any new task files are listed in the ledger. (none needed for T01 itself: every open attack had an owner among T02 to T19. T21 was added later from the T05 audit and has its own section below)
 
 ## T02: PINs are verified, never stored
 
-- [ ] No code path returns or stores a plaintext PIN; `standardPin()` and `duressPin()` are gone.
-- [ ] Tests: correct PIN accepted, wrong PIN refused, duress PIN detected, defaults refused, migration removes the plaintext keys, constant-time compare used.
-- [ ] A test proves the same PIN gives different stored values under different salts.
-- [ ] Spec 03 and PRIVACY.md updated.
+- [x] No code path returns or stores a plaintext PIN; `standardPin()` and `duressPin()` are gone. (T02 commit: `SecurePrefsManager` implements `PinStore` with salt and HMAC only; `grep -rn "standardPin()\|duressPin()\|DEFAULT_STANDARD_PIN" app/src/main` is empty)
+- [x] Tests: correct PIN accepted, wrong PIN refused, duress PIN detected, defaults refused, migration removes the plaintext keys, constant-time compare used. (`PinVerifierTest`, T02 commit)
+- [x] A test proves the same PIN gives different stored values under different salts. (`PinVerifierTest.the same pin gives different stored values under different salts`)
+- [x] Spec 03 and PRIVACY.md updated. (spec 03 section 2.1, PRIVACY "What Impart stores"; T02 commit)
 
 ## T03: Lockout counters resist tampering
 
-- [ ] Tests: a wall clock moved back does not shorten a lockout; a simulated reboot keeps the remaining time; a force-stop after a wrong guess still counts it; duress works mid-lockout.
-- [ ] The attempt counter cannot be reset without wiping app data.
-- [ ] Joel's answer on the hard cap recorded in the ledger.
+- [x] Tests: a wall clock moved back does not shorten a lockout; a simulated reboot keeps the remaining time; a force-stop after a wrong guess still counts it; duress works mid-lockout. (`AppLockManagerTest`, T03 commit)
+- [x] The attempt counter cannot be reset without wiping app data. (`LockoutStore.clearLockout` is called only from a correct standard PIN and `unlockAfterSetup`; `AppLockManagerTest.nothing but a correct pin resets the counter`; T03 commit)
+- [x] Joel's answer on the hard cap recorded in the ledger. (Decisions from Joel, 2026-11-04: yes, 20 attempts, setting default off; shipped as `LockoutPolicy.HARD_CAP_ATTEMPTS` behind `wipe_after_failed_attempts`)
 
 ## T04: UI hardening against hostile apps on the device
 
-- [ ] No PIN entry uses a `TextField`.
-- [ ] Obscured-touch rejection unit-tested where possible and listed in the flight check for device testing.
-- [ ] Every Activity and Dialog sets FLAG_SECURE, asserted by a test.
-- [ ] Recents snapshot disabled on supported API levels.
+- [x] No PIN entry uses a `TextField`. (`PinPad` in `AppLockScreen`, `PinSetupDialog`, `SecurityAuthDialog`; `WindowHardeningSourceTest.no PIN entry uses a text field`; T04 commit)
+- [x] Obscured-touch rejection unit-tested where possible and listed in the flight check for device testing. (`ObscuredTouchPolicyTest`; spec 08 phase 2 step 9; T04 commit)
+- [x] Every Activity and Dialog sets FLAG_SECURE, asserted by a test. (`WindowHardening`, `SecureDialog`, `SecureAlertDialog`; `WindowHardeningSourceTest`; T04 commit)
+- [x] Recents snapshot disabled on supported API levels. (`WindowHardening.harden(Activity)`: `setRecentsScreenshotEnabled(false)` on API 33+; T04 commit)
+
+`setHideOverlayWindows(true)` (T04 step 3) and its permission `android.permission.HIDE_OVERLAY_WINDOWS` were added after Joel approved the permission (Decisions, 2026-11-04).
 
 ## T05: Manifest and component audit, plus the no-INTERNET CI job
 
-- [ ] `manifest-check.sh` runs in CI on both workflows.
-- [ ] A deliberate test commit adding INTERNET made the job fail (link the failed run, then revert).
-- [ ] Component list documented in spec 04.
+- [x] `manifest-check.sh` runs in CI on both workflows. (`manifest` job in `development.yml` and `main.yml`; T05 commit)
+- [x] A deliberate test commit adding INTERNET made the job fail (link the failed run, then revert). (ac155a1, was b4b5226 before the identity rewrite, let the library INTERNET permission through; the manifest job failed: https://github.com/uncoalesced/Impart/actions/runs/41891997330/job/126791540861; reverted by the next commit)
+- [x] Component list documented in spec 04. (spec 04 section 4.1; T05 commit)
+
+Finding: before T05 the merged manifest of every variant carried `android.permission.INTERNET` (from `com.google.android.datatransport:transport-backend-cct`, ML Kit's telemetry backend) and `ACCESS_NETWORK_STATE` (WorkManager). Both are now removed at merge time. Pending Joel: replace ML Kit barcode scanning with the bundled ZXing decoder and fused location with `LocationManager`, which would remove every Google component from the APK.
 
 ## T06: Plaintext lives as briefly as possible
 
-- [ ] Zeroing covered by unit tests that inspect the buffer after use.
-- [ ] Spec 03 records the limitation.
+- [x] Zeroing covered by unit tests that inspect the buffer after use. (`ZeroingTest`: plaintext and payload bytes after accepted, rejected and outdated alerts; PIN bytes after enrol and verify; `PinEntry.clear`; T06 commit)
+- [x] Spec 03 records the limitation. (spec 03 section 4.4 Memory; T06 commit)
 
 ## T07: Wire metadata proposal (no code change without Joel)
 
-- [ ] Metadata subsection written, with measurements and a recommendation.
-- [ ] Joel's decision recorded in the ledger.
-- [ ] If approved: implemented, tested, spec 08 updated.
+- [x] Metadata subsection written, with measurements and a recommendation. (spec 03 section 6.1, `AlertSizeTest`; T07 commit)
+- [x] Joel's decision recorded in the ledger. (Decisions from Joel, 2026-11-04: v3 with padding and per-pair tag)
+- [x] If approved: implemented, tested, spec 08 updated. (`PairTag`, `AlertWire`, `AlertRecognizer`, padding in `PanicPayloadCodec`, `TagMismatch` verdict; `PairTagTest`, `AlertRecognizerTest`, `AlertSizeTest`, new cases in `AlertVerifierTest`; spec 08 "Before you start"; T07 commit)
 
 ## T08: The duress wipe leaves nothing behind
 
-- [ ] Inventory written into spec 03.
-- [ ] Tests assert every storage location is gone after the wipe (a fake context, or Robolectric if you justify adding it).
-- [ ] Notifications cancelled on wipe.
+- [x] Inventory written into spec 03. (section 6.2, mirrored in `WipeInventory`; T08 commit)
+- [x] Tests assert every storage location is gone after the wipe (a fake context, or Robolectric if you justify adding it). (`DuressWiperTest` and `DuressManagerTest` over `FakeWipeWorld`, a temp directory laid out like an Android data dir; no Robolectric needed; T08 commit)
+- [x] Notifications cancelled on wipe. (`WipeSideEffects.cancelAllNotifications`, last step; asserted in `DuressWiperTest`; T08 commit)
+
+Design change: the decoy flag moved out of the encrypted preferences into `shared_prefs/impart_decoy.xml` (one boolean), because the encrypted preferences, their keysets and their master key are now wiped too. Joel's cloak decision applied: the wipe never touches `PackageManager`.
 
 ## T09: Supply chain: verified dependencies and CI scanning
 
-- [ ] Verification metadata committed, and an altered checksum fails the build (link the run, then revert).
-- [ ] Wrapper validation green; CodeQL green or its upload limit recorded in REPORT.md.
-- [ ] Every action SHA-pinned.
+- [x] Verification metadata committed, and an altered checksum fails the build (link the run, then revert). (`gradle/verification-metadata.xml`, SHA-256 for 521 components, recorded by every CI job of https://github.com/uncoalesced/Impart/actions/runs/42219784065 plus the macOS and Windows aapt2 jars, commits c7e6c19, 17a096c and c90a139; the altered kotlin-stdlib checksum in db877b5 failed the build with "Dependency verification failed ... kotlin-stdlib-2.0.21.jar": https://github.com/uncoalesced/Impart/actions/runs/42224516669/job/127914603769; reverted by the next commit. Regenerate after any dependency change, as CONTRIBUTING.md says)
+- [x] Wrapper validation green; CodeQL green or its upload limit recorded in REPORT.md. (wrapper validation green on https://github.com/uncoalesced/Impart/actions/runs/41897076643; CodeQL analysed the code but its upload was refused because code scanning is not enabled on the repository, run https://github.com/uncoalesced/Impart/actions/runs/41899056589, recorded in REPORT.md section 7; the upload was a tolerated separate step until Joel enabled code scanning on 2026-11-06; run https://github.com/uncoalesced/Impart/actions/runs/42221049979 uploaded, and the step is strict again)
+- [x] Every action SHA-pinned. (every `uses:` in all four workflows carries a full commit SHA with the version in a comment, resolved with `git ls-remote --tags`; `permissions: contents: read` at the top of each, `security-events: write` only on the CodeQL job; T09 commit)
 
 ## T10: R8 on for release builds
 
-- [ ] Release build with R8 runs in CI on every PR.
-- [ ] Mapping uploaded.
-- [ ] Release APK phone checks listed in REPORT.md and spec 08.
+- [x] Release build with R8 runs in CI on every PR. (`release-r8` job in `development.yml`; `isMinifyEnabled`/`isShrinkResources` true; T10 commit)
+- [x] Mapping uploaded. (`release-mapping` artifact in `development.yml`, `main.yml` and `deployment.yml`; T10 commit)
+- [x] Release APK phone checks listed in REPORT.md and spec 08. (spec 08 phase 9; REPORT section 2 and 3; T10 commit)
 
 ## T11: Release signing that cannot be confused with debug
 
-- [ ] Deployment job fails without signing secrets and fails on a debug-signed output.
-- [ ] Readiness card checks the certificate.
-- [ ] Key custody notes in REPORT.md.
+- [x] Deployment job fails without signing secrets and fails on a debug-signed output. (`require-release-secrets.sh` checks all four; `verify-release-signature.sh` runs `apksigner verify --print-certs` (v2 and v3 required) or `keytool -printcert -jarfile` for the AAB and compares with the debug certificate from `debug.keystore`; T11 commit. The deployment workflow itself only runs on the `deployment` branch, so its first real run is Joel's)
+- [x] Readiness card checks the certificate. (`NodeReadinessChecker.buildType` reads the installed signing certificates through `InstalledSignature` and compares with `SigningIdentity.DEBUG_CERT_SHA256`; `SigningIdentityTest` recomputes the constant from `debug.keystore`; T11 commit)
+- [x] Key custody notes in REPORT.md. (section 9; T11 commit)
 
 ## T12: OEM autostart and background settings
 
-- [ ] Unit tests for the vendor table and the fallback order.
-- [ ] A row shows only when an intent resolves or a fallback exists.
-- [ ] No new permissions.
+- [x] Unit tests for the vendor table and the fallback order. (`OemSettingsTest`; T12 commit)
+- [x] A row shows only when an intent resolves or a fallback exists. (`NodeReadinessChecker.vendorBackgroundSettings` returns no row on an unknown vendor; on a known one `OemSettingsResolver.intentFor` returns the first candidate that resolves or the app details page, which every Android resolves; T12 commit)
+- [x] No new permissions. (`manifest-check.sh` output unchanged; T12 commit)
 
 ## T13: Rotate my keys
 
-- [ ] Tests: old keys gone, new keys in the next QR, contacts flagged, a panic to a flagged contact refused with a visible reason.
-- [ ] Room migration tested.
-- [ ] Spec 03 updated.
+- [x] Tests: old keys gone, new keys in the next QR, contacts flagged, a panic to a flagged contact refused with a visible reason. (`RotateKeysUseCaseTest`, plus the round trip where Bob rejects Alice until he confirms her new keys; T13 commit)
+- [x] Room migration tested. (`ContactMigrationsTest` pins version 5, the 4-to-5 statement and the entity default on the JVM; the real migration runs on SQLite in the T17 instrumented suite)
+- [x] Spec 03 updated. (section 7 rewritten; rows A1-6 and A7-6; T13 commit)
 
 ## T14: Optional default SMS app mode
 
-- [ ] Role request branch selection unit-tested for API 26 to 35.
-- [ ] An alert received while default never reaches the Telephony provider (test through a provider wrapper).
-- [ ] Ordinary SMS stored and shown.
-- [ ] Only the three listed permissions added.
-- [ ] Legal documents and specs updated.
+- [x] Role request branch selection unit-tested for API 26 to 35. (`RoleRequestStrategy.forApi`; `DefaultSmsModeTest.role request strategy per api level`; T14 commit)
+- [x] An alert received while default never reaches the Telephony provider (test through a provider wrapper). (`SmsDeliverDispatcher` over the `SmsStore` interface; `DefaultSmsModeTest.an alert received while default never reaches the provider`; the relay is asserted never to reference the provider; T14 commit)
+- [x] Ordinary SMS stored and shown. (`TelephonyProviderSmsStore`, `MessagesScreen` on the Texts tab behind the lock; `DefaultSmsModeTest.an ordinary text is stored`; device test spec 08 phase 8c; T14 commit)
+- [x] Only the three listed permissions added. (`READ_SMS`, `RECEIVE_MMS`, `RECEIVE_WAP_PUSH`; `manifest-check.sh` output; T14 commit)
+- [x] Legal documents and specs updated. (PRIVACY.md, TERMS.md, spec 02, spec 03 rows A4-1 and A5-7 and section 6.1, spec 08 phase 8c; the legal version bump happens once in T19; T14 commit)
 
 ## T15: Re-skin to the uncoalesced design language
 
-- [ ] No `2B2D42`, `EF233C`, `D90429` or `FFB000` left anywhere.
-- [ ] Contrast test green.
-- [ ] Spec 05 and CLAUDE.md match Color.kt.
-- [ ] Standards script green.
-- [ ] Notification small icon switched.
+- [x] No `2B2D42`, `EF233C`, `D90429` or `FFB000` left anywhere. (none in `app/src`, the resources, spec 05 or CLAUDE.md; `ContrastTest` and the new "retired palette" step in `standards-check.sh` fail if one returns. The only remaining mentions are the search terms in those two checks, the task file and this gate, and the "Replaces" column of spec 09, which records what was retired; T15 commit)
+- [x] Contrast test green. (`ContrastTest`: 24 pairings, body 4.5:1, large or graphic 3:1; T15 commit)
+- [x] Spec 05 and CLAUDE.md match Color.kt. (spec 05 section 4 rewritten around `ImpartPalette`; CLAUDE.md color bullets; T15 commit)
+- [x] Standards script green. (local run; gains the retired-palette check; T15 commit)
+- [x] Notification small icon switched. (`R.drawable.ic_stat_impart` in `ImpartNotifications` and `AlertIntake`; T15 commit)
+
+Note: the Calculator cloak icon read the old navy through `colors.xml`. It now has its own neutral `cloak_background` (`#3C4043`) and `cloak_foreground` (`#F1F3F4`), so it still looks like a stock calculator and never uses an Impart color (spec 09 section 8).
 
 ## T16: The Impart mark inside the app
 
-- [ ] Kotlin table matches the JSON (test).
-- [ ] Center cell never drawn (test).
-- [ ] Mark visible on the lock, legal and About screens.
+- [x] Kotlin table matches the JSON (test). (`ImpartMarkTest.kotlin table matches the committed cell list` reads `design/impart-mark.cells.json`; T16 commit)
+- [x] Center cell never drawn (test). (`ImpartMarkCells.drawable()` filters (4, 4) and `ImpartMark` draws only that list; `ImpartMarkTest.the center cell is never drawn`; T16 commit)
+- [x] Mark visible on the lock, legal and About screens. (`ImpartLockup` on `AppLockScreen`, `LegalAcceptanceScreen` and the Settings About section, which also shows version, build type, the short signing-certificate fingerprint and the legal documents; hidden under the Calculator cloak and never on the decoy, asserted by `ImpartMarkTest`; device check in spec 08; T16 commit)
+
+## T21: No Google components in the APK
+
+Added 2026-11-04 after the T05 audit; Joel approved in chat. Task file `specs/fable/tasks/T21-no-google-components.md`.
+
+- [x] No `com.google.android.gms`, `com.google.mlkit`, `firebase` or `datatransport` in the dependency graph or the merged manifest. (`./gradlew :app:dependencies --configuration releaseRuntimeClasspath` and the merged release manifest show none; the `fdroid-readiness` job in `main.yml` now fails if one returns; T21 commit)
+- [x] QR decode logic unit-tested on the JVM with a generated QR image. (`QrFrameDecoderTest`: a real handshake QR in a landscape frame, rotated, and with padded rows; T21 commit)
+- [x] Location timeout and provider order unit-tested. (`LocationPolicyTest`; T21 commit)
+- [x] Docs updated. (PRIVACY.md location bullet, TERMS.md third-party list, spec 03 rows A4-6 and A8-6 and section 6.2, spec 04 section 4.1, CLAUDE.md, both workflows; T21 commit)
 
 ## T17: Instrumented Compose tests and an emulator CI job
 
-- [ ] Emulator job green on API 26 and 34.
-- [ ] Every flow above has at least one test.
-- [ ] No real SMS in tests.
+- [x] Emulator job green on API 26 and 34. (all 17 tests on both: https://github.com/uncoalesced/Impart/actions/runs/42219784065 and, on the final code, https://github.com/uncoalesced/Impart/actions/runs/42236994818; two harness bugs fixed first, 690028b and f58aadb, one of which was also a duress wipe gap, see REPORT section 4)
+- [x] Every flow above has at least one test. (gate order: `GateOrderTest`; lock, lockout and duress: `LockTest`; handshake and key change: `HandshakeTest`; hold-to-fire: `DashboardTest`; intrusion and ACK: `IntrusionTest`; Room 4 to 5: `ContactMigrationTest`)
+- [x] No real SMS in tests. (`FakeRelayModule` replaces `RelayModule` in every instrumented test and records panics and ACKs; nothing reaches `SmsManager`)
 
 ## T18: JVM tests for everything new
 
-- [ ] Coverage list in REPORT.md with no class uncovered.
-- [ ] All JVM tests green in CI.
+- [x] Coverage list in REPORT.md with no class uncovered. (REPORT section 6: 102 added or changed main files; logic in 6.1 with its JVM tests, Android wrappers in 6.2 with the instrumented test or spec 08 phase that drives them. Gap closed: `AlertNotices` and `AlertNoticesTest`)
+- [x] All JVM tests green in CI. (`testDebugUnitTest` in the build job of https://github.com/uncoalesced/Impart/actions/runs/42219784065, including `AlertNoticesTest`)
 
 ## T19: Docs match the code
 
-- [ ] LegalDocumentParserTest green.
-- [ ] CURRENT_VERSION bumped once.
-- [ ] Search terms used for unbacked claims listed in the ledger, none left.
+- [x] LegalDocumentParserTest green. (parses the rewritten TERMS.md and PRIVACY.md; T19 commit)
+- [x] CURRENT_VERSION bumped once. (`LegalDocument.CURRENT_VERSION` 2 to 3, the only bump on this branch; T19 commit)
+- [x] Search terms used for unbacked claims listed in the ledger, none left. (searched every Markdown file, case-insensitive, for: unbreakable, military, untraceable, cannot be traced, can't be traced, impossible, Keystore-only, secure delete, securely delete, secure overwrite, 100%, fully secure, completely secure, guarantee, bulletproof, hackproof, zero risk, anonymous. Fixed: the manifesto's "impossible to spoof" UUIDs, spec 02's "cannot abortBroadcast" inbox claim and its missing-onboarding claim. Remaining matches are honest by context: "100% Kotlin", "not guaranteed", "ALERT WITH AN IMPOSSIBLE TIME", "no claim of secure overwrite", "a reduction of exposure, not a guarantee", and the honesty rule itself; T19 commit)
+- [x] `SECURITY.md` present at the repository root (asked by Joel in chat, 2026-11-04). (with CODE_OF_CONDUCT.md, CONTRIBUTING.md, SUPPORT.md, CHANGELOG.md, the PR template and issue templates, asked by Joel on PR #8; T19 commit)
 
 ## T20: Hand back to Joel
 
-- [ ] REPORT.md complete.
-- [ ] Ledger complete.
-- [ ] PR still draft, summary comment posted.
+- [x] REPORT.md complete. (sections 1 to 10 filled; no placeholder left)
+- [x] Ledger complete. (every gate ticked with a commit or run; decisions dated below)
+- [x] PR still draft, summary comment posted. (PR #8 is a draft; the summary comment links REPORT.md)
+
+## CI evidence
+
+- First full green `development CI` run with the security code of T02 to T10 on the branch: fed2292 (was bb97923 before the identity rewrite), https://github.com/uncoalesced/Impart/actions/runs/41897076643 (coding standards, gradle wrapper validation, android debug build + test + lint, merged manifest check, android release build with R8). Earlier heads were cancelled by the next push under the workflow's `cancel-in-progress` rule, which is why only the latest head of a series carries a completed run.
 
 ## Definition of done (brief section 8)
 
-- [ ] Every gate above ticked
-- [ ] Every CI job green on the PR head, including the new jobs
-- [ ] Spec 03 attack table complete for A1 to A8
-- [ ] REPORT.md complete
-- [ ] No inviolable rule broken (searches and results recorded below)
+- [x] Every gate above ticked
+- [x] Every CI job green on the PR head, including the new jobs (https://github.com/uncoalesced/Impart/actions/runs/42236994818: coding standards, wrapper validation, debug build + test + lint, merged manifest check, R8 release build, instrumented tests on API 26 and 34; https://github.com/uncoalesced/Impart/actions/runs/42236994746: CodeQL. Commits after `9e342f7` change only REPORT.md and this ledger, and their runs are linked in the PR)
+- [x] Spec 03 attack table complete for A1 to A8 (section 6: every row has a status, a defense, a test or reason and an owner; no row is open)
+- [x] REPORT.md complete
+- [x] No inviolable rule broken (searches and results recorded below)
+
+Searches over the final tree (2026-11-06):
+
+- Network: the merged debug and release manifests carry no `INTERNET` or `ACCESS_NETWORK_STATE` (`manifest-check.sh` PASS). The only mentions in the source manifest are the `tools:node="remove"` directives.
+- Google components: no `gms`, `firebase` or `mlkit` in `app/build.gradle.kts` or the version catalog, and the F-Droid scan in `main.yml` fails if one returns.
+- Sign then encrypt: `AlertEnvelope.seal` signs the payload, then HPKE-encrypts to the stored key. ACKs go to `contactRepository.findActiveByUuid(contactUuid)`, never to an address from the alert.
+- Fail loud: `AlertNoticesTest` proves every verdict is visible. `printStackTrace` appears 0 times.
+- Logs: no `Log.` call names a phone number, nickname, display name or payload without `Redact`.
+- Duress: silent, with no log, and every inventory file, cached preference and alias is removed (`DuressWiperTest`, `LockTest`).
+- Backups: `allowBackup="false"`, plus `data_extraction_rules.xml`.
+- Wire format: v3 is unchanged since Joel's approval (`AlertSizeTest`).
+- Colors and standards: `standards-check.sh` PASS (signature line, no emojis, spec 09 palette, no retired colors, Compose only, secret scan).
+- Pinned dependencies: every action is SHA-pinned, the wrapper checksum is pinned, and every artifact is checked against `gradle/verification-metadata.xml`.
+- Honesty: the T19 claim search and the CI evidence above.
 
 ## Decisions from Joel
 
 Record each question asked and Joel's answer, with the date.
 
-- (none yet)
+- 2026-11-04, PR target: PR #7 was already merged into `development`. Joel: push to `fable/finish-impart` and open a new draft PR from it into `development`. Draft PR #8: https://github.com/uncoalesced/Impart/pull/8.
+- 2026-11-04, T03 hard cap: Joel: yes, wipe after 20 consecutive wrong PINs, behind a Settings toggle that defaults off.
+- 2026-11-04, T08 cloak: Joel: leave the launcher cloak state untouched during the duress wipe.
+- 2026-11-04, T07 wire format: measurements in spec 03 section 6.1 (panic 413 to 481 chars, ACK 457, 3 parts, worst case 4). Joel: bump to v3, pad every alert to 4 parts and replace the `IMPART_ALERT:` prefix with a per-pair tag. Every phone updates and re-pairs; spec 08 says so.
+- 2026-11-04, T04 overlay permission: Joel: add `android.permission.HIDE_OVERLAY_WINDOWS` and call `setHideOverlayWindows(true)` on API 31+.
+- 2026-11-04, Google components: Joel: replace ML Kit barcode scanning with ZXing and Play Services fused location with `LocationManager`, as task T21 after T09, so the APK carries no Google code.
+- 2026-11-05, commit identity (Joel, PR #8 comment and chat): every commit is `uncoalesced <mail@uncoalesced.com>`, with no Gmail or Anthropic address and no `Co-Authored-By` trailer. The 21 commits after `dd2c273` were rewritten with an identical tree and force-pushed with a lease (old head `b64c4a1`, new head `f0feb47`). CI run links recorded before that point still name the old hashes.
+- 2026-11-05, community files (Joel, PR #8 comment): add SECURITY.md, CODE_OF_CONDUCT.md, CONTRIBUTING.md and the other standard repository files. Done in T19.
+- 2026-11-04, T09 CodeQL: Joel will enable GitHub code scanning on the repository, so the upload step is strict. If the first run still refuses the upload, make it tolerant and tell him.
+- 2026-11-06, code scanning: Joel enabled it (the bot noted it on PR #8); run https://github.com/uncoalesced/Impart/actions/runs/42221049979 uploaded, and the CodeQL upload step is strict again.

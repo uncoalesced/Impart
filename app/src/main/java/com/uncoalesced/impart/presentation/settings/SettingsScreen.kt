@@ -18,8 +18,17 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,17 +36,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.uncoalesced.impart.BuildConfig
+import com.uncoalesced.impart.core.security.LockoutPolicy
+import com.uncoalesced.impart.core.security.UnlockResult
 import com.uncoalesced.impart.domain.model.LegalDocument
 import com.uncoalesced.impart.presentation.legal.LegalDocumentScreen
 import com.uncoalesced.impart.presentation.legal.LegalDocumentState
 import com.uncoalesced.impart.presentation.legal.LegalViewModel
 import com.uncoalesced.impart.presentation.security.ChangePinsFlow
+import com.uncoalesced.impart.presentation.security.SecurityAuthDialog
+import com.uncoalesced.impart.presentation.components.ImpartLockup
+import com.uncoalesced.impart.presentation.components.SecureAlertDialog
+import androidx.compose.material3.TextButton
 import com.uncoalesced.impart.presentation.theme.*
 
 @Composable
@@ -46,6 +60,69 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
     val fingerprint by settingsViewModel.ownFingerprint.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showChangePins by remember { mutableStateOf(false) }
+    val wipeAfterFailures by settingsViewModel.wipeAfterFailedAttempts.collectAsStateWithLifecycle()
+    val shufflePad by settingsViewModel.shufflePinPad.collectAsStateWithLifecycle()
+    val cloaked by settingsViewModel.isCloaked.collectAsStateWithLifecycle()
+    var pendingWipeToggle by remember { mutableStateOf<Boolean?>(null) }
+    var rotateStep by remember { mutableStateOf(RotateStep.IDLE) }
+    val isDefaultSms by settingsViewModel.isDefaultSmsApp.collectAsStateWithLifecycle()
+    val roleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        settingsViewModel.refreshDefaultSmsState()
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) settingsViewModel.refreshDefaultSmsState()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(settingsViewModel) {
+        settingsViewModel.messages.collect { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+    }
+
+    when (rotateStep) {
+        RotateStep.IDLE -> Unit
+        RotateStep.AUTHENTICATE -> SecurityAuthDialog(
+            shufflePad = shufflePad,
+            onDismiss = { rotateStep = RotateStep.IDLE },
+            onPinSubmit = { pin ->
+                rotateStep = when (settingsViewModel.verifyPin(pin)) {
+                    UnlockResult.Unlocked -> RotateStep.CONFIRM
+                    else -> {
+                        Toast.makeText(context, "Invalid PIN", Toast.LENGTH_SHORT).show()
+                        RotateStep.IDLE
+                    }
+                }
+            }
+        )
+        RotateStep.CONFIRM -> SecureAlertDialog(
+            onDismissRequest = { rotateStep = RotateStep.IDLE },
+            containerColor = ImpartSurfaceRaised,
+            titleContentColor = ImpartTextPrimary,
+            textContentColor = ImpartTextMuted,
+            title = { Text("ROTATE MY KEYS?") },
+            text = {
+                Text(
+                    "Both of this node's keys are replaced and the old ones destroyed. Every contact is marked as needing a new handshake: you cannot page them, and their alerts to you will fail, until they scan your new QR in person and you scan theirs. Do this if you think your keys were copied."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    rotateStep = RotateStep.IDLE
+                    settingsViewModel.rotateKeys()
+                }) {
+                    Text("ROTATE", color = ImpartWarning, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { rotateStep = RotateStep.IDLE }) {
+                    Text("CANCEL", color = ImpartTextMuted)
+                }
+            }
+        )
+    }
 
     if (documentState != LegalDocumentState.Closed) {
         LegalDocumentScreen(state = documentState, onBack = legalViewModel::close, onRetry = legalViewModel::open)
@@ -54,9 +131,26 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
 
     if (showChangePins) {
         ChangePinsFlow(
+            shufflePad = shufflePad,
             onVerify = settingsViewModel::verifyPin,
             onSave = settingsViewModel::updatePins,
             onFinished = { showChangePins = false }
+        )
+    }
+
+    pendingWipeToggle?.let { wanted ->
+        SecurityAuthDialog(
+            shufflePad = shufflePad,
+            onDismiss = { pendingWipeToggle = null },
+            onPinSubmit = { pin ->
+                when (settingsViewModel.verifyPin(pin)) {
+                    UnlockResult.Unlocked -> settingsViewModel.setWipeAfterFailedAttempts(wanted)
+                    is UnlockResult.Invalid -> Toast.makeText(context, "Invalid PIN", Toast.LENGTH_SHORT).show()
+                    is UnlockResult.LockedOut -> Toast.makeText(context, "Too many wrong attempts. Try again later.", Toast.LENGTH_SHORT).show()
+                    UnlockResult.Wiped -> Unit
+                }
+                pendingWipeToggle = null
+            }
         )
     }
 
@@ -75,15 +169,54 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
             modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
         )
 
-        Section("LEGAL") {
-            LegalDocument.entries.forEachIndexed { index, document ->
-                if (index > 0) Divider()
-                NavRow(title = document.title) { legalViewModel.open(document) }
-            }
+
+        Section("SMS APP MODE") {
+            SwitchRow(
+                title = "Make Impart your SMS app",
+                subtitle = if (isDefaultSms) {
+                    "On. Alerts are no longer copied into any inbox on this phone. Ordinary texts show on the Texts tab, stored on this phone only."
+                } else {
+                    "Off. Android keeps a copy of every alert in your messaging app, which shows who you exchange alerts with. As your SMS app, Impart receives texts first and never writes an alert anywhere. It then also has to show your ordinary texts (MMS only as a notice)."
+                },
+                checked = isDefaultSms,
+                onCheckedChange = { wanted ->
+                    if (wanted) {
+                        val request = settingsViewModel.defaultSmsRequestIntent()
+                        if (request == null) {
+                            Toast.makeText(context, "This phone does not offer the SMS role.", Toast.LENGTH_LONG).show()
+                        } else {
+                            roleLauncher.launch(request)
+                        }
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "Pick another SMS app in the system settings. From then on, copies of alerts land in that app's inbox again.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        open(context, settingsViewModel.manageDefaultAppsIntent())
+                    }
+                }
+            )
         }
 
         Section("SECURITY") {
             NavRow(title = "Change PINs") { showChangePins = true }
+            Divider()
+            SwitchRow(
+                title = "Shuffle the PIN pad",
+                subtitle = "A different key layout every time the pad appears, so smudges and shoulder surfers learn less.",
+                checked = shufflePad,
+                onCheckedChange = settingsViewModel::setShufflePinPad
+            )
+            Divider()
+            SwitchRow(
+                title = "Wipe after ${LockoutPolicy.HARD_CAP_ATTEMPTS} wrong PINs",
+                subtitle = "Off by default. When on, ${LockoutPolicy.HARD_CAP_ATTEMPTS} wrong PINs in a row wipe this node exactly like the duress PIN. Lockouts still apply between attempts.",
+                checked = wipeAfterFailures,
+                onCheckedChange = { pendingWipeToggle = it }
+            )
+            Divider()
+            NavRow(title = "Rotate my keys", subtitle = "Replace both keys. Every contact must re-pair.") { rotateStep = RotateStep.AUTHENTICATE }
             Divider()
             InfoRow(
                 title = "My key fingerprint",
@@ -94,8 +227,28 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel, legalViewModel: LegalVi
         }
 
         Section("ABOUT") {
-            InfoRow(title = "Version", value = BuildConfig.VERSION_NAME + if (BuildConfig.DEBUG) " (debug build)" else "")
+            if (!cloaked) {
+                ImpartLockup(
+                    markSize = 72.dp,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                )
+                Divider()
+            }
+            InfoRow(title = "Version", value = BuildConfig.VERSION_NAME, monospace = true)
             Divider()
+            InfoRow(title = "Build type", value = if (BuildConfig.DEBUG) "Debug, for testing only" else "Release")
+            Divider()
+            InfoRow(
+                title = "Signing certificate",
+                value = settingsViewModel.signingCertificate,
+                monospace = true,
+                hint = "SHA-256, first 16 hex digits. Every phone in your group should show the same value for the same release."
+            )
+            Divider()
+            LegalDocument.entries.forEach { document ->
+                NavRow(title = document.title) { legalViewModel.open(document) }
+                Divider()
+            }
             InfoRow(title = "License", value = "Apache License 2.0")
             Divider()
             NavRow(title = "Source code", subtitle = LegalDocument.SOURCE_URL) {
@@ -125,14 +278,14 @@ private fun open(context: Context, intent: Intent) {
 private fun Section(title: String, content: @Composable ColumnScope.() -> Unit) {
     Text(
         text = title,
-        color = ImpartSecondary,
+        color = ImpartTextMuted,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 2.sp,
         modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
     )
     Card(
-        colors = CardDefaults.cardColors(containerColor = ImpartBackground),
+        colors = CardDefaults.cardColors(containerColor = ImpartSurface),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)
     ) {
@@ -151,22 +304,42 @@ private fun NavRow(title: String, subtitle: String? = null, onClick: () -> Unit)
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, color = ImpartTextPrimary, fontSize = 15.sp)
-            if (subtitle != null) Text(text = subtitle, color = ImpartSecondary, fontSize = 11.sp)
+            if (subtitle != null) Text(text = subtitle, color = ImpartTextMuted, fontSize = 11.sp)
         }
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = ImpartSecondary)
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = ImpartTextMuted)
+    }
+}
+
+private enum class RotateStep { IDLE, AUTHENTICATE, CONFIRM }
+
+@Composable
+private fun SwitchRow(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, color = ImpartTextPrimary, fontSize = 15.sp)
+            Text(text = subtitle, color = ImpartTextMuted, fontSize = 11.sp)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(checkedThumbColor = ImpartTextPrimary, checkedTrackColor = ImpartAccent)
+        )
     }
 }
 
 @Composable
 private fun InfoRow(title: String, value: String, monospace: Boolean = false, hint: String? = null) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-        Text(text = title, color = ImpartSecondary, fontSize = 11.sp)
+        Text(text = title, color = ImpartTextMuted, fontSize = 11.sp)
         Text(
             text = value,
             color = ImpartTextPrimary,
             fontSize = 15.sp,
-            fontFamily = if (monospace) FontFamily.Monospace else FontFamily.Default
+            fontFamily = if (monospace) ImpartMono else ImpartSans
         )
-        if (hint != null) Text(text = hint, color = ImpartSecondary, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+        if (hint != null) Text(text = hint, color = ImpartTextMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }

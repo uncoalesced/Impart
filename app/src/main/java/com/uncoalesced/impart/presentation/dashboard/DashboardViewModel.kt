@@ -60,6 +60,7 @@ class DashboardViewModel @Inject constructor(
     val dmsIntervalHours: StateFlow<Int> = deadManSwitchManager.intervalHours
     val dmsLastCheckin: StateFlow<Long> = deadManSwitchManager.lastCheckin
     val locationSharingEnabled: StateFlow<Boolean> = securePrefsManager.locationSharingEnabled
+    val shufflePinPad: StateFlow<Boolean> = securePrefsManager.shufflePinPad
 
     val activeContacts: StateFlow<List<Contact>> = contactRepository.getActiveContacts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -72,10 +73,17 @@ class DashboardViewModel @Inject constructor(
 
     // Re-evaluated when the user returns from Settings, pairs a contact, or sets a number.
     val readiness: StateFlow<List<ReadinessItem>> = combine(
-        readinessTick, activeContacts, securePrefsManager.localPhoneNumber
-    ) { _, contacts, phone ->
-        readinessChecker.evaluate(phoneNumberSet = !phone.isNullOrBlank(), contactCount = contacts.size)
+        readinessTick, activeContacts, securePrefsManager.localPhoneNumber, securePrefsManager.vendorSettingsConfirmed
+    ) { _, contacts, phone, vendorConfirmed ->
+        readinessChecker.evaluate(
+            phoneNumberSet = !phone.isNullOrBlank(),
+            contactCount = contacts.size,
+            vendorSettingsConfirmed = vendorConfirmed
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // The vendor screens cannot be read back; the user's word is the only signal.
+    fun confirmVendorSettings(confirmed: Boolean) = securePrefsManager.setVendorSettingsConfirmed(confirmed)
 
     fun refreshReadiness() {
         readinessTick.value += 1
@@ -117,9 +125,9 @@ class DashboardViewModel @Inject constructor(
     fun setLocationSharingEnabled(enabled: Boolean) = securePrefsManager.setLocationSharingEnabled(enabled)
 
     // Same counters and lockout as the lock screen, and the duress PIN wipes here too.
-    fun verifySecurityPin(pin: String): UnlockResult = appLockManager.submitPin(pin)
+    fun verifySecurityPin(pin: CharArray): UnlockResult = appLockManager.submitPin(pin)
 
-    fun updatePins(standardPin: String, duressPin: String): Result<Unit> =
+    fun updatePins(standardPin: CharArray, duressPin: CharArray): Result<Unit> =
         duressManager.updatePins(standardPin, duressPin)
 
     fun toggleCloakMode(enabled: Boolean) = cloakManager.setCloakEnabled(enabled)

@@ -14,3 +14,9 @@ fun formatCountdown(millis: Long): String {
         totalSeconds % 60
     )
 }
+
+// Short local time for message lists. Pure JVM so the screens' helpers stay testable.
+object TimeFormat {
+    fun clock(epochMillis: Long): String =
+        java.text.SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(java.util.Date(epochMillis))
+}

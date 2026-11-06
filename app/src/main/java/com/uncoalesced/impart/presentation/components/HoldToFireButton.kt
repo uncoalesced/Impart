@@ -32,7 +32,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.uncoalesced.impart.presentation.theme.ImpartPanicDark
+import com.uncoalesced.impart.presentation.theme.ImpartAccentShade
 import com.uncoalesced.impart.presentation.theme.ImpartTextPrimary
 
 private const val DEFAULT_HOLD_DURATION_MS = 1500
@@ -46,12 +46,14 @@ fun HoldToFireButton(
     label: String,
     containerColor: Color,
     onFire: () -> Unit,
+    contentColor: Color = ImpartTextPrimary,
     modifier: Modifier = Modifier,
     fontSize: TextUnit = 16.sp,
     holdDurationMs: Int = DEFAULT_HOLD_DURATION_MS
 ) {
     var isHeld by remember { mutableStateOf(false) }
     val progress = remember { Animatable(0f) }
+    val rejectNotifier = rememberObscuredTouchNotifier()
 
     LaunchedEffect(isHeld) {
         if (!isHeld) {
@@ -68,6 +70,7 @@ fun HoldToFireButton(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .background(containerColor)
+            .rejectObscuredTouches(rejectNotifier)
             .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
@@ -85,11 +88,11 @@ fun HoldToFireButton(
                 .align(Alignment.CenterStart)
                 .fillMaxHeight()
                 .fillMaxWidth(progress.value)
-                .background(ImpartTextPrimary.copy(alpha = 0.25f))
+                .background(contentColor.copy(alpha = 0.25f))
         )
         Text(
             text = if (isHeld) "KEEP HOLDING TO CONFIRM" else label,
-            color = ImpartTextPrimary,
+            color = contentColor,
             fontWeight = FontWeight.ExtraBold,
             fontSize = fontSize,
             textAlign = TextAlign.Center,
@@ -103,7 +106,7 @@ fun HoldToFireButton(
 private fun HoldToFireButtonPreview() {
     HoldToFireButton(
         label = "BROADCAST PANIC (ALL NODES)",
-        containerColor = ImpartPanicDark,
+        containerColor = ImpartAccentShade,
         onFire = {},
         modifier = Modifier.fillMaxWidth().height(64.dp)
     )

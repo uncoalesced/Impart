@@ -11,4 +11,7 @@ interface ContactRepository {
     suspend fun findActiveByUuid(uuid: String): Contact?
     suspend fun renameContact(uuid: String, nickname: String)
     suspend fun revokeContact(uuid: String)
+
+    // After a key rotation: every active contact must scan the new QR. Returns how many.
+    suspend fun markAllNeedRepair(): Int
 }

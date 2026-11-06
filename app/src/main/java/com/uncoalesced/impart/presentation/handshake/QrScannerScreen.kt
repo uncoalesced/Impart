@@ -6,9 +6,7 @@ import android.content.pm.PackageManager
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
-import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
@@ -37,11 +35,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.mlkit.vision.barcode.BarcodeScanner
-import com.google.mlkit.vision.barcode.BarcodeScannerOptions
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
+import com.uncoalesced.impart.core.util.QrFrameDecoder
 import com.uncoalesced.impart.presentation.theme.*
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -87,7 +81,7 @@ fun QrScannerScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Scanning a handshake QR is the only way to trust another node.",
-                    color = ImpartSecondary,
+                    color = ImpartTextMuted,
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
@@ -95,8 +89,8 @@ fun QrScannerScreen(
                 Button(
                     onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = ImpartPanicRed,
-                        contentColor = ImpartTextPrimary
+                        containerColor = ImpartAccent,
+                        contentColor = ImpartGround
                     )
                 ) {
                     Text("GRANT CAMERA ACCESS", fontWeight = FontWeight.Bold)
@@ -122,7 +116,7 @@ fun QrScannerScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "ALIGN QR CODE WITHIN FRAME",
-                color = ImpartSecondary,
+                color = ImpartTextMuted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 2.sp
@@ -139,11 +133,8 @@ private fun CameraPreview(scanGeneration: Int, onQrScanned: (String) -> Unit) {
 
     val fired = remember { AtomicBoolean(false) }
     val disposed = remember { AtomicBoolean(false) }
-    val scanner = remember {
-        BarcodeScanning.getClient(
-            BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
-        )
-    }
+    // ZXing on the luminance plane, on this phone. No ML Kit, no Play services (T21).
+    val decoder = remember { QrFrameDecoder() }
     val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
 
@@ -160,7 +151,6 @@ private fun CameraPreview(scanGeneration: Int, onQrScanned: (String) -> Unit) {
                 }
             }
             analyzerExecutor.shutdown()
-            scanner.close()
         }
     }
 
@@ -178,7 +168,7 @@ private fun CameraPreview(scanGeneration: Int, onQrScanned: (String) -> Unit) {
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 imageAnalysis.setAnalyzer(analyzerExecutor) { imageProxy ->
-                    processImageProxy(scanner, imageProxy) { value ->
+                    processImageProxy(decoder, imageProxy) { value ->
                         if (fired.compareAndSet(false, true)) latestOnScanned(value)
                     }
                 }
@@ -196,22 +186,22 @@ private fun CameraPreview(scanGeneration: Int, onQrScanned: (String) -> Unit) {
     )
 }
 
-@OptIn(ExperimentalGetImage::class)
+// Runs on the single analyzer thread. Only the Y (luminance) plane is read; the frame is closed
+// on every path so CameraX keeps delivering.
 private fun processImageProxy(
-    scanner: BarcodeScanner,
+    decoder: QrFrameDecoder,
     imageProxy: ImageProxy,
     onQrScanned: (String) -> Unit
 ) {
-    val mediaImage = imageProxy.image
-    if (mediaImage == null) {
+    try {
+        val plane = imageProxy.planes.firstOrNull() ?: return
+        val buffer = plane.buffer
+        val bytes = ByteArray(buffer.remaining()).also { buffer.get(it) }
+        val luminance = QrFrameDecoder.packPlane(bytes, imageProxy.width, imageProxy.height, plane.rowStride, plane.pixelStride)
+        decoder.decode(luminance, imageProxy.width, imageProxy.height)?.let(onQrScanned)
+    } catch (e: Exception) {
+        Log.w(TAG, "QR analysis failed for a frame", e)
+    } finally {
         imageProxy.close()
-        return
     }
-    val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-    scanner.process(image)
-        .addOnSuccessListener { barcodes ->
-            barcodes.firstNotNullOfOrNull { it.rawValue }?.let(onQrScanned)
-        }
-        .addOnFailureListener { e -> Log.w(TAG, "Barcode analysis failed for a frame", e) }
-        .addOnCompleteListener { imageProxy.close() }
 }

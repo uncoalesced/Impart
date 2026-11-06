@@ -22,7 +22,8 @@ Every document a user or contributor reads is true for this build.
 4. Spec 08: new phases for the PIN pad, overlay rejection, key rotation, default SMS mode, the release APK and the new icon.
 5. PRIVACY.md and TERMS.md: everything stored, read or sent, including default-SMS mode, plus a fonts section crediting JetBrains Mono and IBM Plex Sans under the SIL OFL 1.1. Stay inside the `LegalDocumentParser` subset.
 6. Bump `LegalDocument.CURRENT_VERSION` once for all legal changes on this branch.
-7. Search every doc for claims the code does not back ("unbreakable", "cannot be traced", Keystore-only storage) and fix them.
+7. Add a root `SECURITY.md` (Joel, 2026-11-04 in chat): what Impart resists and does not, how to report a vulnerability (the contact address in `LegalDocument`), supported builds, and a pointer to spec 03. Keep it inside the honesty rule.
+8. Search every doc for claims the code does not back ("unbreakable", "cannot be traced", Keystore-only storage) and fix them.
 
 ## Gates
 
@@ -31,3 +32,4 @@ Tick each in `specs/fable/LEDGER.md` with the commit or CI run that proves it.
 - LegalDocumentParserTest green.
 - CURRENT_VERSION bumped once.
 - Search terms used for unbacked claims listed in the ledger, none left.
+- `SECURITY.md` present at the repository root.

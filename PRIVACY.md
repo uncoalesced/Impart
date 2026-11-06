@@ -15,14 +15,16 @@ An encrypted settings file, locked with a key held in your phone's Android Keyst
 
 - A random ID for your phone, created on first launch. It is not based on your number or your device.
 - Your own phone number, as you typed it on the My QR screen.
-- Your standard PIN and duress PIN, and a count of recent wrong PIN attempts.
+- A random salt and a keyed hash for each of your two PINs, plus a count of recent wrong PIN attempts. The PINs themselves are not stored. The key for the hash lives in the Android Keystore and cannot be copied out, so a copy of the settings file cannot be used to guess your PINs on another computer.
 - Your dead man's switch interval and last check-in time.
-- Whether location sharing is on.
+- Your settings: whether location sharing is on, whether the PIN pad is shuffled, whether 20 wrong PINs wipe the app, and whether you confirmed your phone maker's background settings.
 - Which version of these documents you accepted.
+
+A separate small file holds one yes or no value: whether the duress PIN has been used. It is the only thing the duress PIN leaves behind, so the fake error screen keeps showing.
 
 A database holds:
 
-- Your trusted contacts: their random ID, their two public keys, their phone number, the nickname you gave them, the date you paired, and whether you revoked them. Revoking a contact stops them paging you and you paging them, but the entry stays in the database, marked as revoked, until you use the duress PIN or uninstall.
+- Your trusted contacts: their random ID, their two public keys, their phone number, the nickname you gave them, the date you paired, whether you revoked them, and whether they need to pair again because you rotated your keys. Revoking a contact stops them paging you and you paging them, but the entry stays in the database, marked as revoked, until you use the duress PIN or uninstall.
 - The IDs of alerts you received in the last 48 hours, so that a copied alert cannot raise the alarm twice.
 
 The database is encrypted with a random key that is itself encrypted with a key held in the Android Keystore. Copying the database file off the phone does not reveal your contact list. The duress PIN destroys that key along with the database.
@@ -35,17 +37,18 @@ Your QR code shows your random ID, your phone number and your two public keys. A
 
 When you send a panic, an acknowledgement, or the dead man's switch fires, Impart sends an SMS to each chosen contact. The text inside is encrypted so that only that contact's phone can read it, and it is signed so their phone can check it came from you. Inside the encryption it carries your random ID, their random ID, a random message ID, the time it was sent and, only if you turned on location sharing, your coordinates.
 
-Your mobile carrier, and any network the SMS passes through, can see that your number texted theirs, when, how long the message was, and that it starts with IMPART_ALERT. They cannot read what is inside.
+Your mobile carrier, and any network the SMS passes through, can see that your number texted theirs and when. Every Impart message is the same length (four SMS parts) and starts with a short code that is the same for every message between the two of you but does not name Impart. They cannot read what is inside, or tell a panic from an acknowledgement.
 
-A copy of every alert you send and receive also appears in your normal Messages app, because Android saves texts from apps that are not your default messaging app. Anyone who can open your Messages app can see who you exchanged alerts with, though not what they said. Impart cannot delete these copies. You can delete them yourself.
+Unless Impart is your SMS app, a copy of every alert you send and receive also appears in your normal Messages app, because Android saves texts from apps that are not your default messaging app. Anyone who can open your Messages app can see that you exchanged encrypted messages with those numbers, though not what they said, and not that the app was Impart. Impart cannot delete these copies. You can delete them yourself, or turn on SMS app mode so that no copy is made on your phone in the first place.
 
 Impart sends nothing to us, to Google, or to anyone else.
 
 ## What Impart reads
 
-- Text messages: Impart looks at every incoming SMS, but only to check whether it starts with IMPART_ALERT. Any other message is ignored straight away. Impart never stores it, logs it or reads further into it.
+- Text messages: Impart looks at every incoming SMS, but only to check whether it has the exact shape of an Impart alert (a fixed length and a short code that matches one of your trusted contacts). Any other message is ignored straight away. Impart never stores it, logs it or reads further into it.
+- Text messages in SMS app mode: if you choose "Make Impart your SMS app" in Settings, Android delivers every incoming text to Impart first. An Impart alert is checked and never written to the phone's message store, so no copy of it exists in any inbox. Every other text is saved in the phone's normal message store, where any SMS app you later switch to can read it, and shown on the Texts tab behind your PIN. Texts you send from that tab are saved there too. A picture message is not downloaded; Impart only records that one arrived, from whom and when. Nothing of this leaves your phone. The notification for a new text shows the sender's number and not the message. Switching back to another SMS app in the system settings ends this mode; from then on copies of alerts appear in that app's inbox again.
 - Camera: used only on the Scan QR tab. Images are analysed on your phone to find a QR code and are never saved.
-- Location: used only if you turn on location sharing, and only at the moment you send a panic. Impart asks Google Play services for one location fix. Google Play services is part of your phone and has its own privacy policy from Google.
+- Location: used only if you turn on location sharing, and only at the moment you send a panic. Impart asks Android's own location service for one fix, from GPS or, if that is off, from the network location provider, and waits at most 8 seconds; without a fix the panic goes out without coordinates. A position older than two minutes is never sent. Impart contains no Google Play services code. Depending on your phone, Android's network location provider may itself be run by Google or your phone maker, under their privacy policy.
 
 ## System logs
 
@@ -59,13 +62,16 @@ Impart writes short diagnostic lines to Android's system log, such as "alert ver
 - Notifications and full-screen alerts: to wake your screen and sound the alarm when a panic arrives.
 - Wake lock and vibrate: to keep the phone awake while an alert is processed, and to vibrate during the alarm.
 - Ignore battery optimizations: so your phone's battery saver does not stop Impart from receiving alerts. You are asked before this is granted.
+- Read SMS, receive MMS and receive WAP push: Android grants the SMS app role only to an app that declares these. They are used only in SMS app mode, to show your ordinary texts and to notice a picture message. Impart never reads the message store for alerts.
+- Hide overlay windows: on Android 12 and later, other apps' overlays are hidden while Impart is on screen, so nothing can be drawn over the PIN pad or the panic button.
 
 ## How long data is kept, and how to delete it
 
 - Everything stays on your phone until you delete it. We hold nothing, so there is nothing for us to delete.
 - Alert IDs are deleted automatically after 48 hours.
 - Uninstalling Impart deletes everything it stored.
-- The duress PIN deletes your contacts, your keys, the alert IDs, any scheduled dead man's switch, and every setting, leaving only a marker that keeps the fake error screen showing. It cannot delete the copies of alerts in your Messages app.
+- The duress PIN, or 20 wrong PINs in a row if you turned that on, deletes your contacts, your keys, the key that checks your PINs, the alert IDs, any scheduled dead man's switch, every setting, every cached file and every notification, leaving only the marker that keeps the fake error screen showing. Deleting the keys is what makes anything left in the phone's flash memory unreadable; Impart does not claim to overwrite storage. It cannot delete copies of alerts in another app's inbox, or your ordinary texts in the phone's message store.
+- "Rotate my keys" destroys your old keys at once and replaces them.
 
 ## Backups
 
@@ -81,7 +87,13 @@ Because we never receive your data, we have nothing to give you, correct or dele
 
 ## Security
 
-Alerts are encrypted with Google Tink using HPKE (X25519 and AES-256-GCM) and signed with Ed25519. Private keys are protected by the Android Keystore. The app blocks screenshots and screen recording, asks for a PIN when it starts and after it has been in the background, and only raises the alarm for alerts that are signed by a paired contact, addressed to you, recent, and not seen before. No system is perfectly secure, and Impart has not been independently audited.
+Alerts are encrypted with Google Tink using HPKE (X25519 and AES-256-GCM) and signed with Ed25519. Private keys are protected by the Android Keystore. PINs are typed on Impart's own keypad, never the system keyboard. The app blocks screenshots, screen recording and the recent-apps preview, refuses taps while another app draws over it, asks for a PIN when it starts, when the screen turns off and after it has been in the background, and only raises the alarm for alerts that are signed by a paired contact, addressed to you, recent, and not seen before.
+
+What Impart cannot protect against: software that already controls your phone (a rooted or hacked phone, or a malicious app with accessibility access, can see what you see), a compromised operating system, someone who makes you hand over both PINs, and what your carrier sees about who texted whom and when. No system is perfectly secure, and Impart has not been independently audited. To report a security problem, see SECURITY.md in the source repository.
+
+## Fonts and other parts
+
+Impart bundles the JetBrains Mono and IBM Plex Sans fonts under the SIL Open Font License 1.1. They are part of the app and are never downloaded. Impart contains no Google Play services, Firebase or ML Kit code, and no analytics or crash reporting of any kind.
 
 ## Changes to this policy
 

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <!-- Compose tooling registers an exported activity in debug builds so Android Studio
+             can run previews. Nothing on a phone should be able to launch it. Debug source set
+             only: the class does not exist in release and lint would flag the reference. -->
+        <activity
+            android:name="androidx.compose.ui.tooling.PreviewActivity"
+            tools:node="remove" />
+    </application>
+
+</manifest>

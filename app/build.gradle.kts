@@ -18,7 +18,8 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Swaps in the Hilt test application (T17).
+        testInstrumentationRunner = "com.uncoalesced.impart.HiltTestRunner"
     }
 
     signingConfigs {
@@ -39,6 +40,11 @@ android {
                 keyAlias = System.getenv("RELEASE_KEY_ALIAS")
                 keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
             }
+            // minSdk 26 verifies v2; v3 adds key rotation. v1 (JAR signing) is weaker and
+            // unnecessary, so it is off (T11).
+            enableV1Signing = false
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
@@ -47,7 +53,11 @@ android {
             signingConfig = signingConfigs.getByName("debugConfig")
         }
         release {
-            isMinifyEnabled = false
+            // R8 on (T10): smaller APK, fewer symbols for an examiner to map (A2-6). The
+            // keep rules live in proguard-rules.pro; CI builds this variant on every PR and
+            // keeps mapping.txt as an artifact.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -144,18 +154,23 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.sqlcipher.android)
 
-    // CameraX & Barcode
+    // CameraX for the preview and frames; ZXing decodes the QR on the device (T21).
     implementation(libs.zxing.core)
     implementation(libs.camerax.core)
     implementation(libs.camerax.camera2)
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
-    implementation(libs.mlkit.barcode.scanning)
-
-    // Location
-    implementation(libs.play.services.location)
 
     // JVM unit tests. org.json ships a real JSONObject so the codecs run without an emulator.
     testImplementation(libs.junit)
     testImplementation(libs.org.json)
+
+    // Instrumented tests (T17): Compose UI tests on an emulator, with a fake RelayManager.
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
 }
