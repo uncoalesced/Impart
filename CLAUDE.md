@@ -62,7 +62,7 @@ Single Gradle module. Clean-architecture layering under `app/src/main/java/com/u
   - `repository/`: `ContactRepositoryImpl`, `SeenAlertStoreImpl`, `SystemWallClock` and `SystemMonotonicClock`.
 - `core/`:
   - `security/`: keys and crypto (`KeystoreHelper` as `KeysetSource`, `CryptoManager`, `KeyFingerprint`, `KeyGeneration`, `SigningIdentity`); the wire (`AlertWire`, `PairTag`, `AlertEnvelope`, `AlertRecognizer`, `AlertVerifier`, `PanicPayloadCodec`, `QrPayloadCodec`); PINs and the lock (`PinHasher`, `KeystorePinHasher`, `PinVerifier`, `PinStore`, `PinEntry`, `AppLockManager`, `LockoutPolicy`, `LockoutStore`, `ObscuredTouchPolicy`); duress (`DuressManager`, `DuressWiper`, `WipeTargets` and `WipeInventory`, `DecoyFlagStore`, `NodeStateStore`, `PinAuthority`); `CloakManager` and `DeadManSwitchManager`.
-  - `services/`: `AlertIntake` (the receive pipeline from recognition to notification), `ImpartSmsReceiver`, `SmsSentReceiver` and `ImpartNotifications`.
+  - `services/`: `AlertIntake` (the receive pipeline from recognition to notification), `AlertNotices` (what the user sees for each verdict), `ImpartSmsReceiver`, `SmsSentReceiver` and `ImpartNotifications`.
   - `sms/`: SMS app mode: `DefaultSmsRole`, `SmsRouter`, `SmsDeliverDispatcher`, `SmsDeliverReceiver`, `MmsDeliverReceiver`, `MmsNotificationParser`, `HeadlessSmsSendService` and `OrdinarySmsSender`.
   - `workers/`, `util/` (`NodeReadinessChecker`, `OemSettings` and its resolver, `InstalledSignature`, `QrFrameDecoder`, `LocationHelper` and `LocationPolicy`, `WindowHardening`, `SensitiveClipboard`, `LegalDocumentParser`, `Redact`, `TimeFormat`), and `di/` (`DatabaseModule`, `RepositoryModule`, `RelayModule`).
 - `presentation/`: Compose screens by feature: `dashboard/`, `contacts/`, `handshake/`, `intrusion/`, `security/`, `legal/`, `settings/`, `messages/`, `decoy/`, `components/` (`PinPad`, `HoldToFireButton`, `SecureDialog`, `SecureTouch`, `ImpartMark`) and `theme/`. ViewModels expose the managers' `StateFlow`s directly rather than mirroring them.
@@ -161,7 +161,7 @@ Full rules are in `specs/05_CODING_STANDARDS.md`. Non-negotiable:
 - State hoisting is mandatory.
 - No silent failure. Use cases return `Result<T>` or a sealed result. Every branch of the intrusion pipeline ends in something visible. `printStackTrace` is banned; use tagged, redacted `Log` calls.
 - Repository interfaces live in `domain/repository/`. Implementations live in `data/` with an `Impl` suffix. Use cases are verb-first with a `UseCase` suffix. Prefer `sealed interface` for state hierarchies.
-- Constructor `@Inject` by default. Field injection only for `@AndroidEntryPoint` framework classes. No stateful Kotlin `object` singletons: the codecs, `AlertEnvelope`, `KeyFingerprint`, `LockoutPolicy`, `Redact`, `PhoneNumbers`, `LegalDocumentParser` and `ImpartNotifications` are stateless.
+- Constructor `@Inject` by default. Field injection only for `@AndroidEntryPoint` framework classes. No stateful Kotlin `object` singletons: the codecs, `AlertEnvelope`, `KeyFingerprint`, `LockoutPolicy`, `Redact`, `PhoneNumbers`, `LegalDocumentParser`, `AlertNotices` and `ImpartNotifications` are stateless.
 
 ## Tests
 
@@ -170,6 +170,7 @@ Full rules are in `specs/05_CODING_STANDARDS.md`. Non-negotiable:
 - `AlertVerifierTest` reproduces the attacks from the security review and asserts each is rejected: forgery with public keys, payload tampering, replay, forwarding to another node, a genuine alert under another pair's tag, revoked and unknown senders, stale or future timestamps, and v2 payloads. `AlertSizeTest` asserts every alert kind is exactly 612 characters.
 - Security: `PinVerifierTest`, `AppLockManagerTest`, `LockoutPolicyTest`, `ZeroingTest`, `DuressManagerTest`, `DuressWiperTest`, `PairTagTest`, `AlertRecognizerTest`, `ObscuredTouchPolicyTest`, `PinEntryTest`, `SigningIdentityTest`, `CryptoManagerTest`, `PanicPayloadCodecTest`, `QrPayloadCodecTest`, `KeyFingerprintTest`.
 - Features: `RotateKeysUseCaseTest`, `ContactMigrationsTest`, `DefaultSmsModeTest`, `MmsNotificationParserTest`, `OemSettingsTest`, `QrFrameDecoderTest`, `LocationPolicyTest`, `AddContactUseCaseTest`, `RenameContactUseCaseTest`, `PhoneNumbersTest`.
+- Pipeline: `AlertNoticesTest` (every verdict is visible, only an accepted panic raises the alarm).
 - UI rules on the JVM: `WindowHardeningSourceTest`, `ContrastTest`, `ImpartMarkTest`, plus `RedactTest`, `TimeFormatTest` and `LegalDocumentParserTest`.
 
 `app/src/androidTest/` holds the Compose UI tests, run on API 26 and 34 emulators in CI: `GateOrderTest`, `LockTest`, `HandshakeTest`, `DashboardTest`, `IntrusionTest` and `ContactMigrationTest`. `HiltTestRunner` installs a test application; `FakeRelayModule` replaces `RelayModule`, so no test sends an SMS.

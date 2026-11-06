@@ -52,65 +52,24 @@ class AlertIntake @Inject constructor(
             }
         } catch (t: Throwable) {
             Log.e(TAG, "Intrusion pipeline failed", t)
-            status(
-                ImpartNotifications.ID_UNREADABLE, "ALERT PIPELINE FAILURE",
-                "An Impart alert arrived but could not be processed: ${t.message ?: t.javaClass.simpleName}"
-            )
+            post(AlertNotices.pipelineFailure(t))
         }
     }
 
     private fun handle(verdict: AlertVerdict) {
         Log.i(TAG, "Alert verdict: ${verdict.javaClass.simpleName}")
-        when (verdict) {
-            AlertVerdict.Unreadable -> status(
-                ImpartNotifications.ID_UNREADABLE, "UNREADABLE ALERT RECEIVED",
-                "An Impart alert arrived that this node could not decrypt. It was not encrypted to this node's key, or it was damaged in transit."
-            )
-            AlertVerdict.Malformed -> status(
-                ImpartNotifications.ID_UNREADABLE, "MALFORMED ALERT RECEIVED",
-                "An Impart alert decrypted but its contents were not understood. No alarm was raised."
-            )
-            AlertVerdict.Outdated -> status(
-                ImpartNotifications.ID_UNREADABLE, "ALERT FROM AN OUTDATED VERSION",
-                "An Impart alert arrived in an old wire format. Update Impart on both phones and pair again."
-            )
-            AlertVerdict.UnknownSender -> status(
-                ImpartNotifications.ID_UNKNOWN_SENDER, "ALERT FROM UNRECOGNIZED NODE",
-                "A node that is not in your Contact Matrix sent an alert. Pair it by QR handshake before it can raise the alarm."
-            )
-            is AlertVerdict.BadSignature -> security(
-                "ALERT FAILED VERIFICATION",
-                "An alert claiming to be from ${verdict.claimedSender.displayName} failed its signature check. Someone may be impersonating them. No alarm was raised."
-            )
-            is AlertVerdict.TagMismatch -> security(
-                "ALERT WITH A MISMATCHED TAG",
-                "An alert signed by ${verdict.sender.displayName} arrived under another pair's tag. It may have been relayed or tampered with. No alarm was raised."
-            )
-            is AlertVerdict.NotForThisNode -> security(
-                "MISDIRECTED ALERT",
-                "${verdict.sender.displayName} sent an alert addressed to a different node. It was not raised."
-            )
-            is AlertVerdict.FromFuture -> security(
-                "ALERT WITH AN IMPOSSIBLE TIME",
-                "An alert from ${verdict.sender.displayName} is dated ${format(verdict.sentAt)}, which is in the future. Check this phone's clock. No alarm was raised."
-            )
-            is AlertVerdict.Stale -> status(
-                ImpartNotifications.ID_STALE, "OLD ALERT NOT RAISED",
-                "${kind(verdict.payload)} from ${verdict.sender.displayName} sent on ${format(verdict.payload.sentAt)} arrived more than a day late and was not raised."
-            )
-            is AlertVerdict.Replayed -> security(
-                "REPEATED ALERT IGNORED",
-                "An alert from ${verdict.sender.displayName} that was already handled arrived again. It may have been copied and re-sent. No alarm was raised."
-            )
-            is AlertVerdict.Accepted -> when (val payload = verdict.payload) {
-                is PanicPayload.Panic -> {
-                    Log.i(TAG, "Panic from trusted node ${Redact.uuid(verdict.sender.uuid)}; firing intrusion")
-                    fireIntrusion(verdict.sender, payload, verdict.delayMinutes)
-                }
-                is PanicPayload.Ack -> ImpartNotifications.notifyHeadsUp(
-                    context, ImpartNotifications.CHANNEL_ACK, ImpartNotifications.ID_ACK,
-                    "PANIC ACKNOWLEDGED", "${verdict.sender.displayName} acknowledged your panic signal."
-                )
+        post(AlertNotices.forVerdict(verdict, ::format))
+    }
+
+    private fun post(notice: AlertNotice) {
+        when (notice) {
+            is AlertNotice.Status ->
+                ImpartNotifications.notifyHeadsUp(context, ImpartNotifications.CHANNEL_STATUS, notice.id, notice.title, notice.text)
+            is AlertNotice.Acknowledged ->
+                ImpartNotifications.notifyHeadsUp(context, ImpartNotifications.CHANNEL_ACK, ImpartNotifications.ID_ACK, notice.title, notice.text)
+            is AlertNotice.Alarm -> {
+                Log.i(TAG, "Panic from trusted node ${Redact.uuid(notice.sender.uuid)}; firing intrusion")
+                fireIntrusion(notice.sender, notice.payload, notice.delayMinutes)
             }
         }
     }
@@ -146,13 +105,6 @@ class AlertIntake @Inject constructor(
             .build()
         context.getSystemService(NotificationManager::class.java).notify(ImpartNotifications.ID_PANIC, notification)
     }
-
-    private fun status(id: Int, title: String, text: String) =
-        ImpartNotifications.notifyHeadsUp(context, ImpartNotifications.CHANNEL_STATUS, id, title, text)
-
-    private fun security(title: String, text: String) = status(ImpartNotifications.ID_SECURITY, title, text)
-
-    private fun kind(payload: PanicPayload): String = if (payload is PanicPayload.Ack) "An acknowledgement" else "A panic"
 
     private fun format(epochMillis: Long): String =
         SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(epochMillis))
