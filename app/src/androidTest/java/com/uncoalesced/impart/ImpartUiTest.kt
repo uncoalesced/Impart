@@ -69,9 +69,14 @@ abstract class ImpartUiTest {
     @After
     fun closeScenarios() {
         scenarios.forEach { runCatching { it.close() } }
-        // Each test gets its own Hilt component and so its own Room instance. Close it, or
-        // its SQLCipher connection outlives the test and writes the old database (under the
-        // old key) back after the next test's reset has deleted it.
+        // Each test gets its own Hilt component and so its own Room instance. A screen that
+        // was showing may have started opening it lazily on Room's executor; SQLCipher's first
+        // open (key derivation, schema creation) is slow, and an open still running would
+        // finish after the next test's reset and leave a database under this test's key, which
+        // the next test then cannot read. Opening is synchronized, so this call waits for any
+        // open in progress; then the database is closed for good.
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        runCatching { database.get().openHelper.writableDatabase }
         runCatching { database.get().close() }
     }
 
